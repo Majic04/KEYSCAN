@@ -97,6 +97,9 @@ try:
 except subprocess.TimeoutExpired:
     proc.kill()
 if failures:
+    logf = os.path.join(home, "keyscan.log")
+    if os.path.exists(logf):
+        print("\n----- journal de l'application -----\n" + open(logf, encoding="utf-8", errors="replace").read()[-15000:])
     print("\nÉCHECS :", failures)
     sys.exit(1)
 print("\nTous les tests de l'application construite sont passés.")

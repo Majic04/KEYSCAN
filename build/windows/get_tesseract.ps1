@@ -17,6 +17,12 @@ Start-Process -FilePath $Setup -ArgumentList "/S", "/D=$Dest" -Wait
 Get-ChildItem $Dest -File | Where-Object { $_.Extension -in ".exe", ".dll" -and $_.Name -notmatch "^(unins|text2image|lstmtraining|combine_tessdata|cntraining|mftraining|shapeclustering|wordlist2dawg|ambiguous_words|classifier_tester|dawg2wordlist|set_unicharset_properties|unicharset_extractor|merge_unicharsets|lstmeval|combine_lang_model|cntraining)" } |
   Copy-Item -Destination $Out
 New-Item -ItemType Directory -Force -Path (Join-Path $Out "tessdata") | Out-Null
+# fichiers de configuration (indispensables : sortie « tsv » mot par mot utilisée par KeyScan)
+foreach ($C in "configs", "tessconfigs") {
+  $P = Join-Path $Dest "tessdata\$C"
+  if (Test-Path $P) { Copy-Item -Recurse $P (Join-Path $Out "tessdata\$C") }
+}
+if (-not (Test-Path (Join-Path $Out "tessdata\configs\tsv"))) { throw "Configuration tsv de Tesseract absente" }
 foreach ($L in "fra", "eng", "osd") {
   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/tesseract-ocr/tessdata/main/$L.traineddata" -OutFile (Join-Path $Out "tessdata\$L.traineddata")
 }

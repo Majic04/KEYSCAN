@@ -249,8 +249,8 @@ def main():
     setup_environment()
     if a.selftest:
         sys.exit(selftest())
-    if not a.server_only:
-        redirect_output()
+    if not a.server_only or FROZEN:
+        redirect_output()           # application installée : tout va dans le journal keyscan.log
     migrate_legacy_data()
     url, srv = start_server(a.port)
     print(f"{APP_NAME} {APP_VERSION} : {url}  (données : {DATA})", flush=True)
