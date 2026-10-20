@@ -1,0 +1,144 @@
+# Construit, teste et publie l'application de bureau KeyScan (Mac Apple Silicon + Windows)
+# à chaque envoi sur la branche main (ou à la demande depuis l'onglet « Actions »).
+name: Construire KeyScan
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  release:
+    name: Préparer la publication
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=v1.0.0-build.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+      - name: Créer la publication (pré-version)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" --prerelease \
+            --title "KeyScan 1.0.0 — construction ${{ github.run_number }}" \
+            --notes-file build/RELEASE_NOTES.md --target "${{ github.sha }}"
+
+  mac:
+    name: Mac (Apple Silicon)
+    needs: release
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache du modèle manuscrit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-trocr-fr-v1
+      - name: Outils (Tesseract, dylibbundler)
+        run: brew install tesseract dylibbundler
+      - name: Bibliothèques Python
+        run: python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
+      - name: Tesseract autonome
+        run: bash build/mac/bundle_tesseract.sh
+      - name: Banc d'essai du moteur (précision OCR)
+        env:
+          TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
+          TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
+        run: |
+          python banc_essai/make_bench.py "$RUNNER_TEMP/bench"
+          python banc_essai/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
+      - name: Modèle manuscrit (téléchargement + allègement)
+        run: python build/prepare_model.py build/models/trocr-fr
+      - name: Banc d'essai manuscrit (vraie lecture TrOCR)
+        env:
+          TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
+          TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
+          KWF_HTR_MODEL: ${{ github.workspace }}/build/models/trocr-fr
+        run: python banc_essai/evaluate_manuscrit.py
+      - name: Construction de KeyScan.app
+        run: python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
+      - name: Image disque (.dmg)
+        run: bash build/mac/make_dmg.sh
+      - name: Test de l'application construite
+        run: python build/smoke_test.py dist/KeyScan.app/Contents/MacOS/KeyScan
+      - name: Publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SIZE=$(stat -f%z "$DMG"); echo "Taille : $((SIZE/1024/1024)) Mo"
+          [ "$SIZE" -lt 2147483000 ] || { echo "Fichier trop gros pour GitHub (2 Go max)"; exit 1; }
+          gh release upload "${{ needs.release.outputs.tag }}" "$DMG" --clobber
+
+  windows:
+    name: Windows
+    needs: release
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache du modèle manuscrit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-trocr-fr-v1
+      - name: Bibliothèques Python (PyTorch version processeur, plus légère)
+        shell: bash
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
+      - name: Tesseract autonome
+        shell: pwsh
+        run: ./build/windows/get_tesseract.ps1
+      - name: Modèle manuscrit (téléchargement + allègement)
+        shell: bash
+        run: python build/prepare_model.py build/models/trocr-fr
+      - name: Construction de KeyScan.exe
+        shell: bash
+        run: python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
+      - name: Test de l'application construite
+        shell: bash
+        run: python build/smoke_test.py dist/KeyScan/KeyScan.exe
+      - name: Installateur (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" build\windows\keyscan.iss
+      - name: Publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          F=dist/KeyScan-Windows-Setup.exe
+          SIZE=$(stat -c%s "$F"); echo "Taille : $((SIZE/1024/1024)) Mo"
+          [ "$SIZE" -lt 2147483000 ] || { echo "Fichier trop gros pour GitHub (2 Go max)"; exit 1; }
+          gh release upload "${{ needs.release.outputs.tag }}" "$F" --clobber
+
+  finalize:
+    name: Rendre la publication visible
+    needs: [release, mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Marquer comme dernière version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ needs.release.outputs.tag }}" --repo "${{ github.repository }}" --prerelease=false --latest

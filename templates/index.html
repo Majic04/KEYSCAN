@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KeyScan</title>
+<style>
+/* ================================================================ tokens */
+:root{
+  --ink:#0E2A47; --muted:#6A84A0; --faint:#9DB2C7;
+  --blue:#2F7BF5; --cyan:#22C3D6; --mint:#8FDDB4; --bg:#EAF3FA;
+  --glass:rgba(255,255,255,.58); --glass-strong:rgba(255,255,255,.78); --solid:rgba(246,250,253,.97);
+  --stroke:rgba(255,255,255,.8); --edge:rgba(14,42,71,.07); --hair:rgba(14,42,71,.07);
+  --shadow:0 1px 1px rgba(14,42,71,.04), 0 12px 32px -10px rgba(30,80,130,.20);
+  --lift:0 2px 4px rgba(14,42,71,.05), 0 20px 44px -12px rgba(30,100,170,.32);
+  --ok:#1B7F55; --ok-bg:rgba(143,221,180,.45);
+  --rev:#A86B12; --rev-bg:rgba(255,213,150,.5);
+  --no:#6A84A0; --no-bg:rgba(190,208,226,.40);
+  --bad:#B8435A; --bad-bg:rgba(255,186,198,.5);
+  --spring:cubic-bezier(.34,1.56,.64,1); --out:cubic-bezier(.22,1,.36,1);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ink:#E6F1FA; --muted:#8FA9C2; --faint:#5F7A94;
+  --blue:#5B9BFF; --cyan:#4FD9E6; --mint:#7FD9AA; --bg:#06131F;
+  --glass:rgba(22,44,66,.62); --glass-strong:rgba(30,56,82,.78); --solid:rgba(16,34,52,.97);
+  --stroke:rgba(180,220,255,.14); --edge:rgba(0,0,0,.4); --hair:rgba(180,220,255,.08);
+  --shadow:0 1px 1px rgba(0,0,0,.25), 0 14px 34px -10px rgba(0,0,0,.6);
+  --lift:0 2px 4px rgba(0,0,0,.3), 0 22px 46px -12px rgba(20,120,200,.35);
+  --ok:#8AE6B6; --ok-bg:rgba(80,190,140,.2); --rev:#F3C27A; --rev-bg:rgba(230,160,60,.18);
+  --no:#8FA9C2; --no-bg:rgba(140,170,200,.13); --bad:#FF9DAF; --bad-bg:rgba(230,90,120,.2);
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;overflow-x:hidden;padding-bottom:140px}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2.5px solid color-mix(in srgb,var(--cyan) 85%,transparent);outline-offset:3px;border-radius:12px}
+.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ================================================================ fond */
+/* halos déjà doux (dégradés radiaux) : pas besoin de flou ni d'animation, le calque est peint une seule fois */
+.aura{position:fixed;inset:0;z-index:-1;pointer-events:none;transform:translateZ(0);
+  background:
+    radial-gradient(48vmax 48vmax at 12% 8%,rgba(140,200,255,.75),transparent 70%),
+    radial-gradient(42vmax 42vmax at 92% 30%,rgba(127,231,236,.65),transparent 70%),
+    radial-gradient(46vmax 46vmax at 50% 105%,rgba(180,239,207,.7),transparent 70%)}
+@media (prefers-color-scheme:dark){.aura{opacity:.32}}
+
+/* ================================================================ verre */
+.glass{position:relative;background:var(--glass);
+  border:1px solid var(--stroke);
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -1px 0 var(--edge)}
+.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,0) 42%)}
+@media (prefers-color-scheme:dark){.glass::after{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0) 42%)}}
+/* vrai flou d'arrière-plan : uniquement pour ce qui flotte au-dessus du contenu qui défile */
+.frost{-webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%)}
+
+/* ================================================================ boutons (transform piloté par variables : survol, appui, magnétisme) */
+.btn,.iconbtn,.fab{
+  --tx:0px;--ty:0px;--s:1;
+  transform:translate(var(--tx),var(--ty)) scale(var(--s));
+  transition:transform .5s var(--spring),background-color .25s,color .2s,opacity .2s;
+}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border-radius:999px;
+  font-weight:600;letter-spacing:-.01em;white-space:nowrap;
+  background:var(--glass-strong);border:1px solid var(--stroke);
+  box-shadow:0 1px 2px rgba(14,42,71,.06),inset 0 1px 0 rgba(255,255,255,.7)}
+.btn,.iconbtn,.fab,.rowc,.krow{position:relative}
+/* ombre de survol pré-dessinée : seule son opacité varie (calcul fait par la carte graphique) */
+.btn::before,.iconbtn::before,.fab::before,.rowc::before,.krow::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:var(--lift);opacity:0;transition:opacity .35s var(--out);will-change:opacity}
+.btn:hover::before,.iconbtn:hover::before,.fab:hover::before,.rowc:hover::before,.krow:hover::before{opacity:1}
+.iconbtn.flat::before,.btn.quiet::before,.krow.doc::before{display:none}
+.btn:hover,.iconbtn:hover,.fab:hover{--s:1.04}
+.btn:active,.iconbtn:active,.fab:active{--s:.94;transition-duration:.15s}
+.btn.primary{color:#fff;border-color:rgba(255,255,255,.35);
+  background:linear-gradient(135deg,var(--blue),#2AA3EA 55%,var(--cyan));
+  box-shadow:0 8px 20px -8px color-mix(in srgb,var(--blue) 75%,transparent),inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 6px rgba(0,40,120,.18)}
+.btn.primary::before,.fab::before{box-shadow:0 16px 32px -10px color-mix(in srgb,var(--cyan) 80%,transparent)}
+.btn.danger{color:#fff;background:linear-gradient(135deg,#E0617A,#C9455F);border-color:rgba(255,255,255,.3)}
+.btn.quiet{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
+.btn.quiet:hover{background:var(--glass);color:var(--ink)}
+.btn:disabled{opacity:.4;pointer-events:none}
+.iconbtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:var(--ink);
+  background:var(--glass-strong);border:1px solid var(--stroke);box-shadow:0 1px 2px rgba(14,42,71,.06),inset 0 1px 0 rgba(255,255,255,.7)}
+.iconbtn.sm{width:34px;height:34px}
+.iconbtn.sm .i{width:17px;height:17px}
+.iconbtn.flat{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
+.iconbtn.flat:hover{background:var(--glass);color:var(--ink)}
+.iconbtn.flat.del:hover{color:var(--bad)}
+
+/* ================================================================ en-tête */
+.top{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto;padding:22px 20px 0;
+  animation:fadeDown .8s var(--out) both}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
+.lens{width:28px;height:28px;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95) 0 14%,transparent 34%),conic-gradient(from 200deg,var(--blue),var(--cyan),var(--mint),var(--blue));
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),0 4px 12px -2px color-mix(in srgb,var(--cyan) 60%,transparent)}
+.avatar{font-size:13px;font-weight:700;letter-spacing:.02em}
+.avatar.prof{color:#fff;border-color:rgba(255,255,255,.5);background:linear-gradient(135deg,var(--pa),var(--pb));transition:background .4s,transform .5s var(--spring)}
+.ini.prof{background:linear-gradient(135deg,var(--pa),var(--pb))}
+.owner{color:var(--pa,var(--blue))}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+
+/* ================================================================ barre d'onglets flottante */
+.dock{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));z-index:40;display:flex;gap:10px;align-items:center;
+  transform:translateX(-50%);will-change:transform;animation:dockIn 1s var(--spring) .15s both}
+@keyframes dockIn{from{opacity:0;transform:translate(-50%,40px) scale(.9)}to{opacity:1;transform:translate(-50%,0)}}
+.tabs{position:relative;display:flex;padding:5px;border-radius:999px}
+.tab{position:relative;z-index:1;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:92px;padding:7px 14px 6px;border-radius:999px;
+  color:var(--muted);font-size:11.5px;font-weight:600;transition:color .3s}
+.tab .i{width:22px;height:22px;transition:transform .5s var(--spring)}
+.tab:hover{color:var(--ink)}
+.tab:hover .i{transform:translateY(-1px) scale(1.08)}
+.tab[aria-current=page]{color:var(--blue)}
+.thumb{position:absolute;z-index:0;top:5px;bottom:5px;left:0;width:0;border-radius:999px;
+  background:var(--glass-strong);border:1px solid var(--stroke);
+  box-shadow:0 4px 14px -4px rgba(14,42,71,.2),inset 0 1px 0 rgba(255,255,255,.85);
+  transition:transform .6s var(--spring),width .6s var(--spring)}
+.thumb.instant{transition:none}
+.fab{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));border:1px solid rgba(255,255,255,.4);
+  box-shadow:0 12px 26px -8px color-mix(in srgb,var(--blue) 80%,transparent),inset 0 1px 0 rgba(255,255,255,.5)}
+.fab .i{width:26px;height:26px;stroke-width:2.2;transition:transform .5s var(--spring)}
+.fab:hover .i{transform:rotate(90deg)}
+
+/* ================================================================ pages */
+#view{max-width:760px;margin:0 auto;padding:0 20px}
+#view.enter{animation:enter .7s var(--out) both}
+#view.push{animation:push .65s var(--out) both}
+@keyframes enter{from{opacity:0;transform:translate3d(0,14px,0) scale(.985)}to{opacity:1;transform:none}}
+@keyframes push{from{opacity:0;transform:translate3d(40px,0,0)}to{opacity:1;transform:none}}
+.head{text-align:center;padding:44px 0 26px}
+.title{margin:0;font-size:clamp(34px,6vw,46px);font-weight:750;letter-spacing:-.035em;line-height:1.05}
+.sub{margin:8px 0 0;color:var(--muted);font-size:15px}
+.live{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:6px 14px;border-radius:999px;background:var(--rev-bg);color:var(--rev);font-size:13px;font-weight:600}
+
+/* liste des dossiers */
+.list{display:grid;gap:10px}
+.rowc{--d:0;display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 14px 12px 12px;border-radius:22px;
+  transition:transform .5s var(--spring),background-color .25s}
+.enter .rowc,.push .rowc{animation:rise .7s var(--out) both;animation-delay:calc(var(--d) * 55ms + 160ms)}
+@keyframes rise{from{opacity:0;transform:translate3d(0,12px,0)}to{opacity:1;transform:none}}
+.rowc:hover{transform:translateY(-2px)}
+.rowc:active{transform:scale(.985);transition-duration:.15s}
+.ini{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;flex:none;font-weight:700;font-size:15px;color:#fff;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.rowc:nth-child(3n+2) .ini{background:linear-gradient(135deg,var(--cyan),#5FD3A8)}
+.rowc:nth-child(3n+3) .ini{background:linear-gradient(135deg,#4C8DF7,#7BC8F0)}
+.rtxt{flex:1;min-width:0}
+.rtxt b{display:block;font-size:16px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtxt small{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.chev{color:var(--faint);transition:transform .45s var(--spring),color .2s}
+.rowc:hover .chev{transform:translateX(3px);color:var(--ink)}
+
+/* mini-anneau dans la liste */
+.mring{--p:0;position:relative;width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:conic-gradient(var(--blue),var(--cyan) calc(var(--p) * .55%),var(--mint) calc(var(--p) * 1%),var(--no-bg) calc(var(--p) * 1%))}
+.mring::before{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--glass-strong)}
+.mring span{position:relative;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* état vide central */
+.hero-empty{display:grid;justify-items:center;text-align:center;padding:40px 0 10px}
+.bubble{width:180px;height:180px;border-radius:50%;display:grid;place-items:center;color:var(--blue);margin-bottom:26px;
+  transition:transform .6s var(--spring)}
+.bubble .i{width:54px;height:54px;stroke-width:1.5}
+.bubble::before{content:"";position:absolute;inset:-10px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--cyan) 45%,transparent);animation:breathe 3.2s ease-in-out infinite;will-change:transform,opacity}
+.bubble:hover{transform:scale(1.05)}
+@keyframes breathe{0%,100%{transform:scale(.96);opacity:.35}50%{transform:scale(1.04);opacity:.9}}
+.hero-empty h2{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.hero-empty p{margin:6px 0 20px;color:var(--muted)}
+
+/* page d'un dossier */
+.bar{display:flex;justify-content:space-between;align-items:center;padding-top:26px}
+.hero{display:grid;justify-items:center;text-align:center;padding:4px 0 26px}
+.ring{position:relative;width:220px;height:220px;margin-bottom:18px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+.ring .track{fill:none;stroke:var(--no-bg);stroke-width:14}
+.ring .val{fill:none;stroke:url(#g);stroke-width:14;stroke-linecap:round}
+.ring::before{content:"";position:absolute;inset:6%;border-radius:50%;box-shadow:0 10px 40px -8px color-mix(in srgb,var(--cyan) 45%,transparent)}
+.ring.anim .val{animation:ringIn 1.4s var(--out) .15s both}
+.ring .val.prog{stroke-dashoffset:calc(var(--c) * 1px * (1 - var(--p)));transition:stroke-dashoffset .9s var(--out)}
+@keyframes ringIn{from{stroke-dashoffset:var(--c)}}
+.ring .in{position:absolute;inset:0;display:grid;place-content:center;justify-items:center}
+.ring .big{font-size:64px;font-weight:750;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
+.ring .big small{font-size:26px;color:var(--muted);font-weight:600;letter-spacing:-.02em}
+.ring .cap{margin-top:4px;color:var(--muted);font-size:13px}
+.hero h1{margin:0;font-size:28px;font-weight:750;letter-spacing:-.03em}
+.hero .sub{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.warn{color:var(--rev);font-weight:600}
+
+/* contrôle segmenté */
+.segwrap{display:flex;justify-content:center;margin:0 0 18px}
+.seg{position:relative;display:inline-flex;padding:4px;border-radius:999px;background:var(--no-bg);box-shadow:inset 0 1px 2px rgba(14,42,71,.08);max-width:100%;overflow-x:auto;scrollbar-width:none}
+.seg button{position:relative;z-index:1;height:36px;padding:0 20px;border-radius:999px;color:var(--muted);font-weight:600;font-size:14px;white-space:nowrap;transition:color .25s}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed=true]{color:var(--ink)}
+.seg .thumb{top:4px;bottom:4px}
+
+/* lignes mot-clé / document */
+.krow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 14px 14px 20px;border-radius:20px;
+  transition:transform .5s var(--spring)}
+.krow:hover{transform:translateY(-2px)}
+.krow:active{transform:scale(.985);transition-duration:.15s}
+.enter .krow,.push .krow,.swap .krow{animation:rise .6s var(--out) both;animation-delay:calc(var(--d) * 40ms + 120ms)}
+.swap .krow{animation-delay:calc(var(--d) * 30ms)}
+.krow .t{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.krow .t small{display:block;color:var(--muted);font-weight:400;font-size:12.5px}
+.pill{display:inline-flex;align-items:center;justify-content:center;min-width:76px;height:32px;padding:0 12px;border-radius:999px;
+  font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums;border:1px solid color-mix(in srgb,currentColor 14%,transparent)}
+.present{background:var(--ok-bg);color:var(--ok)} .a_verifier{background:var(--rev-bg);color:var(--rev)}
+.absent{background:var(--no-bg);color:var(--no)} .absent_douteux{background:var(--bad-bg);color:var(--bad)}
+.krow.doc{cursor:default;padding:10px 10px 10px 18px}
+.krow.doc:hover{transform:none}
+.doc .acts{display:flex;gap:2px;opacity:.35;transition:opacity .25s}
+.doc:hover .acts,.doc:focus-within .acts{opacity:1}
+.tag{font-size:12px;font-weight:650;padding:4px 10px;border-radius:999px;background:var(--no-bg);color:var(--no);white-space:nowrap}
+.tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.run{background:var(--rev-bg);color:var(--rev)} .tag.err{background:var(--bad-bg);color:var(--bad)}
+
+/* zone de dépôt */
+.drop{display:grid;justify-items:center;gap:6px;width:100%;padding:34px 20px;border-radius:26px;text-align:center;color:var(--muted);
+  border:1.5px dashed color-mix(in srgb,var(--cyan) 50%,transparent);background:color-mix(in srgb,var(--glass) 70%,transparent);
+  transition:transform .5s var(--spring),border-color .25s,background-color .25s,color .25s}
+.drop .i{width:30px;height:30px;color:var(--cyan);transition:transform .5s var(--spring)}
+.drop b{color:var(--ink);font-size:16px}
+.drop:hover{border-color:var(--cyan);color:var(--ink)}
+.drop:hover .i{transform:translateY(-3px)}
+.drop.over{transform:scale(1.02);border-style:solid;border-color:var(--cyan);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--cyan) 18%,transparent),color-mix(in srgb,var(--mint) 24%,transparent))}
+.drop.over .i{transform:translateY(-6px) scale(1.15)}
+.drop.big{padding:60px 20px;margin-top:10px}
+
+/* mots-clés */
+.addfield{display:flex;align-items:center;gap:8px;padding:7px 7px 7px 24px;border-radius:999px;max-width:560px;margin:0 auto;
+  outline:5px solid transparent;transition:outline-color .3s,transform .5s var(--spring)}
+.addfield:focus-within{outline-color:color-mix(in srgb,var(--cyan) 22%,transparent);transform:scale(1.015)}
+.addfield input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:17px;height:46px}
+.addfield input::placeholder{color:var(--faint)}
+.addfield .iconbtn{width:46px;height:46px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));border-color:rgba(255,255,255,.35)}
+.chips{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:30px auto 0;max-width:640px}
+.chip{display:inline-flex;align-items:center;gap:2px;height:40px;padding:0 6px 0 16px;border-radius:999px;font-weight:550;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--cyan) 16%,var(--glass)),color-mix(in srgb,var(--mint) 22%,var(--glass)));
+  border:1px solid var(--stroke);box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
+  animation:chipIn .55s var(--spring) both;animation-delay:calc(var(--d) * 35ms);transition:transform .45s var(--spring),opacity .25s}
+.chip.old{animation:none}
+.chip:hover{transform:translateY(-2px)}
+.chip .iconbtn{width:30px;height:30px}
+.chip .iconbtn .i{width:15px;height:15px}
+.chip.leaving{transform:scale(.5);opacity:0}
+@keyframes chipIn{from{transform:scale(.5);opacity:0}to{transform:none;opacity:1}}
+.count{text-align:center;color:var(--faint);font-size:13px;margin-top:22px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* réglages */
+.group{border-radius:26px;padding:6px 20px;margin-bottom:16px}
+.enter .group{animation:rise .7s var(--out) both;animation-delay:calc(var(--d) * 70ms + 120ms)}
+.gtitle{margin:26px 0 8px 8px;font-size:13px;font-weight:650;color:var(--muted)}
+.gtitle:first-child{margin-top:0}
+.line{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--hair)}
+.line:last-child{border-bottom:0}
+.line.col{display:block}
+.line .lbl{font-weight:600}
+.line .val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--blue)}
+.line .hint{color:var(--muted);font-size:13px;margin-top:2px}
+.lhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+input[type=range]{--v:50;-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:9px;background:linear-gradient(90deg,var(--blue),var(--cyan) calc(var(--v)*1%),var(--no-bg) calc(var(--v)*1%))}
+input[type=range]::-moz-range-track{height:6px;border-radius:9px;background:linear-gradient(90deg,var(--blue),var(--cyan) calc(var(--v)*1%),var(--no-bg) calc(var(--v)*1%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-11px;border-radius:50%;background:#fff;border:0;
+  box-shadow:0 3px 10px rgba(14,42,71,.25),0 0 0 .5px rgba(14,42,71,.1);transition:transform .4s var(--spring)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:0;box-shadow:0 3px 10px rgba(14,42,71,.25)}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.1)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
+.inline-add{display:flex;gap:8px;padding:12px 0}
+.inline-add input{flex:1;min-width:0;border:0;background:transparent;outline:none;height:38px}
+.inline-add input::placeholder{color:var(--faint)}
+
+/* ================================================================ modales */
+.mwrap{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px;pointer-events:none}
+.mwrap .scrim{position:absolute;inset:0;background:rgba(8,30,55,.32);opacity:0;transition:opacity .35s var(--out)}
+.mwrap.on{pointer-events:auto}
+.mwrap.on .scrim{opacity:1}
+.modal{position:relative;width:min(560px,100%);max-height:min(86vh,900px);overflow:auto;border-radius:34px;padding:30px;
+  background:var(--solid);will-change:transform,opacity;
+  opacity:0;transform:translate3d(0,18px,0) scale(.92);transition:transform .5s var(--spring),opacity .25s var(--out)}
+.modal.wide{width:min(680px,100%)}
+.mwrap.on .modal{opacity:1;transform:none}
+.modal h3{margin:0;text-align:center;font-size:22px;font-weight:750;letter-spacing:-.025em}
+.modal .msub{margin:6px 0 0;text-align:center;color:var(--muted)}
+.modal .actions{display:flex;justify-content:center;gap:10px;margin-top:24px}
+.modal .actions .btn{min-width:130px}
+.modal .x{position:absolute;top:16px;right:16px}
+.field{width:100%;height:52px;padding:0 20px;border-radius:18px;border:1px solid var(--stroke);font-size:16px;
+  background:var(--glass-strong);box-shadow:inset 0 1px 3px rgba(14,42,71,.06);
+  outline:5px solid transparent;outline-offset:0;transition:border-color .25s,outline-color .3s}
+.field:focus{border-color:color-mix(in srgb,var(--cyan) 70%,transparent);outline-color:color-mix(in srgb,var(--cyan) 20%,transparent)}
+.field::placeholder{color:var(--faint)}
+.mt{margin-top:20px}
+.link{display:block;margin:16px auto 0;color:var(--blue);font-weight:600;font-size:14px;transition:opacity .2s}
+.link:hover{opacity:.7}
+.files{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:12px}
+
+/* preuve */
+.score{display:grid;justify-items:center;text-align:center;margin:18px 0 6px}
+.score .num{font-size:76px;font-weight:780;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--blue),var(--cyan) 60%,var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
+.score.none .num{background:none;color:var(--no)}
+.score .pill{margin-top:12px}
+.facts{display:flex;justify-content:center;gap:18px;color:var(--muted);font-size:13.5px;margin-top:14px;flex-wrap:wrap}
+.facts b{color:var(--ink)}
+.explain{font-size:13.5px;color:var(--muted);text-align:center;max-width:460px;margin:0 auto;overflow:hidden;max-height:0;opacity:0;transition:max-height .5s var(--out),opacity .35s,margin .4s}
+.explain.on{max-height:200px;opacity:1;margin:14px auto 0}
+.occ{border-radius:22px;overflow:hidden;margin-top:14px;background:var(--glass);border:1px solid var(--stroke);animation:rise .6s var(--out) both;animation-delay:calc(var(--d) * 80ms + 250ms)}
+.occ .ctx{padding:14px 18px 6px;font-size:15px}
+.occ mark{background:linear-gradient(transparent 55%,color-mix(in srgb,var(--cyan) 42%,transparent) 55%);color:inherit;font-weight:650}
+.occ .meta{display:flex;gap:6px;flex-wrap:wrap;padding:4px 18px 14px}
+.occ img{display:block;width:100%;background:#fff;border-top:1px solid var(--stroke)}
+
+/* menu contextuel */
+.menu{position:fixed;z-index:70;min-width:210px;padding:6px;border-radius:20px;background:var(--solid);will-change:transform,opacity;
+  opacity:0;transform:scale(.85) translateY(-6px);transform-origin:top right;pointer-events:none;transition:transform .45s var(--spring),opacity .2s}
+.menu.on{opacity:1;transform:none;pointer-events:auto}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border-radius:14px;font-weight:550;text-align:left;transition:background-color .2s}
+.menu button:hover{background:var(--glass-strong)}
+.menu button.del{color:var(--bad)}
+.ini.sm{width:32px;height:32px;border-radius:11px;font-size:12px}
+.menu .who{flex:1;display:flex;flex-direction:column;line-height:1.25}
+.menu .who small{color:var(--muted);font-weight:500;font-size:12px}
+.menu [aria-checked=true] .i{color:var(--blue)}
+.owner{font-weight:650}
+
+/* toast (îlot) */
+.toast{position:fixed;top:14px;left:50%;z-index:90;max-width:calc(100vw - 32px);padding:11px 20px;border-radius:999px;font-weight:600;font-size:14px;
+  background:rgba(14,42,71,.94);color:#EAF6FF;box-shadow:0 14px 30px -8px rgba(0,30,70,.45);will-change:transform,opacity;
+  transform:translate(-50%,-150%) scale(.7);opacity:0;pointer-events:none;transition:transform .6s var(--spring),opacity .3s}
+.toast.on{transform:translate(-50%,0) scale(1);opacity:1}
+
+.spin{display:inline-block;width:13px;height:13px;border-radius:50%;flex:none;background:conic-gradient(from 0deg,transparent,currentColor);
+  -webkit-mask:radial-gradient(circle,transparent 4px,#000 4.5px);mask:radial-gradient(circle,transparent 4px,#000 4.5px);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ================================================================ écran de verrouillage (code PIN) */
+.lock{position:fixed;inset:0;z-index:85;display:grid;place-items:center;padding:24px;overflow:auto;
+  background:
+    radial-gradient(48vmax 48vmax at 12% 8%,rgba(140,200,255,.75),transparent 70%),
+    radial-gradient(42vmax 42vmax at 92% 30%,rgba(127,231,236,.65),transparent 70%),
+    radial-gradient(46vmax 46vmax at 50% 105%,rgba(180,239,207,.7),transparent 70%),var(--bg);
+  opacity:0;visibility:hidden;transition:opacity .35s var(--out),visibility 0s .35s}
+@media (prefers-color-scheme:dark){.lock{background:var(--bg)}}
+.lock.on{opacity:1;visibility:visible;transition:opacity .35s var(--out)}
+.lock-in{display:grid;justify-items:center;text-align:center;width:min(420px,100%);animation:enter .6s var(--out) both}
+.lock h2{margin:18px 0 4px;font-size:26px;font-weight:750;letter-spacing:-.03em}
+.lock .msub{margin:0;color:var(--muted);min-height:22px}
+.lock .msub.err{color:var(--bad);font-weight:600}
+.lock .lens.big{width:54px;height:54px}
+.who-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;margin-top:30px}
+.who-card{display:grid;justify-items:center;gap:8px;width:150px;padding:18px 10px 16px;border-radius:26px;
+  transition:transform .5s var(--spring)}
+.who-card:hover{transform:translateY(-4px)}
+.who-card:active{transform:scale(.96);transition-duration:.15s}
+.who-card b{font-size:15px}
+.who-card small{color:var(--muted);font-size:12.5px}
+.ava{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:24px;font-weight:700;
+  background:linear-gradient(135deg,var(--pa),var(--pb));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 10px 24px -10px var(--pa)}
+.ava.sm{width:64px;height:64px;font-size:20px}
+.dots{display:flex;gap:16px;justify-content:center;margin:26px 0 8px;min-height:16px}
+.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--ink) 45%,transparent);transition:background-color .15s,transform .3s var(--spring)}
+.dots i.on{background:var(--ink);border-color:var(--ink);transform:scale(1.08)}
+.dots.shake{animation:shake .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
+.pad{display:grid;grid-template-columns:repeat(3,76px);gap:16px 22px;margin-top:18px}
+.key{width:76px;height:76px;border-radius:50%;font-size:28px;font-weight:500;display:grid;place-items:center;
+  background:var(--glass-strong);border:1px solid var(--stroke);box-shadow:0 1px 2px rgba(14,42,71,.06),inset 0 1px 0 rgba(255,255,255,.7);
+  transition:transform .4s var(--spring),background-color .15s}
+.key:hover{transform:scale(1.05)}
+.key:active{transform:scale(.92);background:color-mix(in srgb,var(--cyan) 25%,var(--glass-strong));transition-duration:.08s}
+.key.txt{font-size:14px;font-weight:600;background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
+.key.txt:hover{color:var(--ink)}
+.key[disabled]{visibility:hidden}
+.lock .link{margin-top:22px}
+.forgot{font-size:13px;color:var(--muted);max-width:360px;margin:10px auto 0;display:none}
+.forgot.on{display:block}
+.forgot code{display:block;margin-top:6px;padding:8px 10px;border-radius:10px;background:var(--glass-strong);color:var(--ink);font-size:12px;word-break:break-all}
+
+/* ================================================================ progression des analyses */
+.pbar{display:block;height:4px;border-radius:4px;background:var(--no-bg);overflow:hidden;margin-top:7px;max-width:320px}
+.pbar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--cyan));
+  transform-origin:left;transform:scaleX(var(--p));transition:transform .9s var(--out);will-change:transform}
+.eta{color:var(--muted);font-weight:500}
+
+/* ================================================================ curseur personnalisé : un seul cercle */
+.cc,.cc *{cursor:none!important}
+#cur-ring{position:fixed;left:0;top:0;width:36px;height:36px;pointer-events:none;z-index:9999;opacity:0;will-change:transform;contain:strict;
+  border-radius:999px;border:1.5px solid color-mix(in srgb,var(--blue) 70%,var(--cyan));
+  background:color-mix(in srgb,var(--cyan) 10%,transparent);
+  transition:opacity .2s,background-color .25s,border-color .25s}
+#cur-ring.morph{background:rgba(255,255,255,.2);border-color:color-mix(in srgb,var(--blue) 55%,white)}
+#cur-ring.text{background:var(--blue);border-color:transparent}
+#cur-ring.point{background:color-mix(in srgb,var(--cyan) 22%,transparent)}
+.cc #cur-ring{opacity:1}
+.cc.cur-out #cur-ring{opacity:0}
+
+/* ================================================================ responsive / accessibilité */
+@media (max-width:620px){
+  #view{padding:0 16px}
+  .head{padding:30px 0 20px}
+  .tab{min-width:74px;padding:7px 8px 6px}
+  .fab{width:54px;height:54px}
+  .ring{width:180px;height:180px}
+  .ring .big{font-size:52px}
+  .modal{padding:24px 20px;border-radius:28px}
+  .mwrap{align-items:end;padding:10px}
+  .score .num{font-size:60px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--glass:rgba(255,255,255,.9);--glass-strong:rgba(255,255,255,.96)}}
+</style>
+</head>
+<body>
+<div class="aura" aria-hidden="true"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2F7BF5"/><stop offset=".55" stop-color="#22C3D6"/><stop offset="1" stop-color="#8FDDB4"/></linearGradient>
+</defs></svg>
+
+<header class="top">
+  <div class="brand"><div class="lens" aria-hidden="true"></div>KeyScan</div>
+  <button class="iconbtn avatar" id="avatar" data-action="who" aria-haspopup="menu" title="Changer de prof"></button>
+</header>
+
+<main id="view"></main>
+
+<nav class="dock" aria-label="Navigation">
+  <div class="tabs glass frost" id="tabs">
+    <span class="thumb"></span>
+    <a class="tab" href="#/dossiers" data-tab="dossiers"></a>
+    <a class="tab" href="#/mots-cles" data-tab="mots-cles"></a>
+    <a class="tab" href="#/reglages" data-tab="reglages"></a>
+  </div>
+  <button class="fab" data-action="new" aria-label="Nouveau dossier" title="Nouveau dossier"></button>
+</nav>
+
+<div class="mwrap" id="mwrap" aria-hidden="true"><div class="scrim" data-close></div><div class="modal glass" id="modal" role="dialog" aria-modal="true"></div></div>
+<div class="menu glass" id="menu" role="menu"></div>
+<div class="lock" id="lock" aria-hidden="true"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="zipInput" accept=".zip" hidden>
+<div id="cur-ring" aria-hidden="true"></div>
+
+<script>
+/* ================================================================ utilitaires */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const plural = (n, w) => `${n} ${w}${n>1?"s":""}`;
+const kwN = n => `${n} ${n>1?"mots-clés":"mot-clé"}`;
+const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:JSON.parse(v); }catch{ return d; } },
+                set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
+const ICON = {
+  folder:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2h7.4A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z"/>',
+  tag:'<path d="M3.5 12.2V5.5a2 2 0 0 1 2-2h6.7l8.3 8.3a2 2 0 0 1 0 2.8l-5.9 5.9a2 2 0 0 1-2.8 0z"/><circle cx="8" cy="8" r="1.4"/>',
+  sliders:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>', back:'<path d="M15 5l-7 7 7 7"/>', chev:'<path d="M9.5 6l6 6-6 6"/>',
+  more:'<circle cx="6" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="18" cy="12" r=".6"/>',
+  upload:'<path d="M12 16V5M7 10l5-5 5 5M5 19h14"/>', download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  refresh:'<path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/>', x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>', swap:'<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', lock:'<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  del:'<path d="M20 6H9l-6 6 6 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1zM12 9.5l5 5M17 9.5l-5 5"/>', edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>', zip:'<path d="M7 3h7l5 5v13H7zM14 3v5h5M11 9h1M11 12h1M11 15h1"/>'
+};
+const ic = (n, cls="") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+const LABEL = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Illisible"};
+const LONG  = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Lecture insuffisante"};
+const ORDER = {present:0, a_verifier:1, absent_douteux:2, absent:3};
+const STATUS = {en_attente:["En attente",""], en_cours:["Analyse…","run"], ok:["Prêt","ok"], erreur:["Erreur","err"]};
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),2600); }
+async function api(url, opts={}){
+  const r = await fetch(url, opts);
+  if(r.status === 401){ showLock({step:"choose"}); throw new Error("verrouillé"); }   // session expirée ou verrouillée
+  if(!r.ok){
+    const msg = (await r.text()).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+    const m = msg.match(/(?:Bad Request|Forbidden|Conflict|Not Found|Too Many Requests)\s+(.*)/);
+    const e = new Error((m ? m[1] : msg).slice(0,140)); e.status = r.status;
+    if(!opts.quiet) toast("Erreur : " + e.message);
+    throw e;
+  }
+  return r.json();
+}
+const jpost = (url, body, method="POST") => api(url,{method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+const initials = s => (s||"?").replace(/[_-]+/g," ").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+
+/* ================================================================ état & navigation */
+let state = {keywords:[], dossiers:[], settings:{}};
+let currentOp = store.get("ks_op", null);
+let dossierTab = "kw";
+let pollTimer = null;
+let lastPage = null;
+
+function route(){
+  const h = location.hash.replace(/^#\/?/, "");
+  const [p, id] = h.split("/");
+  if(p === "dossier" && id) return {page:"dossier", id:+id};
+  if(p === "mots-cles" || p === "reglages") return {page:p};
+  return {page:"dossiers"};
+}
+const go = h => { if(location.hash === h) render(true); else location.hash = h; };
+window.addEventListener("hashchange", () => { closeMenu(); render(true); });
+
+const resultsUrl = () => "/api/results";
+/* couleur propre à chaque profil (avatar, nom) : on voit d'un coup d'œil dans quel profil on est */
+const PALETTE = [["#2F7BF5","#22C3D6"], ["#14A38B","#8FDDB4"], ["#5B6CF5","#7BC8F0"], ["#0E9FBF","#7FE7EC"]];
+const profColors = o => PALETTE[Math.max(0, (state.settings.operators || []).indexOf(o)) % PALETTE.length];
+const profStyle = o => { const [a, b] = profColors(o); return `--pa:${a};--pb:${b}`; };
+async function load(animate, passive){
+  clearTimeout(pollTimer);
+  try{ state = await api(resultsUrl(), passive ? {headers:{"X-Passive":"1"}} : {}); }
+  catch(e){ return; }
+  currentOp = state.settings.profile || currentOp;
+  render(animate);
+  // pendant une analyse : rafraîchissement discret (ne compte pas comme activité pour le verrouillage auto)
+  if(state.dossiers.some(d => d.pending)) pollTimer = setTimeout(() => load(false, true), 1500);
+}
+
+function render(animate){
+  const r = route();
+  renderChrome(r);
+  // les pages de saisie ne sont pas redessinées par le rafraîchissement automatique (on ne perd pas la frappe)
+  if(!animate && r.page === lastPage && (r.page === "mots-cles" || r.page === "reglages")) return;
+  const v = $("#view");
+  const y = window.scrollY;
+  const html = PAGES[r.page](r);
+  if(!animate && html === v._html) return;          // rien de neuf : on ne touche pas au DOM
+  if(!animate && v._html && stripProgress(html) === stripProgress(v._html)){ patchProgress(html); v._html = html; return; }
+  v._html = html;
+  v.innerHTML = html;
+  v.classList.remove("enter","push");
+  if(animate){ void v.offsetWidth; v.classList.add(r.page === "dossier" && lastPage !== "dossier" ? "push" : "enter"); window.scrollTo({top:0, behavior:"instant"}); }
+  else window.scrollTo({top:y, behavior:"instant"});
+  lastPage = r.page;
+  placeThumbs(v, !animate);
+  if(animate) afterEnter(r);
+}
+
+/* seuls les compteurs de pages ont changé : on met à jour textes et barres sans redessiner (les barres glissent) */
+const stripProgress = h => h.replace(/(data-pg="[^"]+">)[^<]*</g, "$1<").replace(/--p:[\d.]+/g, "--p:_");
+function patchProgress(html){
+  const t = document.createElement("template"); t.innerHTML = html;
+  t.content.querySelectorAll("[data-pg]").forEach(n => { const o = $("#view").querySelector(`[data-pg="${n.dataset.pg}"]`); if(o) o.textContent = n.textContent; });
+  t.content.querySelectorAll("[data-bar]").forEach(n => { const o = $("#view").querySelector(`[data-bar="${n.dataset.bar}"]`); if(o) o.style.setProperty("--p", n.style.getPropertyValue("--p")); });
+}
+const fmtEta = s => s == null ? "" : s < 50 ? "moins d'une minute" : `≈ ${Math.round(s / 60)} min`;
+function prog(d){   // avancement cumulé des documents d'un dossier
+  let done = 0, total = 0, eta = null;
+  d.documents.forEach(x => { if(x.progress){ done += x.progress.done; total += x.progress.total; if(x.progress.eta != null) eta = Math.max(eta || 0, x.progress.eta); } });
+  return {done, total, eta, p: total ? done / total : 0};
+}
+
+function renderChrome(r){
+  const tabs = {dossiers:["folder","Dossiers"], "mots-cles":["tag","Mots-clés"], reglages:["sliders","Réglages"]};
+  const active = r.page === "dossier" ? "dossiers" : r.page;
+  document.querySelectorAll(".tab").forEach(t => {
+    const [i, l] = tabs[t.dataset.tab];
+    if(!t.innerHTML) t.innerHTML = ic(i) + `<span>${l}</span>`;
+    t.toggleAttribute("aria-current", t.dataset.tab === active);
+    if(t.dataset.tab === active) t.setAttribute("aria-current","page");
+  });
+  placeThumbs($("#tabs"));
+  const av = $("#avatar"); av.textContent = initials(currentOp); av.title = `Profil : ${currentOp || "—"} · changer de profil`;
+  av.setAttribute("style", profStyle(currentOp)); av.classList.add("prof");
+  const fab = document.querySelector(".fab"); if(!fab.innerHTML) fab.innerHTML = ic("plus");
+}
+
+/* pastille glissante des onglets et des contrôles segmentés */
+function placeThumbs(root, instant){
+  root.querySelectorAll(".thumb").forEach(th => {
+    const box = th.parentElement;
+    const on = box.querySelector("[aria-current=page],[aria-pressed=true]");
+    if(!on){ th.style.width = "0"; return; }
+    const first = !th.dataset.placed || instant;
+    if(first) th.classList.add("instant");
+    th.style.width = on.offsetWidth + "px";
+    th.style.transform = `translateX(${on.offsetLeft}px)`;
+    if(first){ void th.offsetWidth; th.classList.remove("instant"); th.dataset.placed = 1; }
+  });
+}
+window.addEventListener("resize", () => { placeThumbs(document, true); });
+
+/* ================================================================ pages */
+const PAGES = {};
+
+PAGES.dossiers = () => {
+  const D = state.dossiers, K = state.keywords;
+  const pending = D.reduce((a,d) => a + d.pending, 0);
+  if(!D.length) return `
+    <div class="hero-empty">
+      <button class="bubble glass" data-action="new" aria-label="Créer un dossier">${ic("plus")}</button>
+      <h2>Aucun dossier</h2>
+      <p class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</p>
+      <p>${K.length ? "Créez le dossier d'un candidat pour l'analyser." : "Commencez par ajouter les mots-clés à rechercher."}</p>
+      ${K.length ? `<button class="btn primary" data-action="new">Créer un dossier</button>` : `<button class="btn primary" data-go="#/mots-cles">Ajouter des mots-clés</button>`}
+    </div>`;
+  return `
+    <div class="head">
+      <h1 class="title">Dossiers</h1>
+      <p class="sub"><span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span> · ${plural(D.length,"candidat")}, ${kwN(K.length)}</p>
+      ${pending ? (() => { let dn = 0, tt = 0; D.forEach(d => { const q = prog(d); dn += q.done; tt += q.total; });
+        return `<div class="live"><span class="spin"></span>${plural(pending,"document")} en analyse<span data-pg="live">${tt ? ` · ${Math.round(dn / tt * 100)} %` : ""}</span></div>`; })() : ""}
+    </div>
+    <div class="list">${D.map((d,i) => dossierRow(d,i)).join("")}</div>`;
+};
+
+function summary(d){
+  const K = state.keywords, ready = d.documents.some(x => x.status === "ok");
+  const c = {present:0, a_verifier:0, absent:0, absent_douteux:0};
+  if(ready) K.forEach(k => { const x = d.cells[k.id]; if(x) c[x.decision]++; });
+  return {ready, c, total:K.length};
+}
+
+function dossierRow(d, i){
+  const {ready, c, total} = summary(d);
+  const pct = ready && total ? c.present / total * 100 : 0;
+  let sub;
+  const q = prog(d);
+  const running = d.documents.some(x => x.status === "en_cours");
+  if(d.pending) sub = `<span class="spin"></span><span data-pg="r${d.id}">${q.total && running ? `Analyse : ${q.done}/${q.total} pages` : q.total ? `En attente : ${q.total} pages` : "En attente d'analyse"}</span>`
+    + `<span class="eta" data-pg="r${d.id}e">${q.eta != null ? " · " + fmtEta(q.eta) : ""}</span>`;
+  else if(!d.documents.length) sub = "Aucun document";
+  else sub = plural(d.documents.length, "document");
+  if(c.a_verifier) sub += `<span class="dot" style="background:var(--rev)"></span><span class="warn">${c.a_verifier} à vérifier</span>`;
+  return `<button class="rowc glass" style="--d:${i}" data-go="#/dossier/${d.id}">
+    <span class="ini">${esc(initials(d.name))}</span>
+    <span class="rtxt"><b>${esc(d.name)}</b><small>${sub}</small>${d.pending ? `<span class="pbar"><i data-bar="r${d.id}" style="--p:${q.p.toFixed(3)}"></i></span>` : ""}</span>
+    <span class="mring" style="--p:${pct}" title="${c.present} mot(s)-clé(s) présent(s) sur ${total}"><span>${ready ? `${c.present}/${total}` : "—"}</span></span>
+    ${ic("chev","chev")}
+  </button>`;
+}
+
+PAGES.dossier = r => {
+  const d = state.dossiers.find(x => x.id === r.id);
+  if(!d) return `<div class="hero-empty"><h2>Dossier introuvable</h2><p>Il a été supprimé ou il est confié à un autre prof.</p><button class="btn" data-go="#/dossiers">Dossiers de ${esc(currentOp || "")}</button></div>`;
+  const {ready, c, total} = summary(d);
+  const C = 2 * Math.PI * 92, p = ready && total ? c.present / total : 0;
+  const bar = `<div class="bar"><button class="iconbtn" data-go="#/dossiers" aria-label="Retour">${ic("back")}</button>
+    <button class="iconbtn" data-action="menu" data-id="${d.id}" aria-label="Options du dossier">${ic("more")}</button></div>`;
+
+  if(!d.documents.length) return bar + `
+    <div class="hero"><h1>${esc(d.name)}</h1><p class="sub">Aucun document pour l'instant</p></div>
+    <button class="drop big" data-drop="${d.id}">${ic("upload")}<b>Déposez les documents du candidat</b><span>ou cliquez pour les choisir</span></button>`;
+
+  const q = prog(d);
+  let sub = [plural(d.documents.length,"document")];
+  if(d.pending) sub.push(`<span class="warn"><span class="spin"></span> <span data-pg="h${d.id}">${q.total ? `${q.done}/${q.total} pages analysées` : `${d.pending} en attente`}</span><span data-pg="h${d.id}e">${q.eta != null ? " · " + fmtEta(q.eta) : ""}</span></span>`);
+  else sub.push(`lecture ${Math.round(d.quality)} %`);
+  if(c.a_verifier) sub.push(`<span class="warn">${c.a_verifier} à vérifier</span>`);
+
+  // pendant la première analyse, l'anneau central montre l'avancement des pages
+  const analysing = !ready && d.pending && q.total;
+  const ringInner = analysing
+    ? `<svg viewBox="0 0 220 220"><circle class="track" cx="110" cy="110" r="92"/>
+         <circle class="val prog" cx="110" cy="110" r="92" stroke-dasharray="${C}" data-bar="g${d.id}" style="--p:${q.p.toFixed(3)}"/></svg>
+       <div class="in"><div class="big"><span data-pg="g${d.id}">${Math.round(q.p * 100)}</span><small>%</small></div><div class="cap" data-pg="g${d.id}c">${d.documents.some(x => x.status === "en_cours") ? "analyse des pages" : "en attente d'analyse"}</div></div>`
+    : `<svg viewBox="0 0 220 220"><circle class="track" cx="110" cy="110" r="92"/>
+         <circle class="val" cx="110" cy="110" r="92" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}" style="${p ? "" : "opacity:0"}"/></svg>
+       <div class="in"><div class="big"><span data-count="${ready ? c.present : 0}">${ready ? c.present : "–"}</span><small>/${total}</small></div><div class="cap">mots-clés trouvés</div></div>`;
+  const hero = `<div class="hero">
+    <div class="ring ${analysing ? "" : ""}" ${analysing ? "" : "data-ring"} style="--c:${C}">${ringInner}</div>
+    <h1>${esc(d.name)}</h1><p class="sub">${sub.join("<span>·</span>")}</p></div>`;
+
+  const seg = `<div class="segwrap"><div class="seg" role="group"><span class="thumb"></span>
+    <button data-dtab="kw" aria-pressed="${dossierTab==="kw"}">Mots-clés</button>
+    <button data-dtab="docs" aria-pressed="${dossierTab==="docs"}">Documents</button></div></div>`;
+
+  return bar + hero + seg + `<div class="list" id="dlist">${dossierTab === "kw" ? kwList(d) : docList(d)}</div>`;
+};
+
+function kwList(d){
+  const K = state.keywords;
+  if(!K.length) return `<div class="hero-empty"><p>Aucun mot-clé à rechercher.</p><button class="btn primary" data-go="#/mots-cles">Ajouter des mots-clés</button></div>`;
+  if(!d.documents.some(x => x.status === "ok")) return `<div class="hero-empty"><span class="spin" style="width:28px;height:28px;color:var(--cyan)"></span><p>Lecture des documents…</p></div>`;
+  const rows = K.map(k => ({k, c:d.cells[k.id]})).filter(x => x.c)
+    .sort((a,b) => ORDER[a.c.decision] - ORDER[b.c.decision] || b.c.score - a.c.score);
+  return rows.map(({k,c}, i) => `<button class="krow glass" style="--d:${i}" data-kw="${k.id}" data-dossier="${d.id}">
+      <span class="t">${esc(k.term)}${c.count ? `<small>${plural(c.count,"occurrence")}</small>` : ""}</span>
+      <span class="pill ${c.decision}">${c.count ? Math.round(c.score) + " %" : LABEL[c.decision]}</span>${ic("chev","chev")}
+    </button>`).join("");
+}
+
+function docList(d){
+  return d.documents.map((x, i) => {
+    const [lab, cls] = STATUS[x.status], pg = x.progress;
+    const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)}/${pg.total}` : lab;
+    const hwl = x.pages.reduce((a, p) => a + (p.manuscrit || 0), 0);
+    const info = x.status === "ok" ? `${plural(x.pages.length,"page")}, lecture ${Math.round(x.quality)} %${hwl ? ` · ${plural(hwl, "ligne")} manuscrite${hwl > 1 ? "s" : ""}` : ""}`
+               : pg && pg.total ? `${plural(pg.total,"page")}${pg.eta != null ? " · " + fmtEta(pg.eta) : ""}` : "";
+    return `<div class="krow doc glass" style="--d:${i}">
+      <span class="t"><a href="/api/documents/${x.id}/file" target="_blank" style="color:inherit;text-decoration:none">${esc(x.filename)}</a>
+        <small data-pg="x${x.id}i">${info}</small>
+        ${pg && pg.total ? `<span class="pbar"><i data-bar="x${x.id}" style="--p:${(pg.done / pg.total).toFixed(3)}"></i></span>` : ""}</span>
+      <span class="tag ${cls}" title="${esc(x.error||"")}">${x.status==="en_cours" ? `<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ` : ""}<span data-pg="x${x.id}t">${label}</span></span>
+      <span class="acts">
+        <button class="iconbtn sm flat" data-re-doc="${x.id}" aria-label="Relancer l'analyse" title="Relancer l'analyse">${ic("refresh")}</button>
+        <button class="iconbtn sm flat del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer" title="Retirer">${ic("x")}</button>
+      </span></div>`;
+  }).join("") + `<button class="drop" data-drop="${d.id}" style="margin-top:6px">${ic("upload")}<b>Ajouter des documents</b><span>PDF ou images</span></button>`;
+}
+
+PAGES["mots-cles"] = () => {
+  const K = state.keywords, counts = state.keyword_counts || {};
+  const others = (state.settings.operators || []).filter(o => o !== currentOp && counts[o]);
+  const copy = others.map(o => `<button class="btn" data-action="copy-kw" data-from="${esc(o)}">${ic("swap")}Reprendre les ${kwN(counts[o])} de ${esc(o)}</button>`).join("");
+  return `<div class="head"><h1 class="title">Mots-clés</h1>
+      <p class="sub">Propres à <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span>, recherchés dans ses dossiers.</p></div>
+    <form class="addfield glass" id="kwForm" autocomplete="off">
+      <label for="kwInput" class="sr">Nouveau mot-clé</label>
+      <input id="kwInput" placeholder="Ajouter un mot-clé">
+      <button class="iconbtn" type="submit" aria-label="Ajouter">${ic("plus")}</button>
+    </form>
+    <div class="chips" id="chips">${K.map((k,i) => chip(k,i)).join("")}</div>
+    ${K.length ? `<p class="count">${kwN(K.length)}, accents et majuscules ignorés</p>` :
+      `<p class="count">Astuce : collez une liste, un mot-clé par ligne.</p>`}
+    ${copy ? `<div class="row" style="justify-content:center;margin-top:${K.length ? 18 : 26}px">${copy}</div>` : ""}`;
+};
+const chip = (k, i, old) => `<span class="chip${old?" old":""}" style="--d:${i}" data-id="${k.id}" title="Ajouté par ${esc(k.created_by||"—")}">${esc(k.term)}
+  <button class="iconbtn flat del" data-del-kw="${k.id}" aria-label="Retirer ${esc(k.term)}">${ic("x")}</button></span>`;
+
+PAGES.reglages = () => {
+  const s = state.settings, ops = s.operators || [];
+  const slider = (id, label, hint, v) => `<div class="line col"><div class="lhead"><div><div class="lbl">${label}</div><div class="hint">${hint}</div></div><span class="val" id="${id}V">${v} %</span></div>
+    <input type="range" min="0" max="100" step="1" id="${id}" value="${v}" style="--v:${v}" aria-label="${label}"></div>`;
+  return `<div class="head"><h1 class="title">Réglages</h1></div>
+    <p class="gtitle">Profil actif</p>
+    <div class="group glass" style="--d:0;padding:14px 14px;text-align:center">
+      <div class="seg" role="group" aria-label="Opérateur"><span class="thumb"></span>${ops.map(o =>
+        `<button data-op="${esc(o)}" aria-pressed="${o===currentOp}"><span class="dot" style="background:${profColors(o)[0]};margin-right:7px;vertical-align:1px"></span>${esc(o)}</button>`).join("")}</div>
+    </div>
+    <p class="gtitle">Seuils de décision de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
+    <div class="group glass" style="--d:1">
+      ${slider("sPresent","Présent","À partir de ce score", s.present_thr)}
+      ${slider("sReview","À vérifier","Entre ce score et le précédent", s.review_thr)}
+      ${slider("sQuality","Lecture minimale","En dessous, un mot non trouvé reste incertain", s.min_quality)}
+    </div>
+    <p class="gtitle">Équipe</p>
+    <div class="group glass" style="--d:2">
+      ${ops.map(o => `<div class="line"><span style="display:flex;align-items:center;gap:12px"><span class="ini sm prof" style="${profStyle(o)}">${esc(initials(o))}</span><span><span class="lbl">${esc(o)}</span><div class="hint">${plural((state.owners || {})[o] || 0, "dossier")}, ${kwN((state.keyword_counts || {})[o] || 0)}</div></span></span>${ops.length > 1 ? `<button class="iconbtn sm flat del" data-del-op="${esc(o)}" aria-label="Retirer ${esc(o)}">${ic("x")}</button>` : ""}</div>`).join("")}
+      <form class="inline-add" id="opForm" autocomplete="off"><input id="opInput" placeholder="Ajouter une personne" aria-label="Ajouter une personne"><button class="iconbtn sm" type="submit" aria-label="Ajouter">${ic("plus")}</button></form>
+    </div>
+    <p class="gtitle">Écriture manuscrite</p>
+    <div class="group glass" style="--d:3">${(() => { const h = (state.engine || {}).handwriting || {};
+      return h.ready
+        ? `<div class="line"><span><span class="lbl">Activée</span><div class="hint">${esc(h.label || "")} : les lignes écrites à la main sont détectées puis lues. Commun à tous les profils.</div></span><span class="tag ok">Active</span></div>`
+        : `<div class="line col"><div class="lhead"><span class="lbl">Non installée</span><span class="tag">Optionnelle</span></div>
+           <div class="hint">Pour lire l'écriture manuscrite, double-cliquez sur <b>« Installer écriture manuscrite »</b> dans le dossier KeyScan
+           (une seule fois, ≈ 2,3 Go), puis relancez KeyScan. Sans ce module, l'écriture manuscrite est souvent classée « à vérifier ».</div></div>`; })()}
+    </div>
+    <p class="gtitle">Sécurité de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
+    <div class="group glass" style="--d:3">
+      <div class="line"><span><span class="lbl">Code PIN</span><div class="hint">Demandé pour ouvrir ce profil. Verrouillage automatique après 30 min sans activité.</div></span>
+        <button class="btn" data-action="change-pin">Changer le code</button></div>
+      <div class="line"><span class="lbl">Verrouiller maintenant</span><button class="btn" data-action="lock">${ic("lock")}Verrouiller</button></div>
+    </div>
+    <p class="gtitle">Résultats de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
+    <div class="group glass" style="--d:3;padding:16px 20px;text-align:center">
+      <button class="btn primary" data-action="export">${ic("download")}Exporter en CSV</button>
+    </div>`;
+};
+
+/* animations après l'entrée d'une page */
+function afterEnter(r){
+  if(r.page !== "dossier") return;
+  const ring = document.querySelector("[data-ring]");
+  if(ring) ring.classList.add("anim");
+  const n = document.querySelector("[data-count]");
+  if(n && +n.dataset.count > 0){
+    const target = +n.dataset.count, t0 = performance.now(), dur = 1100;
+    const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      n.textContent = Math.round(target * e); if(k < 1) requestAnimationFrame(step); };
+    n.textContent = "0"; requestAnimationFrame(step);
+  }
+}
+
+/* ================================================================ modales */
+let modalResolve = null;
+function openModal(html, wide){
+  const m = $("#modal"); m.className = "modal glass" + (wide ? " wide" : ""); m.innerHTML = html; m.scrollTop = 0;
+  $("#mwrap").classList.add("on"); $("#mwrap").setAttribute("aria-hidden","false");
+  setTimeout(() => { const f = m.querySelector("[autofocus]") || m.querySelector(".x"); f && f.focus(); }, 80);
+}
+function closeModal(val){
+  $("#mwrap").classList.remove("on"); $("#mwrap").setAttribute("aria-hidden","true");
+  if(modalResolve){ const r = modalResolve; modalResolve = null; r(val ?? null); }
+}
+/* boîte de dialogue maison (remplace confirm/prompt) */
+function ask({title, text="", input=null, ok="Valider", danger=false, secret=false}){
+  openModal(`<h3>${esc(title)}</h3>${text ? `<p class="msub">${esc(text)}</p>` : ""}
+    <form id="askForm">${input !== null ? `<input class="field mt" id="askInput" value="${esc(input)}" ${secret ? 'type="password" inputmode="numeric" autocomplete="off"' : ""} autofocus>` : ""}
+    <div class="actions"><button type="button" class="btn quiet" data-close>Annuler</button>
+    <button class="btn ${danger ? "danger" : "primary"}" type="submit" ${input === null ? "autofocus" : ""}>${esc(ok)}</button></div></form>`);
+  return new Promise(res => { modalResolve = res; });
+}
+
+/* nouveau dossier : nom + documents en une seule étape */
+let newFiles = [];
+function openNew(){
+  newFiles = [];
+  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
+    <h3>Nouveau dossier</h3><p class="msub">Confié à ${esc(currentOp || "")}</p>
+    <form id="newForm" autocomplete="off">
+      <input class="field mt" id="newName" placeholder="Nom du candidat" autofocus>
+      <button type="button" class="drop mt" data-drop="new">${ic("upload")}<b>Déposez ses documents</b><span id="newHint">PDF ou images, facultatif</span></button>
+      <div class="files" id="newFiles"></div>
+      <div class="actions"><button class="btn primary" type="submit" id="newOk" disabled>Créer le dossier</button></div>
+    </form>
+    <button class="link" data-action="zip">Importer plusieurs dossiers (.zip)</button>`);
+}
+function showNewFiles(){
+  $("#newFiles").innerHTML = newFiles.map(f => `<span class="tag">${esc(f.name)}</span>`).join("");
+  $("#newHint").textContent = newFiles.length ? plural(newFiles.length, "fichier") + " prêt" + (newFiles.length>1?"s":"") : "PDF ou images, facultatif";
+}
+
+/* preuve d'un mot-clé dans un dossier */
+async function showEvidence(did, kid){
+  const d = state.dossiers.find(x => x.id === did), k = state.keywords.find(x => x.id === kid);
+  const c = await api(`/api/dossiers/${did}/keyword/${kid}`);
+  const s = state.settings;
+  const found = c.count > 0;
+  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
+    <h3>« ${esc(k.term)} »</h3><p class="msub">${esc(d.name)}</p>
+    <div class="score ${found ? "" : "none"}"><div class="num">${found ? Math.round(c.score) + " %" : "0 %"}</div>
+      <span class="pill ${c.decision}">${LONG[c.decision]}</span></div>
+    <div class="facts"><span><b>${c.count}</b> ${c.count > 1 ? "occurrences" : "occurrence"}</span><span>fiabilité <b>${Math.round(c.reliability)} %</b></span>
+      <button class="link" style="margin:0;display:inline-flex;align-items:center;gap:4px" data-action="info">${ic("info")}Calcul</button></div>
+    <p class="explain" id="explain">Score = ressemblance avec le mot-clé × confiance de lecture. Plusieurs occurrences renforcent le score. Présent dès ${s.present_thr} %, à vérifier dès ${s.review_thr} %.${found ? "" : " Sans occurrence, la fiabilité est la qualité de lecture des documents."}</p>
+    ${c.occurrences.map((o, i) => `<div class="occ" style="--d:${i}">
+      <div class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, "<mark>$1</mark>")} …</div>
+      <div class="meta"><span class="tag ok">${Math.round(o.score * 100)} %</span><span class="tag">${esc(o.filename)}, p. ${o.page}</span><span class="tag">${o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu par OCR" : "texte natif"}</span></div>
+      <img loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}, mot encadré"></div>`).join("")}`, true);
+}
+
+/* menu « ⋯ » */
+function openWho(btn){
+  const m = $("#menu"), ops = state.settings.operators || [], own = state.owners || {};
+  m.innerHTML = ops.map(o => `<button data-switch="${esc(o)}" role="menuitemradio" aria-checked="${o === currentOp}">
+      <span class="ini sm prof" style="${profStyle(o)}">${esc(initials(o))}</span><span class="who"><b>${esc(o)}</b><small>${plural(own[o] || 0, "dossier")}, ${kwN((state.keyword_counts || {})[o] || 0)}</small></span>
+      ${o === currentOp ? ic("check") : ""}</button>`).join("") +
+    `<button data-go="#/reglages">${ic("sliders")}Réglages</button><button data-action="lock">${ic("lock")}Verrouiller</button>`;
+  place(m, btn);
+}
+function place(m, btn){
+  const r = btn.getBoundingClientRect();
+  m.style.top = (r.bottom + 8) + "px";
+  m.style.right = Math.max(10, innerWidth - r.right) + "px";
+  m.classList.add("on");
+}
+async function switchTo(o){
+  closeMenu();
+  if(o === currentOp) return placeThumbs(document);
+  await flushSettings();                                          // les réglages en cours vont au bon profil
+  const sess = await api("/api/session");
+  const pr = sess.profiles.find(x => x.name === o);
+  if(!pr) return;
+  showLock({step: pr.has_pin ? "pin" : "setup1", owner: o, len: pr.pin_len, cancelable: true});
+}
+/* après un déverrouillage réussi */
+async function enterProfile(o){
+  currentOp = o; store.set("ks_op", o);
+  hideLock();
+  toast(`Profil de ${o}`);
+  if(route().page === "dossier") location.hash = "#/dossiers";   // le dossier ouvert appartenait à l'autre profil
+  lastPage = null; state.settings = {operators: state.settings.operators};
+  await load(true);
+}
+function openMenu(btn, id){
+  const m = $("#menu");
+  m.innerHTML = `<button data-action="rename" data-id="${id}">${ic("edit")}Renommer</button>
+    <button data-action="add-docs" data-id="${id}">${ic("upload")}Ajouter des documents</button>
+    ${(state.settings.operators || []).filter(o => o !== currentOp).map(o =>
+      `<button data-action="give" data-id="${id}" data-to="${esc(o)}">${ic("swap")}Confier à ${esc(o)}</button>`).join("")}
+    <button class="del" data-action="delete" data-id="${id}">${ic("trash")}Supprimer le dossier</button>`;
+  place(m, btn);
+}
+function closeMenu(){ $("#menu").classList.remove("on"); }
+
+/* ================================================================ actions */
+function pickFiles(cb){
+  const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true;
+  inp.accept = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"; inp.onchange = () => cb([...inp.files]); inp.click();
+}
+async function uploadTo(did, files){
+  if(!files.length) return;
+  const fd = new FormData(); files.forEach(f => fd.append("files", f)); fd.append("operator", currentOp || "");
+  const r = await api(`/api/dossiers/${did}/files`, {method:"POST", body:fd});
+  toast(`${plural(r.added.length,"document")} ajouté${r.added.length>1?"s":""}` + (r.rejected.length ? `, ${r.rejected.length} refusé(s)` : ""));
+  dossierTab = "docs";
+  await load(false);
+}
+async function addKeywords(text){
+  if(!text.trim()) return;
+  const r = await jpost("/api/keywords", {terms:text, operator:currentOp});
+  toast(r.added.length ? `${kwN(r.added.length)} ajouté${r.added.length>1?"s":""}` : "Déjà dans la liste");
+  state = await api(resultsUrl());
+  const box = $("#chips"), have = new Set([...box.children].map(c => c.dataset.id));
+  box.innerHTML = state.keywords.map((k,i) => chip(k, have.has(String(k.id)) ? 0 : i, have.has(String(k.id)))).join("");
+  const cnt = document.querySelector(".count"); if(cnt) cnt.textContent = `${kwN(state.keywords.length)}, accents et majuscules ignorés`;
+}
+/* ---------------------------------------------------------------- application de bureau (fenêtre native)
+   Dans l'application, les téléchargements passent par le système : boîte « Enregistrer sous » et application par défaut. */
+const desktop = () => !!(window.pywebview && window.pywebview.api);
+async function exportCsv(){
+  if(!desktop()){ location.href = "/export.csv"; return toast(`Export des dossiers de ${currentOp}`); }
+  const r = await fetch("/export.csv");
+  if(!r.ok) return toast("Export impossible");
+  const name = (r.headers.get("Content-Disposition") || "").match(/filename="?([^";]+)/);
+  const ok = await window.pywebview.api.save_file(name ? name[1] : "keyscan.csv", await r.text());
+  if(ok) toast("Export enregistré");
+}
+async function openDocument(url, filename){
+  const r = await fetch(url);
+  if(!r.ok) return toast("Document introuvable");
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  let bin = ""; for(let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  await window.pywebview.api.open_file(filename, btoa(bin));
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest('a[href^="/api/documents/"][target="_blank"]');
+  if(a && desktop()){ e.preventDefault(); openDocument(a.getAttribute("href"), a.textContent.trim()); }
+}, true);
+
+/* la liste des profs est enregistrée tout de suite (le serveur peut refuser un retrait) */
+async function saveOps(ops, pin){
+  try{ state.settings = await jpost("/api/settings", {operators:ops, pin}); }
+  catch{ return; }
+  if(!ops.includes(currentOp)){ currentOp = ops[0]; store.set("ks_op", currentOp); }
+  await load(false); lastPage = null; render(false); toast("Équipe mise à jour");
+}
+let saveT = null, pending = null;
+function saveSettings(patch){
+  Object.assign(state.settings, patch);
+  const {present_thr, review_thr, min_quality} = state.settings;
+  pending = {owner: currentOp, present_thr, review_thr, min_quality};   // le profil est fixé au moment du réglage
+  clearTimeout(saveT);
+  saveT = setTimeout(flushSettings, 450);
+}
+async function flushSettings(){
+  clearTimeout(saveT);
+  if(!pending) return;
+  const body = pending; pending = null;
+  await jpost("/api/settings", body);
+  toast(`Seuils de ${body.owner} enregistrés`);
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-op],[data-del-op],[data-close],[data-switch]");
+  if(!e.target.closest("#menu") && !e.target.closest("[data-action=menu],[data-action=who]")) closeMenu();
+  if(!t) return;
+  const ds = t.dataset;
+  if("close" in ds){ e.preventDefault(); return closeModal(null); }
+  if(ds.switch) return switchTo(ds.switch);
+  if(ds.go){ e.preventDefault(); closeModal(); closeMenu(); return go(ds.go); }
+  if(ds.dtab){
+    if(dossierTab === ds.dtab) return;
+    dossierTab = ds.dtab;
+    t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t));
+    placeThumbs(t.parentElement.parentElement);
+    const d = state.dossiers.find(x => x.id === route().id), list = $("#dlist");
+    list.innerHTML = dossierTab === "kw" ? kwList(d) : docList(d);
+    list.classList.remove("swap"); void list.offsetWidth; list.classList.add("swap");
+    return;
+  }
+  if(ds.kw) return showEvidence(+ds.dossier, +ds.kw);
+  if(ds.drop){
+    if(ds.drop === "new") return pickFiles(f => { newFiles.push(...f); showNewFiles(); });
+    return pickFiles(f => uploadTo(+ds.drop, f));
+  }
+  if(ds.delKw){
+    const c = t.closest(".chip"); c.classList.add("leaving");
+    await api(`/api/keywords/${ds.delKw}`, {method:"DELETE"});
+    setTimeout(() => { c.remove(); state.keywords = state.keywords.filter(k => k.id != ds.delKw);
+      const cnt = document.querySelector(".count"); if(cnt) cnt.textContent = `${kwN(state.keywords.length)}, accents et majuscules ignorés`; }, 260);
+    return;
+  }
+  if(ds.reDoc){ await api(`/api/documents/${ds.reDoc}/reanalyse`, {method:"POST"}); toast("Analyse relancée"); return load(false); }
+  if(ds.delDoc){
+    if(await ask({title:"Retirer ce document ?", text:ds.name, ok:"Retirer", danger:true})){
+      await api(`/api/documents/${ds.delDoc}`, {method:"DELETE"}); toast("Document retiré"); load(false);
+    } return;
+  }
+  if(ds.op){
+    return switchTo(ds.op);          // le sélecteur ne bascule qu'après le bon code
+  }
+  if(ds.delOp){
+    const n = (state.owners || {})[ds.delOp] || 0;
+    if(n) return toast(`${ds.delOp} a encore ${plural(n,"dossier")} : confiez-les d'abord`);
+    const sess = await api("/api/session"), pr = sess.profiles.find(x => x.name === ds.delOp);
+    const needPin = ds.delOp !== currentOp && pr && pr.has_pin;
+    const ans = await ask({title:`Retirer ${ds.delOp} ?`, text: needPin ? `Son profil, ses mots-clés et ses réglages seront supprimés. Saisissez le code de ${ds.delOp}.` : "", input: needPin ? "" : null, secret: true, ok:"Retirer", danger:true});
+    if(!ans) return;
+    return saveOps((state.settings.operators || []).filter(o => o !== ds.delOp), needPin ? ans : undefined);
+  }
+  switch(ds.action){
+    case "new": closeMenu(); return openNew();
+    case "zip": return $("#zipInput").click();
+    case "menu": return $("#menu").classList.contains("on") ? closeMenu() : openMenu(t, ds.id);
+    case "copy-kw": {
+      const r = await jpost("/api/keywords/copy", {from:ds.from, to:currentOp});
+      toast(r.added ? `${kwN(r.added)} repris de ${ds.from}` : "Vous les avez déjà tous");
+      lastPage = null; return load(true);
+    }
+    case "lock": closeMenu(); return lockNow();
+    case "change-pin": {
+      const sess = await api("/api/session"), pr = sess.profiles.find(x => x.name === currentOp);
+      return showLock({step:"change-old", owner: currentOp, len: pr && pr.pin_len, cancelable: true});
+    }
+    case "who": return $("#menu").classList.contains("on") ? closeMenu() : openWho(t);
+    case "give": {
+      closeMenu();
+      await jpost(`/api/dossiers/${ds.id}`, {owner:ds.to}, "PATCH");
+      toast(`Dossier confié à ${ds.to}`); await load(false); return go("#/dossiers");
+    }
+    case "info": return $("#explain").classList.toggle("on");
+    case "export": return exportCsv();
+    case "add-docs": closeMenu(); return pickFiles(f => uploadTo(+ds.id, f));
+    case "rename": {
+      closeMenu(); const d = state.dossiers.find(x => x.id == ds.id);
+      const n = await ask({title:"Renommer le dossier", input:d.name, ok:"Renommer"});
+      if(n && n.trim()){ await jpost(`/api/dossiers/${ds.id}`, {name:n.trim()}, "PATCH"); toast("Dossier renommé"); load(false); }
+      return;
+    }
+    case "delete": {
+      closeMenu(); const d = state.dossiers.find(x => x.id == ds.id);
+      if(await ask({title:"Supprimer ce dossier ?", text:`${d.name} et ses ${plural(d.documents.length,"document")} seront supprimés.`, ok:"Supprimer", danger:true})){
+        await api(`/api/dossiers/${ds.id}`, {method:"DELETE"}); toast("Dossier supprimé"); await load(false); go("#/dossiers");
+      }
+      return;
+    }
+  }
+});
+
+document.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  if(f.id === "kwForm"){ const i = $("#kwInput"); const v = i.value; i.value = ""; await addKeywords(v); i.focus(); }
+  else if(f.id === "opForm"){
+    const v = $("#opInput").value.trim(); if(!v) return;
+    const ops = [...(state.settings.operators || [])]; if(!ops.includes(v)) ops.push(v);
+    await saveOps(ops); $("#opInput") && $("#opInput").focus();
+  }
+  else if(f.id === "askForm"){ closeModal($("#askInput") ? $("#askInput").value : true); }
+  else if(f.id === "newForm"){
+    const name = $("#newName").value.trim(); if(!name) return;
+    $("#newOk").disabled = true;
+    const r = await jpost("/api/dossiers", {name, operator:currentOp});
+    const files = newFiles; closeModal();
+    dossierTab = files.length ? "docs" : "kw";
+    if(files.length){
+      const fd = new FormData(); files.forEach(x => fd.append("files", x)); fd.append("operator", currentOp || "");
+      await api(`/api/dossiers/${r.id}/files`, {method:"POST", body:fd});
+    }
+    toast("Dossier créé"); await load(false); go(`#/dossier/${r.id}`);
+  }
+});
+document.addEventListener("input", e => {
+  const t = e.target;
+  if(t.id === "newName") $("#newOk").disabled = !t.value.trim();
+  if(t.type === "range"){
+    let v = +t.value;
+    if(t.id === "sReview" && v >= state.settings.present_thr){ v = state.settings.present_thr - 1; t.value = v; }
+    if(t.id === "sPresent" && v <= state.settings.review_thr){ v = state.settings.review_thr + 1; t.value = v; }
+    t.style.setProperty("--v", v); $("#" + t.id + "V").textContent = v + " %";
+    saveSettings({[{sPresent:"present_thr", sReview:"review_thr", sQuality:"min_quality"}[t.id]]: v});
+  }
+});
+document.addEventListener("paste", e => {
+  if(e.target.id !== "kwInput") return;
+  const txt = e.clipboardData.getData("text");
+  if(/[\n;]/.test(txt)){ e.preventDefault(); addKeywords(txt); }
+});
+$("#zipInput").onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  closeModal();
+  const fd = new FormData(); fd.append("archive", f); fd.append("operator", currentOp || "");
+  toast("Import en cours…");
+  const r = await api("/api/import-zip", {method:"POST", body:fd});
+  toast(`${plural(r.dossiers.length,"dossier")} importé${r.dossiers.length>1?"s":""}`);
+  e.target.value = ""; await load(false); go("#/dossiers");
+};
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape"){ closeMenu(); if($("#mwrap").classList.contains("on")) closeModal(null); }
+});
+["dragover","dragleave","drop"].forEach(ev => document.addEventListener(ev, e => {
+  const z = e.target.closest && e.target.closest("[data-drop]");
+  if(!z){ if(ev !== "dragleave") e.preventDefault(); return; }
+  e.preventDefault();
+  z.classList.toggle("over", ev === "dragover");
+  if(ev === "drop"){
+    const files = [...e.dataTransfer.files];
+    if(z.dataset.drop === "new"){ newFiles.push(...files); showNewFiles(); }
+    else uploadTo(+z.dataset.drop, files);
+  }
+}));
+
+/* ================================================================ écran de verrouillage
+   Étapes : choose (qui êtes-vous ?) → pin (saisie) | setup1/setup2 (création) | change-old/new/confirm (changement) */
+let L = null;                // état de l'écran : {step, owner, len, buf, first, old, cancelable, msg, err}
+let profilesCache = [];
+let idleMs = 30 * 60 * 1000, lastInput = Date.now();
+
+async function boot(){
+  let sess;
+  try{ sess = await api("/api/session"); }catch{ return; }
+  profilesCache = sess.profiles; idleMs = sess.idle_minutes * 60 * 1000;
+  state.settings.operators = sess.profiles.map(p => p.name);
+  if(sess.owner){ currentOp = sess.owner; await load(true); }
+  else showLock({step:"choose"});
+}
+async function lockNow(){
+  try{ await fetch("/api/lock", {method:"POST"}); }catch{}
+  showLock({step:"choose"});
+}
+async function showLock(opts){
+  closeMenu(); if($("#mwrap").classList.contains("on")) closeModal(null);
+  if(opts.step === "choose" || !opts.cancelable){
+    clearTimeout(pollTimer);
+    $("#view").innerHTML = ""; $("#view")._html = ""; state.dossiers = []; state.keywords = [];   // rien ne reste visible derrière
+  }
+  try{ const sess = await (await fetch("/api/session")).json(); profilesCache = sess.profiles; state.settings.operators = sess.profiles.map(p => p.name); }catch{}
+  L = {buf:"", msg:"", err:false, ...opts};
+  if(L.step === "pin" && !L.len){ const pr = profilesCache.find(x => x.name === L.owner); L.len = pr && pr.pin_len; }
+  drawLock();
+  const el = $("#lock"); el.classList.add("on"); el.setAttribute("aria-hidden","false");
+}
+function hideLock(){ L = null; const el = $("#lock"); el.classList.remove("on"); el.setAttribute("aria-hidden","true"); }
+
+const LOCK_TEXT = {
+  pin:            o => ["Saisissez votre code", ""],
+  setup1:         o => ["Créez votre code", "4 à 8 chiffres, demandé à chaque ouverture du profil"],
+  setup2:         o => ["Confirmez votre code", ""],
+  "change-old":   o => ["Code actuel", ""],
+  "change-new":   o => ["Nouveau code", "4 à 8 chiffres"],
+  "change-confirm": o => ["Confirmez le nouveau code", ""],
+};
+function drawLock(){
+  const el = $("#lock");
+  if(L.step === "choose"){
+    el.innerHTML = `<div class="lock-in"><div class="lens big"></div><h2>Qui êtes-vous ?</h2><p class="msub">Choisissez votre profil</p>
+      <div class="who-grid">${profilesCache.map(p => `<button class="who-card glass" data-pick="${esc(p.name)}">
+        <span class="ava" style="${profStyle(p.name)}">${esc(initials(p.name))}</span><b>${esc(p.name)}</b>
+        <small>${p.has_pin ? plural(p.dossiers, "dossier") : "Code à créer"}</small></button>`).join("")}</div></div>`;
+    return;
+  }
+  const [title, hint] = LOCK_TEXT[L.step](L.owner);
+  const fixed = (L.step === "pin" || L.step === "change-old") ? L.len : (L.step === "setup2" || L.step === "change-confirm") ? L.first.length : 0;
+  const n = fixed || Math.max(4, L.buf.length);
+  const back = L.cancelable ? "Annuler" : "Retour";
+  const showOk = !fixed;
+  el.innerHTML = `<div class="lock-in">
+    <span class="ava sm" style="${profStyle(L.owner)}">${esc(initials(L.owner))}</span>
+    <h2>${esc(title)}</h2><p class="msub ${L.err ? "err" : ""}">${esc(L.msg || hint || L.owner)}</p>
+    <div class="dots" id="dots">${Array.from({length:n}, (_, i) => `<i class="${i < L.buf.length ? "on" : ""}"></i>`).join("")}</div>
+    <div class="pad">${[1,2,3,4,5,6,7,8,9].map(k => `<button class="key" data-key="${k}">${k}</button>`).join("")}
+      <button class="key txt" data-key="back">${back}</button><button class="key" data-key="0">0</button>
+      ${showOk && L.buf.length >= 4 ? `<button class="key txt" data-key="ok" style="color:var(--blue)">OK</button>` : `<button class="key txt" data-key="del" aria-label="Effacer" ${L.buf ? "" : "disabled"}>${ic("del")}</button>`}</div>
+    ${L.step === "pin" ? `<button class="link" data-key="forgot">Code oublié ?</button>
+      <p class="forgot" id="forgot">Sur l'ordinateur où tourne KeyScan, dans le dossier KeyScan, lancez dans un Terminal :
+      <code>.venv/bin/python app.py --reset-pin "${esc(L.owner)}"</code>Un nouveau code sera demandé à la prochaine ouverture.</p>` : ""}
+  </div>`;
+}
+function lockError(msg){
+  L.buf = ""; L.msg = msg; L.err = true; drawLock();
+  const d = $("#dots"); d.classList.remove("shake"); void d.offsetWidth; d.classList.add("shake");
+}
+async function lockKey(k){
+  if(!L) return;
+  if(k === "forgot"){ $("#forgot").classList.toggle("on"); return; }
+  if(k === "back"){
+    if(L.cancelable){ hideLock(); placeThumbs(document); return; }
+    return showLock({step:"choose"});
+  }
+  if(k === "del"){ L.buf = L.buf.slice(0, -1); L.err = false; L.msg = ""; return drawLock(); }
+  const fixed = (L.step === "pin" || L.step === "change-old") ? L.len : (L.step === "setup2" || L.step === "change-confirm") ? L.first.length : 0;
+  if(k === "ok"){ if(!fixed && L.buf.length >= 4) return lockSubmit(); return; }
+  if(!/^\d$/.test(k) || L.buf.length >= (fixed || 8)) return;
+  L.buf += k; L.err = false; L.msg = ""; drawLock();
+  if(fixed && L.buf.length === fixed) setTimeout(lockSubmit, 120);   // saisie complète : validation automatique
+}
+async function lockSubmit(){
+  const pin = L.buf;
+  const post = (url, body) => api(url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), quiet:true});
+  try{
+    if(L.step === "pin"){ await post("/api/unlock", {owner:L.owner, pin}); return enterProfile(L.owner); }
+    if(L.step === "setup1"){ L.first = pin; L.buf = ""; L.step = "setup2"; return drawLock(); }
+    if(L.step === "setup2"){
+      if(pin !== L.first){ L.step = "setup1"; L.first = null; return lockError("Les deux codes ne correspondent pas"); }
+      await post("/api/pin/setup", {owner:L.owner, pin}); toast("Code créé"); return enterProfile(L.owner);
+    }
+    if(L.step === "change-old"){ L.old = pin; L.buf = ""; L.step = "change-new"; return drawLock(); }
+    if(L.step === "change-new"){ L.first = pin; L.buf = ""; L.step = "change-confirm"; return drawLock(); }
+    if(L.step === "change-confirm"){
+      if(pin !== L.first){ L.step = "change-new"; L.first = null; return lockError("Les deux codes ne correspondent pas"); }
+      await post("/api/pin/change", {old:L.old, new:pin}); hideLock(); toast("Code modifié"); return;
+    }
+  }catch(e){
+    if(e.message === "verrouillé") return;
+    if(L.step === "change-confirm"){ L.step = "change-old"; L.old = L.first = null; }   // ancien code faux : on recommence
+    lockError(e.status === 403 ? (L.step === "change-old" ? "Code actuel incorrect" : "Code incorrect") : e.message);
+  }
+}
+document.addEventListener("click", e => {
+  const pick = e.target.closest("[data-pick]");
+  if(pick){ const pr = profilesCache.find(x => x.name === pick.dataset.pick);
+    return showLock({step: pr.has_pin ? "pin" : "setup1", owner: pr.name, len: pr.pin_len, cancelable: false}); }
+  const key = e.target.closest("#lock [data-key]");
+  if(key) lockKey(key.dataset.key);
+});
+document.addEventListener("keydown", e => {
+  if(!L || L.step === "choose") return;
+  if(/^\d$/.test(e.key)) lockKey(e.key);
+  else if(e.key === "Backspace") lockKey("del");
+  else if(e.key === "Enter") lockKey("ok");
+  else if(e.key === "Escape") lockKey("back");
+  else return;
+  e.preventDefault(); e.stopPropagation();
+}, true);
+/* verrouillage automatique après inactivité */
+["pointerdown","keydown","wheel","touchstart","pointermove"].forEach(ev => addEventListener(ev, () => { lastInput = Date.now(); }, {passive:true}));
+setInterval(() => { if(!L && currentOp && Date.now() - lastInput > idleMs) lockNow(); }, 15000);
+
+/* ================================================================ curseur fluide (un seul cercle)
+   - le cercle suit la souris avec une légère inertie, calculée à la vitesse réelle de l'écran ;
+   - sur un bouton, il en épouse la forme (comme le pointeur de l'iPad) et le bouton est légèrement attiré ;
+   - sur un champ texte, il devient une barre d'insertion ;
+   - tout est piloté par les événements souris : aucune mesure de la page à chaque image,
+     et la boucle d'animation s'arrête dès que le cercle est immobile ;
+   - désactivé sur écran tactile et si les animations sont réduites. */
+(function cursor(){
+  if(!matchMedia("(pointer:fine)").matches || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  const root = document.documentElement, ring = $("#cur-ring");
+  const MORPH = ".btn,.iconbtn,.fab,.tab,.seg button,.link,.menu button,.key,.who-card";
+  const TEXT = "input:not([type=range]),textarea,[contenteditable]";
+  const POINT = "a,button,[data-drop],label,input[type=range],.rowc,.krow";
+  const BASE = 36;
+  let mx = -100, my = -100, x = -100, y = -100, w = BASE, h = BASE, rad = BASE / 2, sc = 1;
+  let target = null, mode = "", rect = null, radius = 0, down = false, running = false, last = 0, seen = false;
+  root.classList.add("cc");
+
+  function measure(){
+    if(!target) return;
+    rect = target.getBoundingClientRect();
+    radius = Math.min(parseFloat(getComputedStyle(target).borderRadius) || 12, rect.height / 2);
+  }
+  function release(){ if(target && mode === "morph"){ target.style.removeProperty("--tx"); target.style.removeProperty("--ty"); } }
+  function setTarget(el){
+    const m = el && el.closest(MORPH), t = !m && el && el.closest(TEXT), pt = !m && !t && el && el.closest(POINT);
+    const next = m || t || pt || null, nmode = m ? "morph" : t ? "text" : pt ? "point" : "";
+    if(next === target && nmode === mode) return;
+    release(); target = next; mode = nmode; rect = null;
+    if(mode === "morph"){ measure(); if(rect.width > 320){ mode = "point"; } }
+    ring.className = mode;
+  }
+  function magnet(){
+    if(mode !== "morph" || !rect) return;
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    const dx = Math.max(-1, Math.min(1, (mx - cx) / (rect.width / 2))), dy = Math.max(-1, Math.min(1, (my - cy) / (rect.height / 2)));
+    target.style.setProperty("--tx", (dx * 2).toFixed(1) + "px"); target.style.setProperty("--ty", (dy * 2).toFixed(1) + "px");
+  }
+  function kick(){ if(!running){ running = true; last = performance.now(); requestAnimationFrame(frame); } }
+
+  addEventListener("pointermove", e => {
+    if(e.pointerType !== "mouse") return;
+    mx = e.clientX; my = e.clientY;
+    if(!seen){ x = mx; y = my; seen = true; }
+    root.classList.remove("cur-out");
+    magnet(); kick();
+  }, {passive:true});
+  document.addEventListener("pointerover", e => { if(e.pointerType === "mouse"){ setTarget(e.target); kick(); } }, {passive:true});
+  document.addEventListener("mouseleave", () => root.classList.add("cur-out"));
+  addEventListener("scroll", () => { if(mode === "morph") measure(); kick(); }, {passive:true, capture:true});
+  addEventListener("pointerdown", () => { down = true; kick(); });
+  addEventListener("pointerup", () => { down = false; kick(); });
+  // un élément survolé peut disparaître (changement de page) : on revient au cercle simple
+  new MutationObserver(() => { if(target && !target.isConnected){ release(); target = null; mode = ""; ring.className = ""; kick(); } })
+    .observe(document.body, {childList:true, subtree:true});
+
+  function frame(now){
+    const dt = Math.min(64, now - last) / 16.67; last = now;
+    const f = a => 1 - Math.pow(1 - a, dt);
+    let tx = mx, ty = my, tw = BASE, th = BASE, tr = BASE / 2, k = .42;
+    if(mode === "morph" && rect){
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+      const dx = Math.max(-1, Math.min(1, (mx - cx) / (rect.width / 2))), dy = Math.max(-1, Math.min(1, (my - cy) / (rect.height / 2)));
+      tx = cx + dx * 2; ty = cy + dy * 2; tw = rect.width + 10; th = rect.height + 10; tr = radius + 5; k = .38;
+    } else if(mode === "text"){ tw = 2; th = 22; tr = 1; k = .75; }
+    else if(mode === "point"){ tw = th = 44; tr = 22; }
+    const ts = down ? .86 : 1;
+    x += (tx - x) * f(k); y += (ty - y) * f(k);
+    w += (tw - w) * f(.32); h += (th - h) * f(.32); rad += (tr - rad) * f(.35); sc += (ts - sc) * f(.4);
+    const still = Math.abs(tx - x) < .05 && Math.abs(ty - y) < .05 && Math.abs(tw - w) < .05 && Math.abs(th - h) < .05 && Math.abs(ts - sc) < .005;
+    if(still){ x = tx; y = ty; w = tw; h = th; rad = tr; sc = ts; }
+    ring.style.width = w.toFixed(2) + "px"; ring.style.height = h.toFixed(2) + "px"; ring.style.borderRadius = rad.toFixed(2) + "px";
+    ring.style.transform = `translate3d(${(x - w / 2).toFixed(2)}px,${(y - h / 2).toFixed(2)}px,0) scale(${sc.toFixed(3)})`;
+    if(still){ running = false; return; }      // immobile : la boucle s'arrête
+    requestAnimationFrame(frame);
+  }
+})();
+
+if(!location.hash) history.replaceState(null, "", "#/dossiers");
+boot();
+</script>
+</body>
+</html>
