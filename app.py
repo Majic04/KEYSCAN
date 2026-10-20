@@ -58,7 +58,7 @@ from werkzeug.utils import secure_filename
 from engine import ENGINE_VERSION
 from engine.extract import (ALLOWED_EXT, IMAGE_EXT, configure_tesseract, extract_document, handwriting_enabled,
                             normalize, page_count)
-from engine.matcher import combine, decide, find_keyword
+from engine.matcher import combine, decide, find_keyword, is_fragile
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 # données : dossier « data » à côté du code, ou dossier utilisateur fourni par l'application de bureau
@@ -300,6 +300,7 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
         ready = [x for x in ddocs if x["status"] == "ok"]
         pending = sum(1 for x in ddocs if x["status"] in ("en_attente", "en_cours"))
         quality = min((x["quality"] or 0) for x in ready) if ready else 0.0
+        modes = [p.get("mode") for x in ready for p in (json.loads(x["pages"]) if x["pages"] else [])]
         cells = {}
         for k in kws:
             occ = []
@@ -307,7 +308,8 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
                 for o in occurrences(x, k["term"]):
                     occ.append({**o, "doc_id": x["id"], "filename": x["filename"]})
             score = round(combine([o["score"] for o in occ]) * 100, 1)
-            decision = decide(score, quality, ps["present_thr"], ps["review_thr"], ps["min_quality"])
+            decision = decide(score, quality, ps["present_thr"], ps["review_thr"], ps["min_quality"],
+                              fragile=is_fragile(k["term"], modes))
             # fiabilité de la décision : score si trouvé, qualité de lecture si absent
             reliability = score if decision in ("present", "a_verifier") else round(quality, 1)
             cells[k["id"]] = {

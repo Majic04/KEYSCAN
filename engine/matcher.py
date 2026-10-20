@@ -249,18 +249,28 @@ def combine(scores: list[float]) -> float:
     return 1 - (1 - s[0]) * rest
 
 
-def decide(score_pct: float, quality_pct: float, present_thr: float, review_thr: float, min_quality: float) -> str:
+def is_fragile(term: str, page_modes) -> bool:
+    """
+    Un mot-clé très court (≤ 2 caractères : « IA », « C# », « R ») recherché dans un document lu par OCR
+    ne peut jamais être déclaré absent avec certitude : une seule lettre mal lue suffit à le manquer.
+    """
+    return Keyword(term).L <= 2 and any(m in ("ocr", "mixte") for m in page_modes)
+
+
+def decide(score_pct: float, quality_pct: float, present_thr: float, review_thr: float, min_quality: float,
+           fragile: bool = False) -> str:
     """
     Décision rendue pour un mot-clé dans un dossier.
       present        : score ≥ seuil « présent »
       a_verifier     : score entre les deux seuils — contrôle humain conseillé
       absent         : score < seuil « à vérifier » et documents bien lus
       absent_douteux : rien trouvé, mais lecture des documents trop mauvaise pour conclure
+                       (ou mot-clé très court dans un document lu par OCR, voir is_fragile)
     """
     if score_pct >= present_thr:
         return "present"
     if score_pct >= review_thr:
         return "a_verifier"
-    if quality_pct < min_quality:
+    if quality_pct < min_quality or fragile:
         return "absent_douteux"
     return "absent"

@@ -10,7 +10,7 @@ sys.path.insert(0, ROOT)
 from rapidfuzz.distance import Levenshtein
 from engine import extract as ex, handwriting as hw
 from engine.extract import normalize
-from engine.matcher import find_keyword, combine, decide
+from engine.matcher import find_keyword, combine, decide, is_fragile
 
 D = os.path.join(ROOT, "banc_essai", "manuscrit")
 T = json.load(open(os.path.join(D, "truth.json"), encoding="utf-8"))
@@ -28,7 +28,7 @@ def run(htr):
         for k in T["keywords"]:
             occ = find_keyword(r["tokens"], k)
             s = round(combine([o["score"] for o in occ]) * 100, 1)
-            res[(doc, k)] = (decide(s, r["quality"], 85, 50, 70), s)
+            res[(doc, k)] = (decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, [p["mode"] for p in r["pages"]])), s)
         if htr:
             seen, words = set(), []
             for t in r["tokens"]:

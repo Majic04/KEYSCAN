@@ -48,11 +48,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Cache du modèle manuscrit
-        uses: actions/cache@v4
+      - name: Modèle manuscrit déjà préparé (cache)
+        id: modele
+        uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/huggingface
-          key: hf-trocr-fr-v1
+          path: build/models/trocr-fr
+          key: trocr-fr-fp16-v1
+          enableCrossOsArchive: true
       - name: Outils (Tesseract, dylibbundler)
         run: brew install tesseract dylibbundler
       - name: Bibliothèques Python
@@ -66,8 +68,38 @@ jobs:
         run: |
           python build/ci.py "Mac - création du banc OCR" python banc_essai/make_bench.py "$RUNNER_TEMP/bench"
           python build/ci.py --note "Banc OCR (192 décisions)" python banc_essai/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
-      - name: Modèle manuscrit (téléchargement + allègement)
-        run: python build/ci.py "Mac - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
+      - name: Modèle manuscrit (copie GitHub, sinon téléchargement + allègement)
+        if: steps.modele.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/models
+          if gh release download modele-manuscrit -R "$GITHUB_REPOSITORY" -p trocr-fr.tar -D build/dl --clobber; then
+            tar -xf build/dl/trocr-fr.tar -C build/models && rm -rf build/dl && echo "Modèle repris de la copie GitHub"
+          else
+            python build/ci.py "Mac - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
+          fi
+          ls -la build/models/trocr-fr
+      - name: Garder le modèle préparé (cache)
+        if: steps.modele.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/models/trocr-fr
+          key: trocr-fr-fp16-v1
+          enableCrossOsArchive: true
+      - name: Copie GitHub du modèle (une seule fois)
+        if: steps.modele.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view modele-manuscrit -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            tar -cf build/trocr-fr.tar -C build/models trocr-fr
+            gh release create modele-manuscrit build/trocr-fr.tar -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "Modèle d'écriture manuscrite (usage interne à la construction)" \
+              --notes "Copie du modèle TrOCR français allégé, utilisée par la construction pour ne pas dépendre de Hugging Face. Ce n'est pas l'application : voir les autres publications."
+          fi
+          rm -f build/trocr-fr.tar
       - name: Banc d'essai manuscrit (vraie lecture TrOCR)
         env:
           TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
@@ -98,11 +130,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Cache du modèle manuscrit
-        uses: actions/cache@v4
+      - name: Modèle manuscrit déjà préparé (cache)
+        id: modele
+        uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/huggingface
-          key: hf-trocr-fr-v1
+          path: build/models/trocr-fr
+          key: trocr-fr-fp16-v1
+          enableCrossOsArchive: true
       - name: Bibliothèques Python (PyTorch version processeur, plus légère)
         shell: bash
         run: |
@@ -111,9 +145,26 @@ jobs:
       - name: Tesseract autonome
         timeout-minutes: 15
         run: python build/ci.py "Windows - Tesseract" pwsh -NoProfile -File build/windows/get_tesseract.ps1
-      - name: Modèle manuscrit (téléchargement + allègement)
+      - name: Modèle manuscrit (copie GitHub, sinon téléchargement + allègement)
+        if: steps.modele.outputs.cache-hit != 'true'
         shell: bash
-        run: python build/ci.py "Windows - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/models
+          if gh release download modele-manuscrit -R "$GITHUB_REPOSITORY" -p trocr-fr.tar -D build/dl --clobber; then
+            tar -xf build/dl/trocr-fr.tar -C build/models && rm -rf build/dl && echo "Modèle repris de la copie GitHub"
+          else
+            python build/ci.py "Windows - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
+          fi
+          ls -la build/models/trocr-fr
+      - name: Garder le modèle préparé (cache)
+        if: steps.modele.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/models/trocr-fr
+          key: trocr-fr-fp16-v1
+          enableCrossOsArchive: true
       - name: Construction de KeyScan.exe
         shell: bash
         run: python build/ci.py "Windows - PyInstaller" python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work

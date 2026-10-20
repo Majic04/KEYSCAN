@@ -31,11 +31,24 @@ def read(model, processor, tokenizer, crops):
     return tokenizer.batch_decode(ids, skip_special_tokens=True)
 
 
+def download(repo, patterns, tries=6):
+    """Téléchargement depuis Hugging Face, avec nouvelles tentatives (le site limite le nombre de requêtes)."""
+    for i in range(tries):
+        try:
+            return snapshot_download(repo, allow_patterns=patterns)
+        except Exception as e:  # noqa: BLE001
+            if i == tries - 1:
+                raise
+            wait = 30 * 2 ** i
+            print(f"Téléchargement de {repo} refusé ({type(e).__name__}) : nouvel essai dans {wait} s", flush=True)
+            time.sleep(wait)
+
+
 def main(out):
     small = ["*.json", "merges.txt", "vocab.*"]
     t = time.time()
-    snapshot_download(MODEL, allow_patterns=small + ["pytorch_model.bin"])
-    snapshot_download(PROCESSOR, allow_patterns=small)
+    download(MODEL, small + ["pytorch_model.bin"])
+    download(PROCESSOR, small)
     print(f"Téléchargé en {time.time() - t:.0f} s")
 
     processor = TrOCRProcessor.from_pretrained(PROCESSOR)
