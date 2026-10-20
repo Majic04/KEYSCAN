@@ -109,6 +109,7 @@ jobs:
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
       - name: Tesseract autonome
+        timeout-minutes: 15
         run: python build/ci.py "Windows - Tesseract" pwsh -NoProfile -File build/windows/get_tesseract.ps1
       - name: Modèle manuscrit (téléchargement + allègement)
         shell: bash

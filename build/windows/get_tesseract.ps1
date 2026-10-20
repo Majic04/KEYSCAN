@@ -10,14 +10,13 @@ New-Item -ItemType Directory -Force -Path $Out, $Tmp | Out-Null
 $Url = "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe"
 $Setup = Join-Path $Tmp "tesseract-setup.exe"
 $Dest = Join-Path $Tmp "Tesseract-OCR"
-try {
-  Invoke-WebRequest -Uri $Url -OutFile $Setup
-  Write-Host ("Installeur téléchargé : {0:N1} Mo" -f ((Get-Item $Setup).Length / 1MB))
-  $p = Start-Process -FilePath $Setup -ArgumentList "/S", "/D=$Dest" -Wait -PassThru
-  Write-Host "Installeur terminé (code $($p.ExitCode))"
-} catch {
-  Write-Host "Installation directe impossible : $_"
-}
+Invoke-WebRequest -Uri $Url -OutFile $Setup
+Write-Host ("Installeur téléchargé : {0:N1} Mo" -f ((Get-Item $Setup).Length / 1MB))
+# on n'exécute pas l'installeur (il peut attendre une fenêtre) : on extrait son contenu avec 7-Zip
+$X = Join-Path $Tmp "extrait"
+& 7z x $Setup "-o$X" -y | Select-Object -Last 3 | Out-Host
+$Exe = Get-ChildItem $X -Recurse -Filter "tesseract.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($Exe) { $Dest = $Exe.DirectoryName }
 if (-not (Test-Path (Join-Path $Dest "tesseract.exe"))) {
   # plan B : même distribution UB-Mannheim, via le gestionnaire de paquets Chocolatey
   Write-Host "tesseract.exe absent de $Dest : installation via Chocolatey"
@@ -29,7 +28,7 @@ if (-not (Test-Path (Join-Path $Dest "tesseract.exe"))) {
   throw "tesseract.exe introuvable après installation"
 }
 Write-Host "Tesseract installé dans $Dest"
-Get-ChildItem (Join-Path $Dest "tessdata") | Select-Object Name | Out-Host
+Get-ChildItem (Join-Path $Dest "tessdata") -ErrorAction SilentlyContinue | Select-Object Name | Out-Host
 
 # binaire + DLL (sans les outils d'entraînement ni la documentation)
 Get-ChildItem $Dest -File | Where-Object { $_.Extension -in ".exe", ".dll" -and $_.Name -notmatch "^(unins|text2image|lstmtraining|combine_tessdata|cntraining|mftraining|shapeclustering|wordlist2dawg|ambiguous_words|classifier_tester|dawg2wordlist|set_unicharset_properties|unicharset_extractor|merge_unicharsets|lstmeval|combine_lang_model|cntraining)" } |

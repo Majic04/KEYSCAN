@@ -123,8 +123,7 @@ def _load():
         # le modèle embarqué est stocké en demi-précision (2 fois plus léger) ; il est remis en pleine précision au chargement
         model = VisionEncoderDecoderModel.from_pretrained(spec["model"], torch_dtype=torch.float32, **local)
         tokenizer = AutoTokenizer.from_pretrained(spec["model"], **local)
-        device = "mps" if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available() else (
-            "cuda" if torch.cuda.is_available() else "cpu")
+        device = _pick_device(torch)
         model.to(device).eval()
         if model.config.decoder_start_token_id is None:
             model.config.decoder_start_token_id = tokenizer.cls_token_id or tokenizer.bos_token_id
@@ -135,7 +134,46 @@ def _load():
         return _engine
 
 
+def _pick_device(torch) -> str:
+    """Processeur graphique si disponible et fonctionnel (Apple Silicon : « mps »), sinon processeur classique."""
+    forced = os.environ.get("KEYSCAN_HTR_DEVICE")
+    if forced:
+        return forced
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        try:   # certaines machines (virtuelles notamment) annoncent « mps » mais ne peuvent rien y allouer
+            (torch.ones(256, 256, device="mps") * 2).sum().item()
+            return "mps"
+        except Exception:  # noqa: BLE001
+            pass
+    return "cpu"
+
+
+def _fallback_cpu():
+    """Bascule le modèle sur le processeur classique après un échec du processeur graphique."""
+    global _engine
+    with _lock:
+        processor, model, tokenizer, device = _engine
+        if device != "cpu":
+            print(f"[manuscrit] {device} indisponible : lecture sur le processeur", flush=True)
+            model.to("cpu")
+            _engine = (processor, model, tokenizer, "cpu")
+        return _engine
+
+
 def recognize(images: list[Image.Image]) -> list[tuple[str, float]]:
+    """Lit des images de lignes manuscrites. Retourne [(texte, confiance 0-100)]."""
+    try:
+        return _recognize(images)
+    except RuntimeError:
+        if _engine is None or _engine[3] == "cpu":
+            raise
+        _fallback_cpu()
+        return _recognize(images)
+
+
+def _recognize(images: list[Image.Image]) -> list[tuple[str, float]]:
     """Lit des images de lignes manuscrites. Retourne [(texte, confiance 0-100)]."""
     if not images:
         return []
