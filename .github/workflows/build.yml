@@ -17,6 +17,8 @@ concurrency:
 env:
   PYTHON_VERSION: "3.12"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
 
 jobs:
   release:
@@ -56,28 +58,28 @@ jobs:
       - name: Bibliothèques Python
         run: python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
       - name: Tesseract autonome
-        run: bash build/mac/bundle_tesseract.sh
+        run: python build/ci.py "Mac - Tesseract" bash build/mac/bundle_tesseract.sh
       - name: Banc d'essai du moteur (précision OCR)
         env:
           TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
           TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
         run: |
-          python banc_essai/make_bench.py "$RUNNER_TEMP/bench"
-          python banc_essai/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
+          python build/ci.py "Mac - création du banc OCR" python banc_essai/make_bench.py "$RUNNER_TEMP/bench"
+          python build/ci.py --note "Banc OCR (192 décisions)" python banc_essai/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
       - name: Modèle manuscrit (téléchargement + allègement)
-        run: python build/prepare_model.py build/models/trocr-fr
+        run: python build/ci.py "Mac - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
       - name: Banc d'essai manuscrit (vraie lecture TrOCR)
         env:
           TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
           TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
           KWF_HTR_MODEL: ${{ github.workspace }}/build/models/trocr-fr
-        run: python banc_essai/evaluate_manuscrit.py
+        run: python build/ci.py --note "Banc manuscrit (TrOCR)" python banc_essai/evaluate_manuscrit.py
       - name: Construction de KeyScan.app
-        run: python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
+        run: python build/ci.py "Mac - PyInstaller" python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
       - name: Image disque (.dmg)
-        run: bash build/mac/make_dmg.sh
+        run: python build/ci.py "Mac - DMG" bash build/mac/make_dmg.sh
       - name: Test de l'application construite
-        run: python build/smoke_test.py dist/KeyScan.app/Contents/MacOS/KeyScan
+        run: python build/ci.py --note "Mac - test de l'application" python build/smoke_test.py dist/KeyScan.app/Contents/MacOS/KeyScan
       - name: Publication
         env:
           GH_TOKEN: ${{ github.token }}
@@ -107,22 +109,22 @@ jobs:
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
       - name: Tesseract autonome
-        shell: pwsh
-        run: ./build/windows/get_tesseract.ps1
+        run: python build/ci.py "Windows - Tesseract" pwsh -NoProfile -File build/windows/get_tesseract.ps1
       - name: Modèle manuscrit (téléchargement + allègement)
         shell: bash
-        run: python build/prepare_model.py build/models/trocr-fr
+        run: python build/ci.py "Windows - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
       - name: Construction de KeyScan.exe
         shell: bash
-        run: python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
+        run: python build/ci.py "Windows - PyInstaller" python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
       - name: Test de l'application construite
         shell: bash
-        run: python build/smoke_test.py dist/KeyScan/KeyScan.exe
+        run: python build/ci.py --note "Windows - test de l'application" python build/smoke_test.py dist/KeyScan/KeyScan.exe
       - name: Installateur (Inno Setup)
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" build\windows\keyscan.iss
+          python build/ci.py "Windows - Inno Setup" "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" build\windows\keyscan.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publication
         shell: bash
         env:
