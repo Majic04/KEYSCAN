@@ -32,8 +32,8 @@ def check(name, cond, detail=""):
 
 
 # 1. auto-test intégré : Tesseract (fra/eng) et module manuscrit embarqués
-st = subprocess.run([EXE, "--selftest"], env=env, capture_output=True, text=True, timeout=900)
-out = st.stdout + st.stderr
+st = subprocess.run([EXE, "--selftest"], env=env, capture_output=True, timeout=900)
+out = (st.stdout or b"").decode("utf-8", "replace") + (st.stderr or b"").decode("utf-8", "replace")
 log = os.path.join(home, "selftest.txt")
 if os.path.exists(log):
     out += open(log, encoding="utf-8").read()
@@ -42,7 +42,7 @@ check("auto-test intégré (Tesseract + écriture manuscrite)", st.returncode ==
 
 # 2. application en mode serveur
 proc = subprocess.Popen([EXE, "--server-only", "--port", str(PORT)], env=env,
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)   # l'application écrit dans keyscan.log
 t0 = time.time()
 s = requests.Session()
 while time.time() - t0 < 180:

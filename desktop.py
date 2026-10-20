@@ -200,6 +200,9 @@ def selftest() -> int:
     """Vérifie que Tesseract (avec le français) et le module manuscrit embarqués fonctionnent."""
     # sous Windows, une application sans console n'a pas de sortie : le compte rendu est aussi écrit dans un fichier
     report = open(os.path.join(HOME, "selftest.txt"), "w", encoding="utf-8")
+    for stream in (sys.stdout, sys.stderr):
+        if stream and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
 
     def print(*args):  # noqa: A001
         line = " ".join(str(x) for x in args)
