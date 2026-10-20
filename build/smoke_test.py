@@ -54,7 +54,7 @@ while time.time() - t0 < 180:
 check("démarrage du serveur", time.time() - t0 < 180, f"{time.time() - t0:.0f} s")
 check("page d'accueil", s.get(BASE).status_code == 200 and "KeyScan" in s.get(BASE).text)
 check("création du code PIN", s.post(BASE + "api/pin/setup", json={"owner": "Franck Plestan", "pin": "1234"}).ok)
-s.post(BASE + "api/keywords", json={"terms": "Master\nrobotique\napprentissage automatique\nvision par ordinateur\nTOEIC\nchimie"})
+s.post(BASE + "api/keywords", json={"terms": "Master\nrobotique\napprentissage automatique\nvision par ordinateur\nstage\nTOEIC\nchimie"})
 did = s.post(BASE + "api/dossiers", json={"name": "Test installé"}).json()["id"]
 files = [("files", (n, open(p, "rb"))) for n, p in [
     ("natif.pdf", os.path.join(ROOT, "exemples", "natif.pdf")),
