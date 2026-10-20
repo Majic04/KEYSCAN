@@ -28,7 +28,7 @@ def run(htr):
         for k in T["keywords"]:
             occ = find_keyword(r["tokens"], k)
             s = round(combine([o["score"] for o in occ]) * 100, 1)
-            res[(doc, k)] = (decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, [p["mode"] for p in r["pages"]])), s)
+            res[(doc, k)] = (decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, r["pages"])), s)
         if htr:
             seen, words = set(), []
             for t in r["tokens"]:
@@ -43,8 +43,9 @@ def summary(name, res, dt):
     tp = sum(1 for (d, k), v in res.items() if k in T["truth"][d]["present"] and v[0] == "present")
     fp = sum(1 for (d, k), v in res.items() if k not in T["truth"][d]["present"] and v[0] == "present")
     rv = sum(1 for (d, k), v in res.items() if k in T["truth"][d]["present"] and v[0] == "a_verifier")
+    sure = sum(1 for (d, k), v in res.items() if k in T["truth"][d]["present"] and v[0] == "absent")
     P = sum(len(v["present"]) for v in T["truth"].values())
-    print(f"{name:28s} trouvés {tp}/{P} · à vérifier {rv} · faux présents {fp} · {dt:.1f} s")
+    print(f"{name:28s} trouvés {tp}/{P} · à vérifier {rv} · faux présents {fp} · absents sûrs à tort {sure} · {dt:.1f} s")
 
 
 off, dt0 = run(False)

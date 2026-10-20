@@ -18,7 +18,7 @@ for doc, present in T["truth"].items():
     for k in KW:
         occ = find_keyword(r["tokens"], k)
         s = round(combine([o["score"] for o in occ]) * 100, 1)
-        dec = decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, [p["mode"] for p in r["pages"]]))
+        dec = decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, r["pages"]))
         rows.append({"doc": doc, "kw": k, "truth": k in present, "score": s, "decision": dec, "quality": r["quality"], "sec": round(dt, 2)})
 
 tp = sum(r["truth"] and r["decision"] == "present" for r in rows)

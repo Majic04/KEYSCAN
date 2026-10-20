@@ -145,7 +145,7 @@ Texte et mots-clés sont normalisés (minuscules, sans accents, ligatures) ; les
 | **Présent** | S ≥ 85 % | S |
 | **À vérifier** | 50 % ≤ S < 85 % | S |
 | **Absent** | S < 50 % et qualité de lecture ≥ 70 % | qualité de lecture |
-| **Absent (lecture insuffisante)** | S < 50 % mais documents mal lus | qualité de lecture |
+| **Absence incertaine** | S < 50 % mais absence impossible à garantir : documents mal lus, écriture manuscrite dans le dossier (TrOCR lit environ 1 caractère sur 8 de travers) ou mot-clé de 2 caractères dans un scan | qualité de lecture |
 
 ### Mesure de la précision (banc d'essai)
 `banc_essai/` génère 16 documents piégés (texte natif, couche texte corrompue, césures, scans propres, basse résolution, JPEG bruité, photos inclinées de 4° et −7°, page à l'envers, flou, faible contraste, faux amis « These / Mister / langage C », petite police) et mesure 192 décisions (16 documents × 12 mots-clés) :

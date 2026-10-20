@@ -300,7 +300,7 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
         ready = [x for x in ddocs if x["status"] == "ok"]
         pending = sum(1 for x in ddocs if x["status"] in ("en_attente", "en_cours"))
         quality = min((x["quality"] or 0) for x in ready) if ready else 0.0
-        modes = [p.get("mode") for x in ready for p in (json.loads(x["pages"]) if x["pages"] else [])]
+        all_pages = [p for x in ready for p in (json.loads(x["pages"]) if x["pages"] else [])]
         cells = {}
         for k in kws:
             occ = []
@@ -309,7 +309,7 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
                     occ.append({**o, "doc_id": x["id"], "filename": x["filename"]})
             score = round(combine([o["score"] for o in occ]) * 100, 1)
             decision = decide(score, quality, ps["present_thr"], ps["review_thr"], ps["min_quality"],
-                              fragile=is_fragile(k["term"], modes))
+                              fragile=is_fragile(k["term"], all_pages))
             # fiabilité de la décision : score si trouvé, qualité de lecture si absent
             reliability = score if decision in ("present", "a_verifier") else round(quality, 1)
             cells[k["id"]] = {
@@ -852,7 +852,7 @@ def write_settings():
     return jsonify(get_settings(owner))
 
 
-LABELS = {"present": "Présent", "a_verifier": "À vérifier", "absent": "Absent", "absent_douteux": "Absent (lecture insuffisante)"}
+LABELS = {"present": "Présent", "a_verifier": "À vérifier", "absent": "Absent", "absent_douteux": "Absence incertaine"}
 
 
 @app.get("/export.csv")

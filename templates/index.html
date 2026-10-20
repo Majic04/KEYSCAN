@@ -476,8 +476,8 @@ const ICON = {
   trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>', zip:'<path d="M7 3h7l5 5v13H7zM14 3v5h5M11 9h1M11 12h1M11 15h1"/>'
 };
 const ic = (n, cls="") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
-const LABEL = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Illisible"};
-const LONG  = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Lecture insuffisante"};
+const LABEL = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Incertain"};
+const LONG  = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Absence incertaine"};
 const ORDER = {present:0, a_verifier:1, absent_douteux:2, absent:3};
 const STATUS = {en_attente:["En attente",""], en_cours:["Analyse…","run"], ok:["Prêt","ok"], erreur:["Erreur","err"]};
 

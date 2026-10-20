@@ -68,6 +68,17 @@ def edit_budget(length: int) -> float:
     return 2.5
 
 
+def handwriting_budget(length: int) -> float:
+    """TrOCR se trompe plus que Tesseract (et autrement) : tolérance plus large, jamais pour les mots très courts."""
+    if length <= 3:
+        return 0.0
+    if length <= 6:
+        return 1.0
+    if length <= 10:
+        return 2.0
+    return 3.5
+
+
 def _has_accent(s: str) -> bool:
     return normalize(s) != s.lower()
 
@@ -90,6 +101,8 @@ class Keyword:
 def similarity(kw: Keyword, win: list[dict]) -> float:
     """Ressemblance (0-1) entre une fenêtre de tokens consécutifs et le mot-clé ; 0 si trop différent."""
     native = win[0]["s"] == "texte"
+    hand = win[0]["s"] == "manuscrit"
+    budget = handwriting_budget(kw.L) if hand else kw.budget
     joined = "".join(t["n"] for t in win)
     same_count = len(win) == kw.m
 
@@ -103,12 +116,12 @@ def similarity(kw: Keyword, win: list[dict]) -> float:
         else:
             return 0.0
     else:
-        if kw.budget == 0 or abs(len(joined) - kw.L) > kw.budget + 1:
+        if budget == 0 or abs(len(joined) - kw.L) > budget + 1:
             return 0.0
         d_raw = Levenshtein.distance(joined, kw.joined)
         d_conf = Levenshtein.distance(_confuse(joined, kw.digits), kw.conf)
         eff = min(d_raw, d_conf + 0.5) if d_conf < d_raw else d_raw
-        if eff > kw.budget:
+        if eff > budget:
             return 0.0
 
     if eff == 0:
@@ -119,6 +132,8 @@ def similarity(kw: Keyword, win: list[dict]) -> float:
         factor = 1 - 0.12 * eff * (8 / max(kw.L, 8))
         if native:
             factor = min(factor, 0.9)
+        elif hand:
+            factor = min(factor, 0.8)       # écriture manuscrite approchée : au mieux « à vérifier », jamais « présent »
 
     # ajustements accents / sigles, mot par mot quand le découpage correspond
     if same_count:
@@ -249,12 +264,17 @@ def combine(scores: list[float]) -> float:
     return 1 - (1 - s[0]) * rest
 
 
-def is_fragile(term: str, page_modes) -> bool:
+def is_fragile(term: str, pages) -> bool:
     """
-    Un mot-clé très court (≤ 2 caractères : « IA », « C# », « R ») recherché dans un document lu par OCR
-    ne peut jamais être déclaré absent avec certitude : une seule lettre mal lue suffit à le manquer.
+    Cas où l'absence d'un mot-clé ne peut jamais être affirmée avec certitude (« absent douteux ») :
+      - le dossier contient de l'écriture manuscrite lue par TrOCR (environ 1 caractère sur 8 mal lu) ;
+      - mot-clé très court (≤ 2 caractères : « IA », « C# », « R ») dans un document lu par OCR :
+        une seule lettre mal lue suffit à le manquer.
+    pages : descriptions des pages (« mode », « manuscrit ») de tous les documents du dossier.
     """
-    return Keyword(term).L <= 2 and any(m in ("ocr", "mixte") for m in page_modes)
+    if any(p.get("manuscrit") for p in pages):
+        return True
+    return Keyword(term).L <= 2 and any(p.get("mode") in ("ocr", "mixte") for p in pages)
 
 
 def decide(score_pct: float, quality_pct: float, present_thr: float, review_thr: float, min_quality: float,
