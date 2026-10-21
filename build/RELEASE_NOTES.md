@@ -1,3 +1,14 @@
+## Nouveautés de la version 1.1
+
+- **Mots-clés propres à chaque dossier** : à la création, partir de la liste par défaut, copier un autre dossier ou partir de zéro, puis « Modifier les mots-clés » dans le dossier. La liste par défaut (onglet Mots-clés) n'est plus imposée à tous les dossiers.
+- **Mot seulement approchant** (« these » pour « thèse », lecture manuscrite approximative) : il reste « À vérifier » même s'il est répété, et ne devient plus jamais « Présent ».
+- **Fichiers en double** : un même fichier déposé deux fois est refusé et n'est jamais compté deux fois.
+- **Documents illisibles** : alerte sur le dossier, « Absence incertaine » au lieu de « Absent », et colonne « Documents non lus » dans l'export CSV.
+- Animations plus soignées (transitions de pages, anneaux, scores qui défilent), toujours à 60 images par seconde.
+- Moteur utilisable en ligne de commande, sans interface : `python -m engine`.
+
+Les dossiers existants gardent leurs mots-clés : chacun reçoit une copie de l'ancienne liste.
+
 ## Télécharger
 
 | Ordinateur | Fichier |

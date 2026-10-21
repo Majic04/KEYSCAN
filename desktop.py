@@ -27,7 +27,7 @@ import time
 import urllib.request
 
 APP_NAME = "KeyScan"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
 DEFAULT_PORT = 47815
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -247,11 +247,23 @@ def main():
     ap.add_argument("--server-only", action="store_true")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--reset-pin", metavar="NOM", help="efface le code PIN d'un profil (code oublié)")
     a, _ = ap.parse_known_args()
 
     setup_environment()
     if a.selftest:
         sys.exit(selftest())
+    if a.reset_pin:
+        import app as keyscan
+        keyscan.init_db()
+        with keyscan.db() as con:
+            n = con.execute("DELETE FROM settings WHERE key=?", (f"pin:{a.reset_pin}",)).rowcount
+        msg = (f"Code de « {a.reset_pin} » effacé : un nouveau code sera demandé à la prochaine ouverture."
+               if n else f"Aucun code trouvé pour « {a.reset_pin} ».")
+        print(msg)
+        with open(LOG, "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+        sys.exit(0)
     if not a.server_only or FROZEN:
         redirect_output()           # application installée : tout va dans le journal keyscan.log
     migrate_legacy_data()

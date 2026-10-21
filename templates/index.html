@@ -255,6 +255,19 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .chip.leaving{transform:scale(.5);opacity:0}
 @keyframes chipIn{from{transform:scale(.5);opacity:0}to{transform:none;opacity:1}}
 .count{text-align:center;color:var(--faint);font-size:13px;margin-top:22px}
+.kwbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 4px 2px;color:var(--muted);font-size:13px}
+.btn.sm{height:34px;padding:0 14px;font-size:13.5px;gap:6px}
+.btn.sm .i{width:16px;height:16px}
+.bad{color:var(--bad);font-weight:600}
+.alert{display:flex;gap:10px;align-items:flex-start;text-align:left;max-width:520px;margin:16px auto 0;padding:12px 16px;border-radius:18px;
+  background:var(--bad-bg);color:var(--bad);font-size:13.5px;animation:rise .6s var(--out) .35s both}
+.alert .i{margin-top:1px}
+.flabel{margin:22px 0 10px;text-align:center;font-size:13px;font-weight:650;color:var(--muted)}
+.modal .seg{display:flex;width:max-content;margin:0 auto}
+.modal .chips{margin-top:20px}
+select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:42px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236A84A0' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 16px center;background-size:18px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 
 /* réglages */
@@ -406,6 +419,64 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
 .cc #cur-ring{opacity:1}
 .cc.cur-out #cur-ring{opacity:0}
 
+
+/* ================================================================ effets premium
+   Règle des 60 images/s : on anime surtout transform et opacity (calculés par la carte graphique),
+   jamais les ombres, les flous ni la mise en page. Seules exceptions : de toutes petites zones
+   (anneau des dossiers de 48 px, reflet d'un bouton). Tout est coupé si l'utilisateur a demandé moins d'animations. */
+@property --p{syntax:"<number>";inherits:true;initial-value:0}
+.mring{transition:--p 1.1s var(--out)}
+.enter .mring,.push .mring{animation:fillIn 1.2s var(--out) both;animation-delay:calc(var(--d,0) * 55ms + 260ms)}
+@keyframes fillIn{from{--p:0}}
+
+/* changement de page : l'ancienne page s'efface en reculant (opacité + transformation seulement),
+   puis la nouvelle entre en cascade */
+#view.leave{transition:opacity .14s ease-in,transform .14s ease-in;opacity:0;transform:translate3d(0,-6px,0) scale(.99);pointer-events:none}
+
+/* reflet qui traverse les boutons principaux au survol */
+.btn.primary,.fab,.addfield .iconbtn{isolation:isolate}
+.btn.primary::after,.fab::after,.addfield .iconbtn::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.42) 50%,transparent 65%) no-repeat;background-size:300% 100%;background-position:100% 0}
+.btn.primary:hover::after,.fab:hover::after,.addfield .iconbtn:hover::after{background-position:0 0;transition:background-position .9s var(--out)}
+
+/* onde de clic */
+.key,.who-card{position:relative}
+.ripwrap{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none;contain:strict}
+.ripple{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;pointer-events:none;
+  background:currentColor;opacity:.22;transform:scale(0);animation:ripple .6s var(--out) forwards}
+@keyframes ripple{to{transform:scale(var(--rs,30));opacity:0}}
+
+/* pastilles de score : apparition élastique, en cascade */
+.enter .krow .pill,.push .krow .pill,.swap .krow .pill{animation:pop .55s var(--spring) both;animation-delay:calc(var(--d) * 40ms + 260ms)}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+
+/* onglet choisi : petit rebond de l'icône */
+.tab[aria-current=page] .i{animation:tabPop .55s var(--spring)}
+@keyframes tabPop{0%{transform:scale(1)}40%{transform:scale(1.22) translateY(-2px)}100%{transform:none}}
+
+/* barre d'avancement : reflet qui glisse pendant l'analyse */
+.pbar{position:relative}
+.pbar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+  transform:translateX(-100%);animation:sheen 1.6s ease-in-out infinite;will-change:transform}
+@keyframes sheen{to{transform:translateX(100%)}}
+
+/* anneau du dossier : halo qui respire une fois arrivé, mots trouvés */
+.ring::after{content:"";position:absolute;inset:-4%;border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(circle,color-mix(in srgb,var(--cyan) 26%,transparent) 55%,transparent 70%);will-change:transform,opacity}
+.ring.anim::after{animation:halo 1.6s var(--out) 1.1s both}
+@keyframes halo{0%{opacity:0;transform:scale(.85)}45%{opacity:1}100%{opacity:0;transform:scale(1.12)}}
+
+
+/* puce ajoutée : éclat bref */
+.chip:not(.old){position:relative}
+.chip:not(.old)::after{content:"";position:absolute;inset:-3px;border-radius:inherit;pointer-events:none;border:2px solid var(--cyan);
+  opacity:0;animation:flash .9s var(--out) both;animation-delay:calc(var(--d) * 35ms + 120ms)}
+@keyframes flash{0%{opacity:.9;transform:scale(.9)}100%{opacity:0;transform:scale(1.15)}}
+
+/* alerte : léger signal à l'arrivée */
+.alert .i{animation:nudge 1.4s var(--spring) .9s both}
+@keyframes nudge{0%,100%{transform:none}20%{transform:rotate(-12deg) scale(1.15)}40%{transform:rotate(9deg)}60%{transform:rotate(-5deg)}}
+
 /* ================================================================ responsive / accessibilité */
 @media (max-width:620px){
   #view{padding:0 16px}
@@ -420,6 +491,7 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .pbar::after{display:none}
 }
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--glass:rgba(255,255,255,.9);--glass-strong:rgba(255,255,255,.96)}}
 </style>
@@ -512,7 +584,17 @@ function route(){
   return {page:"dossiers"};
 }
 const go = h => { if(location.hash === h) render(true); else location.hash = h; };
-window.addEventListener("hashchange", () => { closeMenu(); render(true); });
+const calm = matchMedia("(prefers-reduced-motion:reduce)");
+/* changement de page : sortie rapide de l'ancienne page, puis entrée animée de la nouvelle */
+let leaveT = null;
+function transition(fn){
+  const v = $("#view");
+  if(calm.matches || !v.innerHTML){ fn(); return; }
+  clearTimeout(leaveT);
+  v.classList.remove("enter","push"); v.classList.add("leave");
+  leaveT = setTimeout(() => { v.classList.remove("leave"); fn(); }, 140);
+}
+window.addEventListener("hashchange", () => { closeMenu(); transition(() => render(true)); });
 
 const resultsUrl = () => "/api/results";
 /* couleur propre à chaque profil (avatar, nom) : on voit d'un coup d'œil dans quel profil on est */
@@ -604,13 +686,13 @@ PAGES.dossiers = () => {
       <button class="bubble glass" data-action="new" aria-label="Créer un dossier">${ic("plus")}</button>
       <h2>Aucun dossier</h2>
       <p class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</p>
-      <p>${K.length ? "Créez le dossier d'un candidat pour l'analyser." : "Commencez par ajouter les mots-clés à rechercher."}</p>
-      ${K.length ? `<button class="btn primary" data-action="new">Créer un dossier</button>` : `<button class="btn primary" data-go="#/mots-cles">Ajouter des mots-clés</button>`}
+      <p>Créez le dossier d'un candidat : vous choisirez ses mots-clés et déposerez ses documents.</p>
+      <button class="btn primary" data-action="new">Créer un dossier</button>
     </div>`;
   return `
     <div class="head">
       <h1 class="title">Dossiers</h1>
-      <p class="sub"><span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span> · ${plural(D.length,"candidat")}, ${kwN(K.length)}</p>
+      <p class="sub"><span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span> · ${plural(D.length,"candidat")}</p>
       ${pending ? (() => { let dn = 0, tt = 0; D.forEach(d => { const q = prog(d); dn += q.done; tt += q.total; });
         return `<div class="live"><span class="spin"></span>${plural(pending,"document")} en analyse<span data-pg="live">${tt ? ` · ${Math.round(dn / tt * 100)} %` : ""}</span></div>`; })() : ""}
     </div>
@@ -618,7 +700,7 @@ PAGES.dossiers = () => {
 };
 
 function summary(d){
-  const K = state.keywords, ready = d.documents.some(x => x.status === "ok");
+  const K = d.keywords, ready = d.documents.some(x => x.status === "ok");
   const c = {present:0, a_verifier:0, absent:0, absent_douteux:0};
   if(ready) K.forEach(k => { const x = d.cells[k.id]; if(x) c[x.decision]++; });
   return {ready, c, total:K.length};
@@ -633,7 +715,8 @@ function dossierRow(d, i){
   if(d.pending) sub = `<span class="spin"></span><span data-pg="r${d.id}">${q.total && running ? `Analyse : ${q.done}/${q.total} pages` : q.total ? `En attente : ${q.total} pages` : "En attente d'analyse"}</span>`
     + `<span class="eta" data-pg="r${d.id}e">${q.eta != null ? " · " + fmtEta(q.eta) : ""}</span>`;
   else if(!d.documents.length) sub = "Aucun document";
-  else sub = plural(d.documents.length, "document");
+  else sub = `${plural(d.documents.length, "document")} · ${kwN(total)}`;
+  if(d.unread.length) sub += `<span class="dot" style="background:var(--bad)"></span><span class="bad">${d.unread.length} non lu${d.unread.length > 1 ? "s" : ""}</span>`;
   if(c.a_verifier) sub += `<span class="dot" style="background:var(--rev)"></span><span class="warn">${c.a_verifier} à vérifier</span>`;
   return `<button class="rowc glass" style="--d:${i}" data-go="#/dossier/${d.id}">
     <span class="ini">${esc(initials(d.name))}</span>
@@ -652,11 +735,12 @@ PAGES.dossier = r => {
     <button class="iconbtn" data-action="menu" data-id="${d.id}" aria-label="Options du dossier">${ic("more")}</button></div>`;
 
   if(!d.documents.length) return bar + `
-    <div class="hero"><h1>${esc(d.name)}</h1><p class="sub">Aucun document pour l'instant</p></div>
-    <button class="drop big" data-drop="${d.id}">${ic("upload")}<b>Déposez les documents du candidat</b><span>ou cliquez pour les choisir</span></button>`;
+    <div class="hero"><h1>${esc(d.name)}</h1><p class="sub">Aucun document pour l'instant<span>·</span>${kwN(d.keywords.length)}</p></div>
+    <button class="drop big" data-drop="${d.id}">${ic("upload")}<b>Déposez les documents du candidat</b><span>ou cliquez pour les choisir</span></button>
+    <div class="row" style="justify-content:center;margin-top:16px"><button class="btn quiet sm" data-action="edit-kw" data-id="${d.id}">${ic("edit")}${d.keywords.length ? "Modifier les mots-clés" : "Choisir les mots-clés"}</button></div>`;
 
   const q = prog(d);
-  let sub = [plural(d.documents.length,"document")];
+  let sub = [plural(d.documents.length,"document"), kwN(d.keywords.length)];
   if(d.pending) sub.push(`<span class="warn"><span class="spin"></span> <span data-pg="h${d.id}">${q.total ? `${q.done}/${q.total} pages analysées` : `${d.pending} en attente`}</span><span data-pg="h${d.id}e">${q.eta != null ? " · " + fmtEta(q.eta) : ""}</span></span>`);
   else sub.push(`lecture ${Math.round(d.quality)} %`);
   if(c.a_verifier) sub.push(`<span class="warn">${c.a_verifier} à vérifier</span>`);
@@ -672,7 +756,8 @@ PAGES.dossier = r => {
        <div class="in"><div class="big"><span data-count="${ready ? c.present : 0}">${ready ? c.present : "–"}</span><small>/${total}</small></div><div class="cap">mots-clés trouvés</div></div>`;
   const hero = `<div class="hero">
     <div class="ring ${analysing ? "" : ""}" ${analysing ? "" : "data-ring"} style="--c:${C}">${ringInner}</div>
-    <h1>${esc(d.name)}</h1><p class="sub">${sub.join("<span>·</span>")}</p></div>`;
+    <h1>${esc(d.name)}</h1><p class="sub">${sub.join("<span>·</span>")}</p>
+    ${d.unread.length ? `<div class="alert" role="alert">${ic("info")}<span><b>${d.unread.length > 1 ? `${d.unread.length} documents n'ont pas pu être lus` : "Un document n'a pas pu être lu"}</b> (${d.unread.map(esc).join(", ")}) : aucune absence n'est affirmée tant qu'il n'est pas remplacé.</span></div>` : ""}</div>`;
 
   const seg = `<div class="segwrap"><div class="seg" role="group"><span class="thumb"></span>
     <button data-dtab="kw" aria-pressed="${dossierTab==="kw"}">Mots-clés</button>
@@ -682,12 +767,14 @@ PAGES.dossier = r => {
 };
 
 function kwList(d){
-  const K = state.keywords;
-  if(!K.length) return `<div class="hero-empty"><p>Aucun mot-clé à rechercher.</p><button class="btn primary" data-go="#/mots-cles">Ajouter des mots-clés</button></div>`;
-  if(!d.documents.some(x => x.status === "ok")) return `<div class="hero-empty"><span class="spin" style="width:28px;height:28px;color:var(--cyan)"></span><p>Lecture des documents…</p></div>`;
+  const K = d.keywords;
+  const tools = `<div class="kwbar"><span>${K.length ? `${kwN(K.length)} propres à ce dossier` : ""}</span>
+    <button class="btn quiet sm" data-action="edit-kw" data-id="${d.id}">${ic("edit")}Modifier les mots-clés</button></div>`;
+  if(!K.length) return `<div class="hero-empty"><p>Aucun mot-clé à rechercher dans ce dossier.</p><button class="btn primary" data-action="edit-kw" data-id="${d.id}">Choisir les mots-clés</button></div>`;
+  if(!d.documents.some(x => x.status === "ok")) return tools + `<div class="hero-empty"><span class="spin" style="width:28px;height:28px;color:var(--cyan)"></span><p>${d.pending ? "Lecture des documents…" : "Aucun document lisible"}</p></div>`;
   const rows = K.map(k => ({k, c:d.cells[k.id]})).filter(x => x.c)
     .sort((a,b) => ORDER[a.c.decision] - ORDER[b.c.decision] || b.c.score - a.c.score);
-  return rows.map(({k,c}, i) => `<button class="krow glass" style="--d:${i}" data-kw="${k.id}" data-dossier="${d.id}">
+  return tools + rows.map(({k,c}, i) => `<button class="krow glass" style="--d:${i}" data-kw="${k.id}" data-dossier="${d.id}">
       <span class="t">${esc(k.term)}${c.count ? `<small>${plural(c.count,"occurrence")}</small>` : ""}</span>
       <span class="pill ${c.decision}">${c.count ? Math.round(c.score) + " %" : LABEL[c.decision]}</span>${ic("chev","chev")}
     </button>`).join("");
@@ -695,7 +782,7 @@ function kwList(d){
 
 function docList(d){
   return d.documents.map((x, i) => {
-    const [lab, cls] = STATUS[x.status], pg = x.progress;
+    const [lab, cls] = x.duplicate_of ? ["Doublon ignoré", "err"] : STATUS[x.status], pg = x.progress;
     const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)}/${pg.total}` : lab;
     const hwl = x.pages.reduce((a, p) => a + (p.manuscrit || 0), 0);
     const info = x.status === "ok" ? `${plural(x.pages.length,"page")}, lecture ${Math.round(x.quality)} %${hwl ? ` · ${plural(hwl, "ligne")} manuscrite${hwl > 1 ? "s" : ""}` : ""}`
@@ -704,7 +791,7 @@ function docList(d){
       <span class="t"><a href="/api/documents/${x.id}/file" target="_blank" style="color:inherit;text-decoration:none">${esc(x.filename)}</a>
         <small data-pg="x${x.id}i">${info}</small>
         ${pg && pg.total ? `<span class="pbar"><i data-bar="x${x.id}" style="--p:${(pg.done / pg.total).toFixed(3)}"></i></span>` : ""}</span>
-      <span class="tag ${cls}" title="${esc(x.error||"")}">${x.status==="en_cours" ? `<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ` : ""}<span data-pg="x${x.id}t">${label}</span></span>
+      <span class="tag ${cls}" title="${esc(x.duplicate_of ? `Identique à ${x.duplicate_of} : non compté` : x.error || "")}">${x.status==="en_cours" ? `<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ` : ""}<span data-pg="x${x.id}t">${label}</span></span>
       <span class="acts">
         <button class="iconbtn sm flat" data-re-doc="${x.id}" aria-label="Relancer l'analyse" title="Relancer l'analyse">${ic("refresh")}</button>
         <button class="iconbtn sm flat del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer" title="Retirer">${ic("x")}</button>
@@ -716,8 +803,8 @@ PAGES["mots-cles"] = () => {
   const K = state.keywords, counts = state.keyword_counts || {};
   const others = (state.settings.operators || []).filter(o => o !== currentOp && counts[o]);
   const copy = others.map(o => `<button class="btn" data-action="copy-kw" data-from="${esc(o)}">${ic("swap")}Reprendre les ${kwN(counts[o])} de ${esc(o)}</button>`).join("");
-  return `<div class="head"><h1 class="title">Mots-clés</h1>
-      <p class="sub">Propres à <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span>, recherchés dans ses dossiers.</p></div>
+  return `<div class="head"><h1 class="title">Liste par défaut</h1>
+      <p class="sub">Proposée à chaque nouveau dossier de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span>.<br>Chaque dossier garde ensuite sa propre liste, modifiable depuis le dossier.</p></div>
     <form class="addfield glass" id="kwForm" autocomplete="off">
       <label for="kwInput" class="sr">Nouveau mot-clé</label>
       <input id="kwInput" placeholder="Ajouter un mot-clé">
@@ -757,8 +844,8 @@ PAGES.reglages = () => {
       return h.ready
         ? `<div class="line"><span><span class="lbl">Activée</span><div class="hint">${esc(h.label || "")} : les lignes écrites à la main sont détectées puis lues. Commun à tous les profils.</div></span><span class="tag ok">Active</span></div>`
         : `<div class="line col"><div class="lhead"><span class="lbl">Non installée</span><span class="tag">Optionnelle</span></div>
-           <div class="hint">Pour lire l'écriture manuscrite, double-cliquez sur <b>« Installer écriture manuscrite »</b> dans le dossier KeyScan
-           (une seule fois, ≈ 2,3 Go), puis relancez KeyScan. Sans ce module, l'écriture manuscrite est souvent classée « à vérifier ».</div></div>`; })()}
+           <div class="hint">Incluse dans l'application installée. Si vous lancez KeyScan avec Python, installez-la une fois avec
+           <b>python -m engine.handwriting --install</b> puis relancez. Sans elle, l'écriture manuscrite est souvent classée « à vérifier ».</div></div>`; })()}
     </div>
     <p class="gtitle">Sécurité de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
     <div class="group glass" style="--d:3">
@@ -772,18 +859,32 @@ PAGES.reglages = () => {
     </div>`;
 };
 
+/* nombre qui défile jusqu'à sa valeur (une seule zone de texte : coût négligeable) */
+function countUp(el, target, dur = 900, suffix = ""){
+  if(calm.matches || !target){ el.textContent = Math.round(target) + suffix; return; }
+  const t0 = performance.now();
+  const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(target * e) + suffix; if(k < 1) requestAnimationFrame(step); };
+  el.textContent = "0" + suffix; requestAnimationFrame(step);
+}
+/* onde de clic sur les boutons */
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest(".btn,.iconbtn:not(.flat),.fab,.key,.rowc,.krow:not(.doc),.who-card");
+  if(!b || calm.matches) return;
+  const r = b.getBoundingClientRect(), w = document.createElement("span");
+  w.className = "ripple"; w.style.left = (e.clientX - r.left) + "px"; w.style.top = (e.clientY - r.top) + "px";
+  w.style.setProperty("--rs", (Math.hypot(r.width, r.height) / 6).toFixed(1));
+  const wrap = document.createElement("span"); wrap.className = "ripwrap"; wrap.appendChild(w);
+  b.appendChild(wrap); setTimeout(() => wrap.remove(), 650);
+}, {passive:true});
+
 /* animations après l'entrée d'une page */
 function afterEnter(r){
   if(r.page !== "dossier") return;
   const ring = document.querySelector("[data-ring]");
   if(ring) ring.classList.add("anim");
   const n = document.querySelector("[data-count]");
-  if(n && +n.dataset.count > 0){
-    const target = +n.dataset.count, t0 = performance.now(), dur = 1100;
-    const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-      n.textContent = Math.round(target * e); if(k < 1) requestAnimationFrame(step); };
-    n.textContent = "0"; requestAnimationFrame(step);
-  }
+  if(n && +n.dataset.count > 0) countUp(n, +n.dataset.count, 1100);
 }
 
 /* ================================================================ modales */
@@ -795,6 +896,7 @@ function openModal(html, wide){
 }
 function closeModal(val){
   $("#mwrap").classList.remove("on"); $("#mwrap").setAttribute("aria-hidden","true");
+  if(kwEditing){ kwEditing = null; load(false); }        // les résultats tiennent compte des nouveaux mots-clés
   if(modalResolve){ const r = modalResolve; modalResolve = null; r(val ?? null); }
 }
 /* boîte de dialogue maison (remplace confirm/prompt) */
@@ -807,18 +909,65 @@ function ask({title, text="", input=null, ok="Valider", danger=false, secret=fal
 }
 
 /* nouveau dossier : nom + documents en une seule étape */
-let newFiles = [];
+let newFiles = [], newKwSrc = "default";
 function openNew(){
   newFiles = [];
+  const nDef = state.keywords.length, others = state.dossiers.filter(d => d.keywords.length);
+  newKwSrc = nDef ? "default" : "none";
+  const segBtn = (v, label) => `<button type="button" data-kwsrc="${v}" aria-pressed="${newKwSrc === v}">${label}</button>`;
   openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
     <h3>Nouveau dossier</h3><p class="msub">Confié à ${esc(currentOp || "")}</p>
     <form id="newForm" autocomplete="off">
       <input class="field mt" id="newName" placeholder="Nom du candidat" autofocus>
+      <p class="flabel">Mots-clés recherchés dans ce dossier</p>
+      <div class="seg" role="group" aria-label="Mots-clés de départ"><span class="thumb"></span>
+        ${nDef ? segBtn("default", `Liste par défaut · ${nDef}`) : ""}${others.length ? segBtn("copy", "Copier un dossier") : ""}${segBtn("none", nDef || others.length ? "Aucun" : "Saisir")}</div>
+      ${others.length ? `<select class="field mt" id="kwCopy" hidden aria-label="Dossier à copier">${others.map(d => `<option value="${d.id}">${esc(d.name)} (${kwN(d.keywords.length)})</option>`).join("")}</select>` : ""}
+      <input class="field mt" id="newTerms" placeholder="${nDef || others.length ? "Mots-clés en plus" : "Mots-clés"}, séparés par des virgules">
       <button type="button" class="drop mt" data-drop="new">${ic("upload")}<b>Déposez ses documents</b><span id="newHint">PDF ou images, facultatif</span></button>
       <div class="files" id="newFiles"></div>
       <div class="actions"><button class="btn primary" type="submit" id="newOk" disabled>Créer le dossier</button></div>
     </form>
     <button class="link" data-action="zip">Importer plusieurs dossiers (.zip)</button>`);
+  requestAnimationFrame(() => placeThumbs($("#modal"), true));
+}
+
+/* mots-clés d'un dossier : éditeur dans une fenêtre */
+let kwEditing = null;
+const kwChip = (k, i, old) => `<span class="chip${old ? " old" : ""}" style="--d:${i}" data-id="${k.id}">${esc(k.term)}
+  <button class="iconbtn flat del" data-del-dkw="${k.id}" aria-label="Retirer ${esc(k.term)}">${ic("x")}</button></span>`;
+async function openKwEditor(did){
+  const d = state.dossiers.find(x => x.id === did); if(!d) return;
+  kwEditing = did;
+  const others = state.dossiers.filter(x => x.id !== did && x.keywords.length);
+  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
+    <h3>Mots-clés du dossier</h3><p class="msub">${esc(d.name)} · propres à ce dossier, sans effet sur les autres</p>
+    <form class="addfield glass mt" id="dkwForm" autocomplete="off">
+      <label for="dkwInput" class="sr">Nouveau mot-clé</label>
+      <input id="dkwInput" placeholder="Ajouter un mot-clé" autofocus>
+      <button class="iconbtn" type="submit" aria-label="Ajouter">${ic("plus")}</button></form>
+    <div class="chips" id="dchips">${d.keywords.map((k, i) => kwChip(k, i)).join("")}</div>
+    <p class="count" id="dcount">${d.keywords.length ? kwN(d.keywords.length) : "Astuce : collez une liste, un mot-clé par ligne ou séparés par des virgules."}</p>
+    <div class="row" style="justify-content:center;margin-top:16px">
+      ${state.keywords.length ? `<button class="btn sm" data-action="kw-default">${ic("plus")}Ajouter la liste par défaut (${state.keywords.length})</button>` : ""}
+      ${others.length ? `<select class="field" id="kwFrom" style="height:34px;width:auto;max-width:280px;padding:0 38px 0 14px;font-size:13.5px;border-radius:999px;background-position:right 12px center" aria-label="Dossier à copier">
+          ${others.map(x => `<option value="${x.id}">${esc(x.name)} (${kwN(x.keywords.length)})</option>`).join("")}</select>
+        <button class="btn sm" data-action="kw-copy">${ic("swap")}Copier</button>` : ""}
+    </div>
+    <div class="actions"><button class="btn primary" data-close>Terminé</button></div>`, true);
+}
+async function refreshKwEditor(){
+  const list = await api(`/api/keywords?dossier=${kwEditing}`);
+  const box = $("#dchips"); if(!box) return;
+  const have = new Set([...box.children].map(c => c.dataset.id));
+  box.innerHTML = list.map((k, i) => kwChip(k, have.has(String(k.id)) ? 0 : i, have.has(String(k.id)))).join("");
+  $("#dcount").textContent = list.length ? kwN(list.length) : "Aucun mot-clé : rien ne sera recherché dans ce dossier.";
+}
+async function addDossierKeywords(text){
+  if(!text.trim()) return;
+  const r = await jpost("/api/keywords", {terms:text, dossier:kwEditing});
+  toast(r.added.length ? `${kwN(r.added.length)} ajouté${r.added.length > 1 ? "s" : ""}` : "Déjà dans la liste");
+  await refreshKwEditor();
 }
 function showNewFiles(){
   $("#newFiles").innerHTML = newFiles.map(f => `<span class="tag">${esc(f.name)}</span>`).join("");
@@ -827,21 +976,22 @@ function showNewFiles(){
 
 /* preuve d'un mot-clé dans un dossier */
 async function showEvidence(did, kid){
-  const d = state.dossiers.find(x => x.id === did), k = state.keywords.find(x => x.id === kid);
+  const d = state.dossiers.find(x => x.id === did), k = d.keywords.find(x => x.id === kid);
   const c = await api(`/api/dossiers/${did}/keyword/${kid}`);
   const s = state.settings;
   const found = c.count > 0;
   openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
     <h3>« ${esc(k.term)} »</h3><p class="msub">${esc(d.name)}</p>
-    <div class="score ${found ? "" : "none"}"><div class="num">${found ? Math.round(c.score) + " %" : "0 %"}</div>
+    <div class="score ${found ? "" : "none"}"><div class="num" id="evNum">${found ? Math.round(c.score) + " %" : "0 %"}</div>
       <span class="pill ${c.decision}">${LONG[c.decision]}</span></div>
     <div class="facts"><span><b>${c.count}</b> ${c.count > 1 ? "occurrences" : "occurrence"}</span><span>fiabilité <b>${Math.round(c.reliability)} %</b></span>
       <button class="link" style="margin:0;display:inline-flex;align-items:center;gap:4px" data-action="info">${ic("info")}Calcul</button></div>
-    <p class="explain" id="explain">Score = ressemblance avec le mot-clé × confiance de lecture. Plusieurs occurrences renforcent le score. Présent dès ${s.present_thr} %, à vérifier dès ${s.review_thr} %.${found ? "" : " Sans occurrence, la fiabilité est la qualité de lecture des documents."}</p>
+    <p class="explain" id="explain">Score = ressemblance avec le mot-clé × confiance de lecture. Plusieurs occurrences exactes renforcent le score ; un mot seulement approchant (« these » pour « thèse », lecture manuscrite approximative) reste « à vérifier », même répété. Un fichier déposé deux fois n'est compté qu'une fois. Présent dès ${s.present_thr} %, à vérifier dès ${s.review_thr} %.${found ? "" : " Sans occurrence, la fiabilité est la qualité de lecture des documents."}</p>
     ${c.occurrences.map((o, i) => `<div class="occ" style="--d:${i}">
       <div class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, "<mark>$1</mark>")} …</div>
-      <div class="meta"><span class="tag ok">${Math.round(o.score * 100)} %</span><span class="tag">${esc(o.filename)}, p. ${o.page}</span><span class="tag">${o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu par OCR" : "texte natif"}</span></div>
+      <div class="meta"><span class="tag ${o.certain === false ? "run" : "ok"}">${Math.round(o.score * 100)} %${o.certain === false ? " · approchant" : ""}</span><span class="tag">${esc(o.filename)}, p. ${o.page}</span><span class="tag">${o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu par OCR" : "texte natif"}</span></div>
       <img loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}, mot encadré"></div>`).join("")}`, true);
+  if(found) countUp($("#evNum"), Math.round(c.score), 800, " %");
 }
 
 /* menu « ⋯ » */
@@ -880,6 +1030,7 @@ async function enterProfile(o){
 function openMenu(btn, id){
   const m = $("#menu");
   m.innerHTML = `<button data-action="rename" data-id="${id}">${ic("edit")}Renommer</button>
+    <button data-action="edit-kw" data-id="${id}">${ic("tag")}Mots-clés du dossier</button>
     <button data-action="add-docs" data-id="${id}">${ic("upload")}Ajouter des documents</button>
     ${(state.settings.operators || []).filter(o => o !== currentOp).map(o =>
       `<button data-action="give" data-id="${id}" data-to="${esc(o)}">${ic("swap")}Confier à ${esc(o)}</button>`).join("")}
@@ -897,7 +1048,9 @@ async function uploadTo(did, files){
   if(!files.length) return;
   const fd = new FormData(); files.forEach(f => fd.append("files", f)); fd.append("operator", currentOp || "");
   const r = await api(`/api/dossiers/${did}/files`, {method:"POST", body:fd});
-  toast(`${plural(r.added.length,"document")} ajouté${r.added.length>1?"s":""}` + (r.rejected.length ? `, ${r.rejected.length} refusé(s)` : ""));
+  const dup = r.duplicates || [];
+  toast(`${plural(r.added.length,"document")} ajouté${r.added.length>1?"s":""}` + (r.rejected.length ? `, ${r.rejected.length} refusé(s)` : "")
+    + (dup.length ? ` · ${dup.length > 1 ? `${dup.length} doublons ignorés` : `doublon ignoré : identique à ${dup[0].same_as}`}` : ""));
   dossierTab = "docs";
   await load(false);
 }
@@ -957,7 +1110,7 @@ async function flushSettings(){
 }
 
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-op],[data-del-op],[data-close],[data-switch]");
+  const t = e.target.closest("[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-op],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw]");
   if(!e.target.closest("#menu") && !e.target.closest("[data-action=menu],[data-action=who]")) closeMenu();
   if(!t) return;
   const ds = t.dataset;
@@ -975,6 +1128,19 @@ document.addEventListener("click", async e => {
     return;
   }
   if(ds.kw) return showEvidence(+ds.dossier, +ds.kw);
+  if(ds.kwsrc){
+    newKwSrc = ds.kwsrc;
+    t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t));
+    placeThumbs(t.parentElement.parentElement);
+    const sel = $("#kwCopy"); if(sel) sel.hidden = newKwSrc !== "copy";
+    return;
+  }
+  if(ds.delDkw){
+    const c = t.closest(".chip"); c.classList.add("leaving");
+    await api(`/api/keywords/${ds.delDkw}`, {method:"DELETE"});
+    setTimeout(refreshKwEditor, 220);
+    return;
+  }
   if(ds.drop){
     if(ds.drop === "new") return pickFiles(f => { newFiles.push(...f); showNewFiles(); });
     return pickFiles(f => uploadTo(+ds.drop, f));
@@ -1014,6 +1180,11 @@ document.addEventListener("click", async e => {
       lastPage = null; return load(true);
     }
     case "lock": closeMenu(); return lockNow();
+    case "edit-kw": closeMenu(); return openKwEditor(+ds.id);
+    case "kw-default": { const r = await jpost("/api/keywords/copy", {dossier:kwEditing, source:"default"});
+      toast(r.added ? `${kwN(r.added)} ajouté${r.added > 1 ? "s" : ""}` : "Ils y sont déjà tous"); return refreshKwEditor(); }
+    case "kw-copy": { const r = await jpost("/api/keywords/copy", {dossier:kwEditing, source:+$("#kwFrom").value});
+      toast(r.added ? `${kwN(r.added)} copié${r.added > 1 ? "s" : ""}` : "Ils y sont déjà tous"); return refreshKwEditor(); }
     case "change-pin": {
       const sess = await api("/api/session"), pr = sess.profiles.find(x => x.name === currentOp);
       return showLock({step:"change-old", owner: currentOp, len: pr && pr.pin_len, cancelable: true});
@@ -1047,6 +1218,7 @@ document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
   if(f.id === "kwForm"){ const i = $("#kwInput"); const v = i.value; i.value = ""; await addKeywords(v); i.focus(); }
+  else if(f.id === "dkwForm"){ const i = $("#dkwInput"); const v = i.value; i.value = ""; await addDossierKeywords(v); i.focus(); }
   else if(f.id === "opForm"){
     const v = $("#opInput").value.trim(); if(!v) return;
     const ops = [...(state.settings.operators || [])]; if(!ops.includes(v)) ops.push(v);
@@ -1056,7 +1228,8 @@ document.addEventListener("submit", async e => {
   else if(f.id === "newForm"){
     const name = $("#newName").value.trim(); if(!name) return;
     $("#newOk").disabled = true;
-    const r = await jpost("/api/dossiers", {name, operator:currentOp});
+    const src = newKwSrc === "copy" ? +$("#kwCopy").value : newKwSrc;
+    const r = await jpost("/api/dossiers", {name, keywords_from: src, terms: $("#newTerms").value});
     const files = newFiles; closeModal();
     dossierTab = files.length ? "docs" : "kw";
     if(files.length){
@@ -1078,9 +1251,9 @@ document.addEventListener("input", e => {
   }
 });
 document.addEventListener("paste", e => {
-  if(e.target.id !== "kwInput") return;
+  if(e.target.id !== "kwInput" && e.target.id !== "dkwInput") return;
   const txt = e.clipboardData.getData("text");
-  if(/[\n;]/.test(txt)){ e.preventDefault(); addKeywords(txt); }
+  if(/[\n;,]/.test(txt)){ e.preventDefault(); (e.target.id === "kwInput" ? addKeywords : addDossierKeywords)(txt); }
 });
 $("#zipInput").onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
@@ -1168,8 +1341,9 @@ function drawLock(){
       <button class="key txt" data-key="back">${back}</button><button class="key" data-key="0">0</button>
       ${showOk && L.buf.length >= 4 ? `<button class="key txt" data-key="ok" style="color:var(--blue)">OK</button>` : `<button class="key txt" data-key="del" aria-label="Effacer" ${L.buf ? "" : "disabled"}>${ic("del")}</button>`}</div>
     ${L.step === "pin" ? `<button class="link" data-key="forgot">Code oublié ?</button>
-      <p class="forgot" id="forgot">Sur l'ordinateur où tourne KeyScan, dans le dossier KeyScan, lancez dans un Terminal :
-      <code>.venv/bin/python app.py --reset-pin "${esc(L.owner)}"</code>Un nouveau code sera demandé à la prochaine ouverture.</p>` : ""}
+      <p class="forgot" id="forgot">Fermez KeyScan puis, sur cet ordinateur, lancez dans un Terminal :
+      <code>${navigator.platform.startsWith("Win") ? `"%LOCALAPPDATA%\\Programs\\KeyScan\\KeyScan.exe"` : "/Applications/KeyScan.app/Contents/MacOS/KeyScan"} --reset-pin "${esc(L.owner)}"</code>
+      (avec Python : <code>python app.py --reset-pin "${esc(L.owner)}"</code>). Un nouveau code sera demandé à la prochaine ouverture.</p>` : ""}
   </div>`;
 }
 function lockError(msg){

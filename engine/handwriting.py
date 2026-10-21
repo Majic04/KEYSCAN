@@ -20,8 +20,8 @@ Modèles (téléchargés une seule fois dans KeyScan/models, puis utilisés hors
   - "en" : microsoft/trocr-base-handwritten — TrOCR base (anglais, IAM), plus léger et rapide.
   Un chemin vers un dossier local de modèle est aussi accepté (tests).
 
-Installation : « Installer écriture manuscrite.command » (Mac) ou « installer_manuscrit.bat » (Windows),
-ou :  python -m engine.handwriting --install fr
+Installation (mode Python ; l'application installée l'inclut déjà) :
+      python -m engine.handwriting --install fr
 Auto-test :  python -m engine.handwriting --selftest
 """
 from __future__ import annotations

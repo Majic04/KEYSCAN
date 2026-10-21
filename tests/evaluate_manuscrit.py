@@ -2,7 +2,7 @@
 Banc d'essai de l'écriture manuscrite : lettres écrites avec des polices manuscrites irrégulières.
 Compare la détection des mots-clés SANS puis AVEC le module manuscrit, et mesure le taux d'erreur
 de lecture par caractère (CER) de TrOCR sur chaque ligne.
-usage : python banc_essai/evaluate_manuscrit.py   (module manuscrit installé requis pour la 2e partie)
+usage : python tests/evaluate_manuscrit.py   (module manuscrit installé requis pour la 2e partie)
 """
 import json, os, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -10,9 +10,9 @@ sys.path.insert(0, ROOT)
 from rapidfuzz.distance import Levenshtein
 from engine import extract as ex, handwriting as hw
 from engine.extract import normalize
-from engine.matcher import find_keyword, combine, decide, is_fragile
+from engine.matcher import find_keyword, evaluate
 
-D = os.path.join(ROOT, "banc_essai", "manuscrit")
+D = os.path.join(ROOT, "tests", "manuscrit")
 T = json.load(open(os.path.join(D, "truth.json"), encoding="utf-8"))
 ex.configure_tesseract()
 
@@ -27,8 +27,8 @@ def run(htr):
         r = ex.extract_document(os.path.join(D, doc))
         for k in T["keywords"]:
             occ = find_keyword(r["tokens"], k)
-            s = round(combine([o["score"] for o in occ]) * 100, 1)
-            res[(doc, k)] = (decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, r["pages"])), s)
+            s, dec = evaluate(k, occ, r["quality"], r["pages"])
+            res[(doc, k)] = (dec, s)
         if htr:
             seen, words = set(), []
             for t in r["tokens"]:

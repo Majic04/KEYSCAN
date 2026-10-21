@@ -1,6 +1,9 @@
 ; Installateur Windows de KeyScan (Inno Setup 6).
 ; Installation pour l'utilisateur courant : aucun droit administrateur nécessaire.
-#define AppVersion "1.0.0"
+; version transmise par la construction (/DAppVersion=…), sinon :
+#ifndef AppVersion
+  #define AppVersion "1.1.0"
+#endif
 
 [Setup]
 AppId={{5D88BE08-9A07-4B66-842C-2D28DD7D561C}

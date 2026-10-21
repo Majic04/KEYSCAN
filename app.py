@@ -25,8 +25,7 @@ if importlib.util.find_spec("pymupdf") is None and importlib.util.find_spec("fit
     _missing.append("pymupdf")
 if _missing:
     print("\n[KeyScan] Bibliothèques Python manquantes : " + ", ".join(_missing))
-    print("Pour les installer, lancez plutôt « lancer_windows.bat » (Windows) ou « lancer_mac_linux.sh » (Mac/Linux),")
-    print("ou exécutez dans ce dossier :")
+    print("Pour les installer, exécutez dans ce dossier :")
     print(f'    "{sys.executable}" -m pip install -r requirements.txt\n')
     sys.exit(1)
 
@@ -40,6 +39,7 @@ import io
 import json
 import os
 import queue
+import re
 import sqlite3
 import threading
 import traceback
@@ -58,7 +58,7 @@ from werkzeug.utils import secure_filename
 from engine import ENGINE_VERSION
 from engine.extract import (ALLOWED_EXT, IMAGE_EXT, configure_tesseract, extract_document, handwriting_enabled,
                             normalize, page_count)
-from engine.matcher import combine, decide, find_keyword, is_fragile
+from engine.matcher import evaluate, find_keyword
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 # données : dossier « data » à côté du code, ou dossier utilisateur fourni par l'application de bureau
@@ -111,9 +111,12 @@ def init_db():
     with db() as con:
         con.executescript(
             """
+            -- dossier_id = 0 : liste par défaut du prof (proposée à chaque nouveau dossier) ;
+            -- sinon : mots-clés propres à ce dossier
             CREATE TABLE IF NOT EXISTS keywords (
-                id INTEGER PRIMARY KEY, owner TEXT NOT NULL, term TEXT NOT NULL, norm TEXT NOT NULL,
-                created_by TEXT, created_at TEXT, UNIQUE(owner, norm));
+                id INTEGER PRIMARY KEY, owner TEXT NOT NULL, dossier_id INTEGER NOT NULL DEFAULT 0,
+                term TEXT NOT NULL, norm TEXT NOT NULL,
+                created_by TEXT, created_at TEXT, UNIQUE(owner, dossier_id, norm));
             CREATE TABLE IF NOT EXISTS dossiers (
                 id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_by TEXT, created_at TEXT);
             CREATE TABLE IF NOT EXISTS documents (
@@ -127,7 +130,7 @@ def init_db():
             """
         )
         dcols = [r["name"] for r in con.execute("PRAGMA table_info(documents)")]
-        for col, typ in (("progress_done", "INTEGER"), ("progress_total", "INTEGER"), ("started_at", "REAL")):
+        for col, typ in (("progress_done", "INTEGER"), ("progress_total", "INTEGER"), ("started_at", "REAL"), ("sha256", "TEXT")):
             if col not in dcols:
                 con.execute(f"ALTER TABLE documents ADD COLUMN {col} {typ}")
         cols = [r["name"] for r in con.execute("PRAGMA table_info(dossiers)")]
@@ -148,6 +151,30 @@ def init_db():
                     norm = " ".join(normalize(k["term"]).split())
                     con.execute("INSERT OR IGNORE INTO keywords(owner, term, norm, created_by, created_at) VALUES (?,?,?,?,?)",
                                 (o, k["term"], norm, k["created_by"], k["created_at"]))
+
+        # mots-clés par dossier (avant : une seule liste par prof pour tous ses dossiers).
+        # L'ancienne liste devient la liste par défaut, et chaque dossier existant en reçoit une copie :
+        # les résultats déjà obtenus ne changent pas.
+        kcols = [r["name"] for r in con.execute("PRAGMA table_info(keywords)")]
+        if "dossier_id" not in kcols:
+            old = [dict(r) for r in con.execute("SELECT owner, term, norm, created_by, created_at FROM keywords")]
+            con.execute("DROP TABLE keywords")
+            con.execute("""CREATE TABLE keywords (
+                id INTEGER PRIMARY KEY, owner TEXT NOT NULL, dossier_id INTEGER NOT NULL DEFAULT 0,
+                term TEXT NOT NULL, norm TEXT NOT NULL,
+                created_by TEXT, created_at TEXT, UNIQUE(owner, dossier_id, norm))""")
+            dossiers_by_owner: dict[str, list[int]] = {}
+            for r in con.execute("SELECT id, owner FROM dossiers"):
+                dossiers_by_owner.setdefault(r["owner"], []).append(r["id"])
+            for k in old:
+                for did in [0] + dossiers_by_owner.get(k["owner"], []):
+                    con.execute("INSERT OR IGNORE INTO keywords(owner, dossier_id, term, norm, created_by, created_at) VALUES (?,?,?,?,?,?)",
+                                (k["owner"], did, k["term"], k["norm"], k["created_by"], k["created_at"]))
+        # empreinte des fichiers déjà déposés (détection des doublons)
+        for r in con.execute("SELECT id, path FROM documents WHERE sha256 IS NULL").fetchall():
+            h = file_sha256(r["path"])
+            if h:
+                con.execute("UPDATE documents SET sha256=? WHERE id=?", (h, r["id"]))
 
         # seuils : un jeu par profil (avant : un jeu commun, recopié à chaque prof)
         rows = {r["key"]: json.loads(r["value"]) for r in con.execute("SELECT key, value FROM settings")}
@@ -186,6 +213,18 @@ def save_profile(con, owner: str, values: dict):
     prof = json.loads(cur["value"]) if cur else {}
     prof.update({k: max(0.0, min(100.0, float(v))) for k, v in values.items() if k in PROFILE_DEFAULTS})
     con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES (?,?)", (f"profile:{owner}", json.dumps(prof)))
+
+
+def file_sha256(path: str) -> str | None:
+    """Empreinte du contenu d'un fichier : deux fichiers identiques ont la même, quel que soit leur nom."""
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
 
 
 def now() -> str:
@@ -264,7 +303,10 @@ def occurrences(doc_row, term: str) -> list:
 def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> dict:
     """
     Résultats de tous les dossiers, d'un seul dossier, ou des dossiers d'un prof (owner).
-    Chaque dossier est évalué avec les mots-clés et les seuils du prof auquel il appartient.
+    Chaque dossier est évalué avec SES mots-clés et les seuils du prof auquel il appartient.
+    Règles de fiabilité :
+      - un fichier déposé deux fois (même contenu) n'est compté qu'une fois ;
+      - si un document du dossier n'a pas pu être lu, aucune absence n'est affirmée (« absence incertaine »).
     """
     s = get_settings(owner)
     where, args = [], []
@@ -273,17 +315,20 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
     if owner:
         where.append("owner=?"); args.append(owner)
     with db() as con:
-        all_kws = [dict(r) for r in con.execute("SELECT id, owner, term, created_by FROM keywords ORDER BY lower(term)")]
         q = "SELECT * FROM dossiers" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY created_at DESC, id DESC"
         dossiers = [dict(r) for r in con.execute(q, args)]
         ids = [d["id"] for d in dossiers]
+        ph = ",".join("?" * len(ids))
         docs = [dict(r) for r in con.execute(
             "SELECT id, dossier_id, filename, status, error, pages, quality, uploaded_by, uploaded_at, analysed_at, "
-            "progress_done, progress_total, started_at FROM documents "
-            f"WHERE dossier_id IN ({','.join('?' * len(ids))}) ORDER BY id", ids)] if ids else []
+            f"progress_done, progress_total, started_at, sha256 FROM documents WHERE dossier_id IN ({ph}) ORDER BY id", ids)] if ids else []
+        kws = [dict(r) for r in con.execute(
+            f"SELECT id, dossier_id, term, created_by FROM keywords WHERE dossier_id IN ({ph}) ORDER BY lower(term)", ids)] if ids else []
+        defaults = [dict(r) for r in con.execute(
+            "SELECT id, owner, term, created_by FROM keywords WHERE dossier_id=0 ORDER BY lower(term)")]
         owners = {r["owner"]: r["n"] for r in con.execute("SELECT owner, COUNT(*) AS n FROM dossiers GROUP BY owner")}
     kw_counts: dict[str, int] = {}
-    for k in all_kws:
+    for k in defaults:
         kw_counts[k["owner"]] = kw_counts.get(k["owner"], 0) + 1
     prof_cache: dict[str, dict] = {}
 
@@ -295,21 +340,31 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
     out = []
     for d in dossiers:
         ps = prof(d["owner"])
-        kws = [k for k in all_kws if k["owner"] == d["owner"]]
+        dkws = [k for k in kws if k["dossier_id"] == d["id"]]
         ddocs = [x for x in docs if x["dossier_id"] == d["id"]]
-        ready = [x for x in ddocs if x["status"] == "ok"]
-        pending = sum(1 for x in ddocs if x["status"] in ("en_attente", "en_cours"))
+        # doublons : même contenu qu'un document déposé avant dans ce dossier → ignoré dans le calcul
+        first_by_hash: dict[str, dict] = {}
+        for x in ddocs:
+            x["duplicate_of"] = None
+            if x["sha256"]:
+                if x["sha256"] in first_by_hash:
+                    x["duplicate_of"] = first_by_hash[x["sha256"]]["filename"]
+                else:
+                    first_by_hash[x["sha256"]] = x
+        counted = [x for x in ddocs if not x["duplicate_of"]]
+        ready = [x for x in counted if x["status"] == "ok"]
+        unread = [x for x in counted if x["status"] == "erreur"]
+        pending = sum(1 for x in counted if x["status"] in ("en_attente", "en_cours"))
         quality = min((x["quality"] or 0) for x in ready) if ready else 0.0
         all_pages = [p for x in ready for p in (json.loads(x["pages"]) if x["pages"] else [])]
         cells = {}
-        for k in kws:
+        for k in dkws:
             occ = []
             for x in ready:
                 for o in occurrences(x, k["term"]):
                     occ.append({**o, "doc_id": x["id"], "filename": x["filename"]})
-            score = round(combine([o["score"] for o in occ]) * 100, 1)
-            decision = decide(score, quality, ps["present_thr"], ps["review_thr"], ps["min_quality"],
-                              fragile=is_fragile(k["term"], all_pages))
+            score, decision = evaluate(k["term"], occ, quality, all_pages, ps["present_thr"], ps["review_thr"],
+                                       ps["min_quality"], unread=len(unread))
             # fiabilité de la décision : score si trouvé, qualité de lecture si absent
             reliability = score if decision in ("present", "a_verifier") else round(quality, 1)
             cells[k["id"]] = {
@@ -319,15 +374,17 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
         out.append({
             "id": d["id"], "name": d["name"], "owner": d["owner"], "created_by": d["created_by"], "created_at": d["created_at"],
             "quality": round(quality, 1), "pending": pending,
+            "unread": [x["filename"] for x in unread],
+            "keywords": [{"id": k["id"], "term": k["term"], "created_by": k["created_by"]} for k in dkws],
             "documents": [{
                 "id": x["id"], "filename": x["filename"], "status": x["status"], "error": x["error"],
                 "quality": x["quality"], "pages": json.loads(x["pages"]) if x["pages"] else [],
                 "uploaded_by": x["uploaded_by"], "uploaded_at": x["uploaded_at"],
-                "progress": _progress(x),
+                "progress": _progress(x), "duplicate_of": x["duplicate_of"],
             } for x in ddocs],
             "cells": cells,
         })
-    shown = [k for k in all_kws if k["owner"] == owner] if owner else []
+    shown = [k for k in defaults if k["owner"] == owner] if owner else []
     hw = handwriting_status()
     engine = {"handwriting": {"ready": hw.get("ready", False), "libraries": hw.get("libraries", False), "label": hw.get("label")}}
     return {"keywords": shown, "dossiers": out, "settings": s, "owners": owners, "keyword_counts": kw_counts, "engine": engine}
@@ -527,46 +584,80 @@ def index():
 
 
 # --------------------------------------------------------------------------- mots-clés
+def parse_terms(raw: str) -> list[str]:
+    """Une liste collée : un mot-clé par ligne, ou séparés par « ; » ou « , »."""
+    return [t.strip() for t in re.split(r"[\n;,]", raw or "") if t.strip()]
+
+
+def keyword_target(dossier) -> int:
+    """0 = liste par défaut du profil ; sinon un dossier qui doit appartenir au profil."""
+    did = int(dossier or 0)
+    if did:
+        own_dossier(did)
+    return did
+
+
+def insert_keywords(con, owner: str, did: int, terms: list[str]) -> tuple[list[str], list[str]]:
+    added, skipped = [], []
+    for t in terms:
+        n = " ".join(normalize(t).split())
+        if not any(ch.isalnum() for ch in n):
+            skipped.append(t)
+            continue
+        try:
+            con.execute("INSERT INTO keywords(owner, dossier_id, term, norm, created_by, created_at) VALUES (?,?,?,?,?,?)",
+                        (owner, did, t, n, owner, now()))
+            added.append(t)
+        except sqlite3.IntegrityError:
+            skipped.append(t)
+    return added, skipped
+
+
+def copy_keyword_list(con, owner: str, src_owner: str, src_did: int, dst_did: int) -> int:
+    before = con.execute("SELECT COUNT(*) FROM keywords WHERE owner=? AND dossier_id=?", (owner, dst_did)).fetchone()[0]
+    con.execute("""INSERT OR IGNORE INTO keywords(owner, dossier_id, term, norm, created_by, created_at)
+                   SELECT ?, ?, term, norm, created_by, ? FROM keywords WHERE owner=? AND dossier_id=?""",
+                (owner, dst_did, now(), src_owner, src_did))
+    return con.execute("SELECT COUNT(*) FROM keywords WHERE owner=? AND dossier_id=?", (owner, dst_did)).fetchone()[0] - before
+
+
 @app.get("/api/keywords")
 def list_keywords():
-    owner = g.owner
+    did = keyword_target(request.args.get("dossier"))
     with db() as con:
-        return jsonify([dict(r) for r in con.execute("SELECT * FROM keywords WHERE owner=? ORDER BY lower(term)", (owner,))])
+        return jsonify([dict(r) for r in con.execute(
+            "SELECT id, dossier_id, term, created_by, created_at FROM keywords WHERE owner=? AND dossier_id=? ORDER BY lower(term)",
+            (g.owner, did))])
 
 
 @app.post("/api/keywords")
 def add_keywords():
+    """Ajoute des mots-clés à la liste par défaut (dossier absent ou 0) ou à un dossier."""
     body = request.get_json(force=True)
-    owner = g.owner
-    raw = body.get("terms", "")
-    terms = [t.strip() for line in raw.replace(";", "\n").splitlines() for t in [line] if t.strip()]
-    added, skipped = [], []
+    did = keyword_target(body.get("dossier"))
     with db() as con:
-        for t in terms:
-            n = " ".join(normalize(t).split())
-            if not any(ch.isalnum() for ch in n):
-                skipped.append(t)
-                continue
-            try:
-                con.execute("INSERT INTO keywords(owner, term, norm, created_by, created_at) VALUES (?,?,?,?,?)",
-                            (owner, t, n, owner, now()))
-                added.append(t)
-            except sqlite3.IntegrityError:
-                skipped.append(t)
+        added, skipped = insert_keywords(con, g.owner, did, parse_terms(body.get("terms", "")))
     return jsonify({"added": added, "skipped": skipped})
 
 
 @app.post("/api/keywords/copy")
 def copy_keywords():
-    """Reprendre dans son profil les mots-clés d'un autre prof (ceux qu'on a déjà sont ignorés)."""
+    """
+    Reprendre une liste de mots-clés (ceux déjà présents sont ignorés) :
+      {"from": "<prof>"}                       liste par défaut d'un autre prof → ma liste par défaut
+      {"dossier": D, "source": "default"}      ma liste par défaut → dossier D
+      {"dossier": D, "source": <id dossier>}   mots-clés d'un autre de mes dossiers → dossier D
+    """
     body = request.get_json(force=True)
-    src, dst = valid_owner(body.get("from")), g.owner
     with db() as con:
-        before = con.execute("SELECT COUNT(*) FROM keywords WHERE owner=?", (dst,)).fetchone()[0]
-        con.execute("""INSERT OR IGNORE INTO keywords(owner, term, norm, created_by, created_at)
-                       SELECT ?, term, norm, created_by, ? FROM keywords WHERE owner=?""", (dst, now(), src))
-        after = con.execute("SELECT COUNT(*) FROM keywords WHERE owner=?", (dst,)).fetchone()[0]
-    return jsonify({"added": after - before})
+        if body.get("dossier"):
+            dst = keyword_target(body["dossier"])
+            src = body.get("source", "default")
+            src_did = 0 if src == "default" else keyword_target(src)
+            n = copy_keyword_list(con, g.owner, g.owner, src_did, dst)
+        else:
+            n = copy_keyword_list(con, g.owner, valid_owner(body.get("from")), 0, 0)
+    return jsonify({"added": n})
 
 
 @app.delete("/api/keywords/<int:kid>")
@@ -577,15 +668,23 @@ def delete_keyword(kid):
 
 
 # --------------------------------------------------------------------------- dossiers et documents
-def _save_upload(dossier_id: int, filename: str, data: bytes, operator: str | None) -> int | None:
+def _save_upload(dossier_id: int, filename: str, data: bytes, operator: str | None) -> int | str | None:
+    """
+    Enregistre un document et le met en file d'analyse. Retourne son id, None s'il est refusé (format),
+    ou le nom du document identique déjà présent dans le dossier (doublon : il n'est pas ajouté).
+    """
     name = os.path.basename(filename)
     ext = os.path.splitext(name)[1].lower()
     if ext not in ALLOWED_EXT or not data:
         return None
+    digest = hashlib.sha256(data).hexdigest()
     with db() as con:
+        same = con.execute("SELECT filename FROM documents WHERE dossier_id=? AND sha256=?", (dossier_id, digest)).fetchone()
+        if same:
+            return same["filename"]
         cur = con.execute(
-            "INSERT INTO documents(dossier_id, filename, path, uploaded_by, uploaded_at) VALUES (?,?,?,?,?)",
-            (dossier_id, name, "", operator, now()),
+            "INSERT INTO documents(dossier_id, filename, path, uploaded_by, uploaded_at, sha256) VALUES (?,?,?,?,?,?)",
+            (dossier_id, name, "", operator, now(), digest),
         )
         doc_id = cur.lastrowid
         path = os.path.join(FILES, f"{doc_id}_{secure_filename(name) or 'fichier' + ext}")
@@ -604,10 +703,22 @@ def create_dossier():
     if not name:
         abort(400, "Nom de dossier requis")
     owner = g.owner
+    # mots-clés du nouveau dossier : la liste par défaut (par défaut), ceux d'un autre dossier, ou aucun ;
+    # plus d'éventuels mots-clés saisis à la création
+    source = body.get("keywords_from", "default")
     with db() as con:
         cur = con.execute("INSERT INTO dossiers(name, owner, created_by, created_at) VALUES (?,?,?,?)",
                           (name, owner, owner, now()))
-    return jsonify({"id": cur.lastrowid, "owner": owner})
+        did = cur.lastrowid
+        if source == "default":
+            copy_keyword_list(con, owner, owner, 0, did)
+        elif source not in (None, "none", ""):
+            src = con.execute("SELECT owner FROM dossiers WHERE id=?", (int(source),)).fetchone()
+            if not src or src["owner"] != owner:
+                abort(404, "Dossier introuvable")
+            copy_keyword_list(con, owner, owner, int(source), did)
+        insert_keywords(con, owner, did, parse_terms(body.get("terms", "")))
+    return jsonify({"id": did, "owner": owner})
 
 
 def valid_owner(name: str | None) -> str:
@@ -630,7 +741,9 @@ def rename_dossier(did):
         if name:
             con.execute("UPDATE dossiers SET name=? WHERE id=?", (name, did))
         if "owner" in body:
-            con.execute("UPDATE dossiers SET owner=? WHERE id=?", (valid_owner(body["owner"]), did))
+            new = valid_owner(body["owner"])
+            con.execute("UPDATE dossiers SET owner=? WHERE id=?", (new, did))
+            con.execute("UPDATE keywords SET owner=? WHERE dossier_id=?", (new, did))   # ses mots-clés le suivent
     return jsonify({"ok": True})
 
 
@@ -641,6 +754,7 @@ def delete_dossier(did):
         for r in con.execute("SELECT id, path FROM documents WHERE dossier_id=?", (did,)).fetchall():
             _remove_file(r["path"])
             forget_doc(r["id"])
+        con.execute("DELETE FROM keywords WHERE dossier_id=?", (did,))
         con.execute("DELETE FROM dossiers WHERE id=?", (did,))
     return jsonify({"ok": True})
 
@@ -649,11 +763,16 @@ def delete_dossier(did):
 def upload_files(did):
     own_dossier(did)
     operator = g.owner
-    ids, rejected = [], []
+    ids, rejected, duplicates = [], [], []
     for f in request.files.getlist("files"):
         doc_id = _save_upload(did, f.filename, f.read(), operator)
-        (ids if doc_id else rejected).append(f.filename)
-    return jsonify({"added": ids, "rejected": rejected})
+        if isinstance(doc_id, str):
+            duplicates.append({"file": f.filename, "same_as": doc_id})
+        elif doc_id:
+            ids.append(doc_id)
+        else:
+            rejected.append(f.filename)
+    return jsonify({"added": ids, "rejected": rejected, "duplicates": duplicates})
 
 
 @app.post("/api/import-zip")
@@ -678,6 +797,7 @@ def import_zip():
                     created[folder] = con.execute(
                         "INSERT INTO dossiers(name, owner, created_by, created_at) VALUES (?,?,?,?)", (folder, owner, operator, now())
                     ).lastrowid
+                    copy_keyword_list(con, owner, owner, 0, created[folder])   # liste par défaut
             _save_upload(created[folder], parts[-1], z.read(info), operator)
     return jsonify({"dossiers": list(created), "rejected": rejected})
 
@@ -764,7 +884,7 @@ def page_preview(doc_id, page):
                 continue
             x0, y0, x1, y1 = o["box"]
             box = [x0 * W - 4, y0 * H - 3, x1 * W + 4, y1 * H + 3]
-            color = (22, 128, 84) if o["score"] * 100 >= present_thr else (196, 120, 0)
+            color = (22, 128, 84) if o["score"] * 100 >= present_thr and o.get("certain", True) else (196, 120, 0)
             draw.rectangle(box, fill=color + (50,), outline=color + (255,), width=3)
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=False, compress_level=3)
@@ -843,7 +963,7 @@ def write_settings():
                     save_profile(con, o, PROFILE_DEFAULTS)
             for o in old:                        # prof retiré (sans dossier) : son profil disparaît
                 if o not in body["operators"]:
-                    con.execute("DELETE FROM keywords WHERE owner=?", (o,))
+                    con.execute("DELETE FROM keywords WHERE owner=? AND dossier_id=0", (o,))
                     con.execute("DELETE FROM settings WHERE key IN (?, ?)", (f"profile:{o}", f"pin:{o}"))
         if thresholds:
             save_profile(con, owner, thresholds)
@@ -863,7 +983,8 @@ def export_csv():
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
     w.writerow(["Dossier", "Responsable", "Mot-clé", "Décision", "Score de présence (%)", "Fiabilité de la décision (%)",
-                "Nb occurrences", "Documents (pages)", "Qualité de lecture du dossier (%)", "Documents en attente"])
+                "Nb occurrences", "Documents (pages)", "Qualité de lecture du dossier (%)", "Documents en attente",
+                "Documents non lus"])
     for d in data["dossiers"]:
         for c in sorted(d["cells"].values(), key=lambda c: c["term"].lower()):  # mots-clés du prof du dossier
             where = {}
@@ -872,7 +993,8 @@ def export_csv():
             loc = " | ".join(f"{f} (p. {', '.join(map(str, sorted(p)))})" for f, p in where.items())
             w.writerow([d["name"], d["owner"], c["term"], LABELS[c["decision"]], str(c["score"]).replace(".", ","),
                         str(c["reliability"]).replace(".", ","), c["count"], loc,
-                        str(d["quality"]).replace(".", ","), d["pending"]])
+                        str(d["quality"]).replace(".", ","), d["pending"],
+                        f"{len(d['unread'])}" + (f" ({' | '.join(d['unread'])})" if d["unread"] else "")])
     data_bytes = ("﻿" + buf.getvalue()).encode("utf-8")
     return send_file(io.BytesIO(data_bytes), mimetype="text/csv",
                      download_name=f"keyscan_{secure_filename(owner) + '_' if owner else ''}{datetime.now():%Y%m%d_%H%M}.csv", as_attachment=True)
@@ -906,7 +1028,7 @@ def start():
                 print(f"Moteur {version} : {n} document(s) vont être ré-analysés.")
     hw = handwriting_status()
     print("Écriture manuscrite : " + (f"activée ({hw.get('label')})" if hw.get("ready") else
-          "non installée (voir « Installer écriture manuscrite » dans le dossier KeyScan)"))
+          "non installée (python -m engine.handwriting --install)"))
     # reprise des analyses interrompues
     with db() as con:
         for r in con.execute("SELECT id FROM documents WHERE status IN ('en_attente','en_cours')"):

@@ -1,10 +1,13 @@
-# Construit, teste et publie l'application de bureau KeyScan (Mac Apple Silicon + Windows)
-# à chaque envoi sur la branche main (ou à la demande depuis l'onglet « Actions »).
-name: Construire KeyScan
+# KeyScan — intégration continue
+#   - à chaque envoi sur main : tests du moteur (règles de décision + banc d'essai OCR), sous Linux, en quelques minutes ;
+#   - à chaque étiquette de version (v1.1.0, v1.2.0…) : en plus, construction, test et publication
+#     des applications Mac (Apple Silicon) et Windows dans « Releases ».
+name: KeyScan
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -21,22 +24,57 @@ env:
   PYTHONIOENCODING: "utf-8"
 
 jobs:
+  tests:
+    name: Tests du moteur
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Tesseract (français + anglais)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-fra fonts-dejavu-core fonts-freefont-ttf >/dev/null
+      - name: Bibliothèques Python
+        run: python -m pip install -r requirements.txt
+      - name: Règles de décision
+        run: python build/ci.py --note "Règles de décision" python tests/test_regles.py
+      - name: Banc d'essai OCR (192 décisions)
+        run: |
+          python tests/make_bench.py "$RUNNER_TEMP/bench"
+          python build/ci.py --note "Banc OCR Linux (192 décisions)" python tests/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
+      - name: Ligne de commande
+        run: python build/ci.py "Ligne de commande" python -m engine exemples/natif.pdf exemples/scan.pdf --mots "Master, TOEIC, chimie"
+
   release:
     name: Préparer la publication
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: tests
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - id: tag
-        run: echo "tag=v1.0.0-build.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-      - name: Créer la publication (pré-version)
+        run: |
+          V=$(sed -n 's/^APP_VERSION = "\([^"]*\)".*/\1/p' desktop.py)
+          [ "${{ github.ref_name }}" = "v$V" ] || { echo "::error::L'étiquette ${{ github.ref_name }} ne correspond pas à APP_VERSION=$V (desktop.py)"; exit 1; }
+          echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+      - name: Ranger les anciennes constructions de test
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in v1.0.0-build.2 v1.0.0-build.3 v1.0.0-build.4 v1.0.0-build.5; do
+            gh release delete "$t" --cleanup-tag -y 2>/dev/null && echo "supprimée : $t" || true
+          done
+      - name: Créer la publication (masquée tant que les deux applications ne sont pas prêtes)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.tag.outputs.tag }}" --prerelease \
-            --title "KeyScan 1.0.0 — construction ${{ github.run_number }}" \
-            --notes-file build/RELEASE_NOTES.md --target "${{ github.sha }}"
+            --title "KeyScan ${{ steps.tag.outputs.version }}" \
+            --notes-file build/RELEASE_NOTES.md --verify-tag
 
   mac:
     name: Mac (Apple Silicon)
@@ -66,8 +104,8 @@ jobs:
           TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
           TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
         run: |
-          python build/ci.py "Mac - création du banc OCR" python banc_essai/make_bench.py "$RUNNER_TEMP/bench"
-          python build/ci.py --note "Banc OCR (192 décisions)" python banc_essai/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
+          python build/ci.py "Mac - création du banc OCR" python tests/make_bench.py "$RUNNER_TEMP/bench"
+          python build/ci.py --note "Banc OCR (192 décisions)" python tests/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
       - name: Modèle manuscrit (copie GitHub, sinon téléchargement + allègement)
         if: steps.modele.outputs.cache-hit != 'true'
         shell: bash
@@ -105,7 +143,7 @@ jobs:
           TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
           TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
           KWF_HTR_MODEL: ${{ github.workspace }}/build/models/trocr-fr
-        run: python build/ci.py --note "Banc manuscrit (TrOCR)" python banc_essai/evaluate_manuscrit.py
+        run: python build/ci.py --note "Banc manuscrit (TrOCR)" python tests/evaluate_manuscrit.py
       - name: Construction de KeyScan.app
         run: python build/ci.py "Mac - PyInstaller" python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
       - name: Image disque (.dmg)
@@ -175,7 +213,8 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          python build/ci.py "Windows - Inno Setup" "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" build\windows\keyscan.iss
+          $V = (Select-String -Path desktop.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          python build/ci.py "Windows - Inno Setup" "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$V" build\windows\keyscan.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publication
         shell: bash

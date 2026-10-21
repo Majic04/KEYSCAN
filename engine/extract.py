@@ -98,7 +98,8 @@ def split_tokens(text: str) -> list[str]:
 
 # =========================================================================== contrôle de la couche texte
 _STOPWORDS = set("""le la les de des du un une et en au aux a pour par sur avec dans est sont il elle ce cette ses son sa
-qui que ne pas plus ou the and of to in for on with is are was by an at as from this that be""".split())
+qui que ne pas plus ou nous je mon ma mes the and of to in for on with is are was were by an at as from this that these
+be it my we our have has all or not will can i""".split())
 
 
 def text_layer_is_plausible(raw_words: list[str]) -> bool:
@@ -118,7 +119,7 @@ def text_layer_is_plausible(raw_words: list[str]) -> bool:
         return True
     vowel_ok = sum(1 for w in words if re.search(r"[aeiouy]", w)) / len(words)
     stop_hits = sum(1 for w in words if w in _STOPWORDS)
-    if len(words) >= 12 and stop_hits == 0:
+    if len(words) >= 12 and stop_hits == 0 and vowel_ok < 0.9:
         return False
     return vowel_ok >= 0.7
 

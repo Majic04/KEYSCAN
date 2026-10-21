@@ -14,6 +14,8 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 WITH_HTR = os.environ.get("KEYSCAN_NO_HTR") != "1"
 MAC = sys.platform == "darwin"
+import re  # noqa: E402
+VERSION = re.search(r'APP_VERSION = "([^"]+)"', open(os.path.join(ROOT, "desktop.py"), encoding="utf-8").read()).group(1)
 WIN = sys.platform == "win32"
 
 datas = [
@@ -23,7 +25,7 @@ datas = [
 tess = os.path.join(ROOT, "build", "tesseract")
 if os.path.isdir(tess):
     datas.append((tess, "tesseract"))
-hidden = ["app", "engine", "engine.extract", "engine.matcher", "engine.handwriting"]
+hidden = ["app", "engine", "engine.extract", "engine.matcher", "engine.handwriting", "engine.__main__"]
 hidden += collect_submodules("webview")
 excludes = ["tkinter", "matplotlib", "IPython", "pandas", "tensorflow", "jax", "flax", "torchvision", "torchaudio",
             "scipy", "sklearn", "notebook", "pytest"]
@@ -77,12 +79,12 @@ if MAC:
         name="KeyScan.app",
         icon=icon,
         bundle_identifier="fr.keyscan.app",
-        version="1.0.0",
+        version=VERSION,
         info_plist={
             "CFBundleName": "KeyScan",
             "CFBundleDisplayName": "KeyScan",
-            "CFBundleShortVersionString": "1.0.0",
-            "CFBundleVersion": "1.0.0",
+            "CFBundleShortVersionString": VERSION,
+            "CFBundleVersion": VERSION,
             "LSMinimumSystemVersion": "12.0",
             "NSHighResolutionCapable": True,
             "LSApplicationCategoryType": "public.app-category.productivity",

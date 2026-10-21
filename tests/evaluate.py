@@ -5,7 +5,7 @@ import json, os, sys, time
 root, bench, out = sys.argv[1:4]
 sys.path.insert(0, root)
 from engine.extract import extract_document, configure_tesseract  # noqa: E402
-from engine.matcher import find_keyword, combine, decide, is_fragile  # noqa: E402
+from engine.matcher import find_keyword, evaluate  # noqa: E402
 
 configure_tesseract()
 T = json.load(open(os.path.join(bench, "truth.json")))
@@ -17,8 +17,7 @@ for doc, present in T["truth"].items():
     dt = time.time() - t
     for k in KW:
         occ = find_keyword(r["tokens"], k)
-        s = round(combine([o["score"] for o in occ]) * 100, 1)
-        dec = decide(s, r["quality"], 85, 50, 70, fragile=is_fragile(k, r["pages"]))
+        s, dec = evaluate(k, occ, r["quality"], r["pages"])
         rows.append({"doc": doc, "kw": k, "truth": k in present, "score": s, "decision": dec, "quality": r["quality"], "sec": round(dt, 2)})
 
 tp = sum(r["truth"] and r["decision"] == "present" for r in rows)

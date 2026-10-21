@@ -235,6 +235,7 @@ def find_keyword(tokens: list[dict], term: str) -> list[dict]:
                 "page": page,
                 "source": source,
                 "similarity": round(sim * 100, 1),
+                "certain": sim >= CERTAIN_SIM,
                 "read_conf": round(sum(t["c"] for t in win) / len(win), 1),
                 "score": round(score, 4),
                 "text": " ".join(dict.fromkeys(t["t"] for t in win)),
@@ -251,6 +252,25 @@ def find_keyword(tokens: list[dict], term: str) -> list[dict]:
         kept.append(o)
     kept.sort(key=lambda o: (o["page"], o["box"][1], o["box"][0]))
     return kept
+
+
+# Une occurrence est « certaine » quand le mot lu est le mot-clé lui-même : identique, au pluriel près,
+# ou à une confusion typique de l'OCR près (rn/m, 0/o…). Faute de frappe, accent manquant sur un mot court
+# (« these » pour « thèse »), casse d'un sigle ou lecture manuscrite approchée : occurrence « approchante ».
+CERTAIN_SIM = 0.94
+
+
+def aggregate(occ: list[dict]) -> tuple[float, bool]:
+    """
+    Score (0-100) d'un mot-clé à partir de ses occurrences, et s'il existe au moins une occurrence certaine.
+      - les occurrences certaines se renforcent entre elles (plusieurs lectures concordantes) ;
+      - les occurrences approchantes ne se cumulent JAMAIS : 3 fois « these » ne valent pas « thèse ».
+        Elles comptent seulement pour leur meilleure valeur, et ne peuvent pas donner « présent » (voir decide).
+    """
+    sure = [o["score"] for o in occ if o.get("certain", True)]
+    approx = [o["score"] for o in occ if not o.get("certain", True)]
+    score = max(combine(sure), max(approx, default=0.0))
+    return round(score * 100, 1), bool(sure)
 
 
 def combine(scores: list[float]) -> float:
@@ -278,19 +298,37 @@ def is_fragile(term: str, pages) -> bool:
 
 
 def decide(score_pct: float, quality_pct: float, present_thr: float, review_thr: float, min_quality: float,
-           fragile: bool = False) -> str:
+           fragile: bool = False, certain: bool = True) -> str:
     """
     Décision rendue pour un mot-clé dans un dossier.
-      present        : score ≥ seuil « présent »
+      present        : score ≥ seuil « présent » ET au moins une occurrence certaine (certain)
       a_verifier     : score entre les deux seuils — contrôle humain conseillé
       absent         : score < seuil « à vérifier » et documents bien lus
       absent_douteux : rien trouvé, mais lecture des documents trop mauvaise pour conclure
-                       (ou mot-clé très court dans un document lu par OCR, voir is_fragile)
+                       (ou mot-clé très court dans un document lu par OCR, voir is_fragile,
+                       ou document du dossier impossible à lire)
     """
-    if score_pct >= present_thr:
+    if score_pct >= present_thr and certain:
         return "present"
     if score_pct >= review_thr:
         return "a_verifier"
     if quality_pct < min_quality or fragile:
         return "absent_douteux"
     return "absent"
+
+
+def evaluate(term: str, occ: list[dict], quality_pct: float, pages, present_thr: float = 85,
+             review_thr: float = 50, min_quality: float = 70, unread: int = 0) -> tuple[float, str]:
+    """
+    Score (0-100) et décision pour un mot-clé dans un dossier — point d'entrée unique utilisé par
+    l'application, l'export et la ligne de commande.
+      occ     : occurrences trouvées dans les documents lus (find_keyword)
+      pages   : descriptions des pages de ces documents (pour is_fragile)
+      unread  : nombre de documents du dossier impossibles à lire (corrompus, protégés…) :
+                une absence ne peut alors jamais être affirmée.
+    """
+    score, certain = aggregate(occ)
+    if not certain:      # mot seulement approchant : le score reste sous le seuil « présent »
+        score = min(score, float(max(0, int(present_thr) - 1)))
+    fragile = unread > 0 or is_fragile(term, pages)
+    return score, decide(score, quality_pct, present_thr, review_thr, min_quality, fragile=fragile, certain=certain)

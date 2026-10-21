@@ -59,7 +59,7 @@ did = s.post(BASE + "api/dossiers", json={"name": "Test installé"}).json()["id"
 files = [("files", (n, open(p, "rb"))) for n, p in [
     ("natif.pdf", os.path.join(ROOT, "exemples", "natif.pdf")),
     ("scan.pdf", os.path.join(ROOT, "exemples", "scan.pdf")),
-    ("lettre.jpg", os.path.join(ROOT, "banc_essai", "manuscrit", "o_lettre.jpg")),
+    ("lettre.jpg", os.path.join(ROOT, "tests", "manuscrit", "o_lettre.jpg")),
 ]]
 check("dépôt de 3 documents", len(s.post(BASE + f"api/dossiers/{did}/files", files=files).json()["added"]) == 3)
 
@@ -89,7 +89,10 @@ for k in ("robotique", "apprentissage automatique", "vision par ordinateur", "st
     hand[k] = round(max([o["score"] for o in occ], default=0) * 100, 1)
 print("Lecture manuscrite de la lettre (meilleur score par mot-clé, %) :", hand)
 print(f"Mots-clés manuscrits retrouvés dans la lettre : {sum(1 for v in hand.values() if v >= 50)}/4")
-check("export CSV", s.get(BASE + "export.csv").ok)
+dup = s.post(BASE + f"api/dossiers/{did}/files", files=[("files", ("copie.pdf", open(os.path.join(ROOT, "exemples", "natif.pdf"), "rb")))]).json()
+check("fichier en double refusé", not dup["added"] and len(dup.get("duplicates", [])) == 1)
+check("mots-clés propres au dossier", len(d["keywords"]) == 7, f"{len(d['keywords'])}")
+check("export CSV", s.get(BASE + "export.csv").ok and "Documents non lus" in s.get(BASE + "export.csv").content.decode("utf-8-sig"))
 
 proc.terminate()
 try:
