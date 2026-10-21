@@ -1,4 +1,10 @@
-## Nouveautés de la version 1.3
+## Nouveautés de la version 1.4
+
+- **Logo** : une loupe posée sur un document, avec le K de KeyScan dans la lentille. Il sert d'icône d'application (Mac et Windows) et apparaît dans l'en-tête.
+- **Police Syne** pour les titres, les noms et les chiffres : une grotesque large et originale, dessinée à Paris par Bonjour Monde pour le centre d'art Synesthésies (licence libre OFL).
+- **Codes PIN réinitialisés à chaque nouvelle version** : à la première ouverture après une mise à jour, chaque profil choisit un nouveau code. Les dossiers, mots-clés et réglages sont conservés.
+
+## Version 1.3
 
 - **Nouvelle interface, « le bureau du jury »** : la liste des candidats reste à gauche (avec une recherche), le dossier ouvert à droite. Les mots-clés sont rangés par décision et surlignés comme au feutre : vert présent, jaune à vérifier ; une absence incertaine est soulignée en pointillé. Les preuves s'ouvrent dans un volet à côté du dossier.
 - Polices intégrées, choisies pour la lecture : Atkinson Hyperlegible Next pour l'interface, Literata pour les noms et les extraits de documents.

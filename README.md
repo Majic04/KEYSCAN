@@ -1,5 +1,7 @@
 # KeyScan
 
+<img src="static/logo.svg" alt="Logo KeyScan : une loupe sur un document, un K dans la lentille" width="96">
+
 **Retrouver des mots-clés dans les dossiers de candidature, avec un score de confiance.**
 Projet Master 2027 · Centrale Nantes (sujet proposé par F. Plestan et M. Hamida).
 
@@ -37,7 +39,7 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 | **Liste par défaut** | Proposée à chaque nouveau dossier. La modifier ne change pas les dossiers existants. |
 | **Réglages** | Seuils de décision, équipe, code PIN, export CSV. |
 
-- **Deux profils séparés** (un par responsable), chacun protégé par un **code PIN** : dossiers, mots-clés et seuils propres à chacun. Verrouillage automatique après 30 min. Code oublié : `KeyScan --reset-pin "Prénom Nom"` (voir l'écran du code).
+- **Deux profils séparés** (un par responsable), chacun protégé par un **code PIN** : dossiers, mots-clés et seuils propres à chacun. Verrouillage automatique après 30 min. Après chaque mise à jour de l'application, chaque profil choisit un nouveau code. Code oublié : `KeyScan --reset-pin "Prénom Nom"` (voir l'écran du code).
 - **Gros documents** : avancement page par page et temps restant.
 - **Fichier déposé deux fois** : refusé (même contenu, quel que soit le nom) et jamais compté deux fois.
 - **Document illisible** (corrompu, protégé) : alerte sur le dossier, et aucune absence n'est affirmée tant qu'il n'est pas remplacé.
@@ -94,3 +96,7 @@ tests/            tests des règles et bancs d'essai (imprimé et manuscrit)
 build/            construction des installateurs Mac et Windows
 exemples/         documents d'exemple
 ```
+
+## Polices et logo
+
+Polices intégrées, toutes sous licence libre SIL OFL (licences dans `static/fonts/`) : **Syne** (titres, noms, chiffres), **Atkinson Hyperlegible Next** (texte de l'interface), **Literata** (mots et extraits venant des documents). Le logo et les icônes se régénèrent avec `python build/make_logo.py`.

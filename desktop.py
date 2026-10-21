@@ -27,7 +27,7 @@ import time
 import urllib.request
 
 APP_NAME = "KeyScan"
-APP_VERSION = "1.3.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
+APP_VERSION = "1.4.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
 DEFAULT_PORT = 47815
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -152,6 +152,8 @@ def start_server(port: int):
             port = s.getsockname()[1]
     import app as keyscan
     from werkzeug.serving import make_server
+    if keyscan.reset_pins_on_new_version(APP_VERSION):
+        print(f"Nouvelle version {APP_VERSION} : codes PIN effacés, chaque profil en choisira un nouveau")
     keyscan.start()
     srv = make_server("127.0.0.1", port, keyscan.app, threaded=True)
     threading.Thread(target=srv.serve_forever, daemon=True).start()

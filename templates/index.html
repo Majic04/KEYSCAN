@@ -4,18 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KeyScan</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
 <style>
 /* ======================================================================================
    KeyScan, « le bureau du jury »
    On relit des dossiers et on repère des mots dans des documents : l'interface reprend le
    surligneur (décisions) et le stylo bleu (actions). Couleurs = information, rien d'autre.
-   Typo : Atkinson Hyperlegible Next (interface), Literata (noms, extraits de documents).
+   Typo : Syne (titres, noms, chiffres : la voix de KeyScan), Atkinson Hyperlegible Next (texte de l'interface),
+   Literata (ce qui vient des documents : mots-clés lus, extraits). Toutes sous licence OFL, intégrées.
    ====================================================================================== */
 @font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-400.woff2") format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-400-italic.woff2") format("woff2");font-weight:400;font-style:italic;font-display:swap}
 @font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-600.woff2") format("woff2");font-weight:600;font-display:swap}
 @font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-700.woff2") format("woff2");font-weight:700;font-display:swap}
 @font-face{font-family:"Literata";src:url("/static/fonts/literata.woff2") format("woff2");font-weight:200 900;font-display:swap}
+@font-face{font-family:"Syne";src:url("/static/fonts/syne-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Syne";src:url("/static/fonts/syne-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Syne";src:url("/static/fonts/syne-800.woff2") format("woff2");font-weight:800;font-display:swap}
 @font-face{font-family:"Literata";src:url("/static/fonts/literata-italic.woff2") format("woff2");font-weight:200 900;font-style:italic;font-display:swap}
 
 :root{
@@ -27,6 +32,7 @@
   --lift:0 18px 48px -12px rgba(28,43,63,.28), 0 2px 6px rgba(28,43,63,.08);   /* la seule ombre : ce qui est posé par-dessus */
   --r:8px; --ease:cubic-bezier(.2,.8,.2,1);
   --ui:"Atkinson",system-ui,-apple-system,"Segoe UI",sans-serif; --read:"Literata",Georgia,"Times New Roman",serif;
+  --disp:"Syne","Atkinson",system-ui,sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
@@ -81,9 +87,8 @@ h1,h2,h3{margin:0;font-weight:600}
 
 /* ---------------------------------------------------------------- barre du haut */
 .top{display:flex;align-items:center;gap:28px;height:56px;padding:0 20px;border-bottom:1px solid var(--rule);background:var(--paper)}
-.brand{font:600 19px/1 var(--read);letter-spacing:-.01em}
-.brand span{position:relative;z-index:0}
-.brand span::before{content:"";position:absolute;z-index:-1;left:-2px;right:-3px;top:55%;bottom:-2px;background:var(--hl-rev);transform:skewX(-8deg)}
+.brand{display:flex;align-items:center;gap:9px;font:800 19px/1 var(--disp);letter-spacing:-.01em}
+.brand img{width:30px;height:30px;display:block}
 .nav{display:flex;gap:4px;height:100%}
 .nav a{display:flex;align-items:center;padding:0 10px;text-decoration:none;color:var(--ink-2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
 .nav a:hover{color:var(--ink)}
@@ -106,7 +111,7 @@ h1,h2,h3{margin:0;font-weight:600}
 .item:hover{background:var(--rule-2)}
 .item[aria-current=page]{background:var(--sheet);box-shadow:inset 0 0 0 1px var(--rule)}
 .item[aria-current=page]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--pen)}
-.item b{display:block;font:500 16px/1.3 var(--read);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item b{display:block;font:600 15px/1.35 var(--disp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item small{display:block;color:var(--ink-2);font-size:13px;margin-top:2px}
 .item small .warn{color:var(--t-rev)} .item small .bad{color:var(--danger)}
 /* bande de pointage : une case par mot-clé, colorée par la décision */
@@ -123,9 +128,9 @@ h1,h2,h3{margin:0;font-weight:600}
 
 /* ---------------------------------------------------------------- page d'un dossier */
 .dhead{display:flex;align-items:flex-start;gap:16px}
-.dhead h1{flex:1;min-width:0;font:600 32px/1.15 var(--read);letter-spacing:-.015em}
+.dhead h1{flex:1;min-width:0;font:700 30px/1.15 var(--disp);letter-spacing:-.01em}
 .dhead .acts{display:flex;gap:8px;padding-top:4px}
-.verdict{margin:10px 0 0;font:400 18px/1.5 var(--read);color:var(--ink-2);max-width:60ch}
+.verdict{margin:10px 0 0;font-size:17px;color:var(--ink-2);max-width:60ch}
 .verdict strong{color:var(--ink);font-weight:600}
 .running{display:flex;align-items:center;gap:10px;margin-top:14px;color:var(--ink-2);font-size:14px}
 .running .pbar{flex:1;max-width:260px;margin:0}
@@ -146,7 +151,7 @@ h1,h2,h3{margin:0;font-weight:600}
   padding:11px 10px;border-bottom:1px solid var(--rule-2);border-radius:0;transition:background-color .12s}
 .row:hover{background:var(--sheet)}
 .row .term{font:400 18px/1.35 var(--read)}
-.row .score{font:600 16px var(--read);font-variant-numeric:tabular-nums lining-nums;text-align:right}
+.row .score{font:700 15px var(--disp);font-variant-numeric:tabular-nums lining-nums;text-align:right}
 .row .where{color:var(--ink-2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .i{color:var(--ink-3)}
 .row.quiet .term{color:var(--ink-2)}
@@ -175,14 +180,14 @@ h1,h2,h3{margin:0;font-weight:600}
 
 /* ---------------------------------------------------------------- accueil / page vide */
 .welcome{padding:72px 40px;max-width:620px}
-.welcome h1{font:600 30px/1.2 var(--read);letter-spacing:-.01em}
+.welcome h1{font:700 30px/1.2 var(--disp);letter-spacing:-.01em}
 .welcome p{color:var(--ink-2);font-size:16px;margin:12px 0 24px;max-width:52ch}
 .todo{margin:-8px 0 28px;padding:0;list-style:none;font-size:16px}
 .todo li{padding:6px 0;border-bottom:1px solid var(--rule-2)}
-.todo .hl{font-family:var(--read)}
+.todo .hl{font-family:var(--disp);font-weight:600}
 
 /* ---------------------------------------------------------------- liste par défaut, réglages */
-.ptitle{font:600 30px/1.2 var(--read);letter-spacing:-.01em}
+.ptitle{font:700 30px/1.2 var(--disp);letter-spacing:-.01em}
 .plead{color:var(--ink-2);margin:10px 0 0;max-width:60ch;font-size:16px}
 .addline{display:flex;gap:8px;margin-top:26px;max-width:520px}
 .addline input{flex:1;min-width:0;height:40px;padding:0 12px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet);outline:none;font-size:16px}
@@ -204,7 +209,7 @@ h1,h2,h3{margin:0;font-weight:600}
 .slider{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:14px;align-items:center;margin-bottom:14px}
 .slider label{grid-column:1/-1;font-weight:600;font-size:14px}
 .slider label span{font-weight:400;color:var(--ink-3)}
-.slider output{font:600 16px var(--read);font-variant-numeric:tabular-nums lining-nums;text-align:right}
+.slider output{font:700 15px var(--disp);font-variant-numeric:tabular-nums lining-nums;text-align:right}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0}
 input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--pen) calc(var(--v)*1%),var(--rule) calc(var(--v)*1%))}
 input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--rule)}
@@ -236,7 +241,7 @@ select.field{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:p
 #modal.sheet{top:0;right:0;bottom:0;width:min(720px,100vw);padding:28px 32px 40px;border-left:1px solid var(--rule);
   transform:translateX(40px);transition:transform .26s var(--ease),opacity .15s}
 .mwrap.on #modal.sheet{opacity:1;transform:none}
-#modal h3{font:600 24px/1.25 var(--read);padding-right:40px}
+#modal h3{font:700 23px/1.25 var(--disp);padding-right:40px}
 #modal .msub{margin:6px 0 0;color:var(--ink-2)}
 #modal .x{position:absolute;top:18px;right:18px}
 #modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
@@ -246,7 +251,7 @@ select.field{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:p
 
 /* preuve */
 .ev-top{display:flex;align-items:baseline;gap:14px;margin-top:16px;flex-wrap:wrap}
-.ev-top .big{font:600 44px/1 var(--read);font-variant-numeric:tabular-nums}
+.ev-top .big{font:800 44px/1 var(--disp);font-variant-numeric:tabular-nums lining-nums}
 .ev-top .dec{font-size:16px}
 .ev-why{color:var(--ink-2);font-size:14px;margin:12px 0 0;max-width:62ch}
 .occ{margin-top:26px;padding-top:20px;border-top:1px solid var(--rule)}
@@ -291,15 +296,17 @@ select.field{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:p
 .lock.on{opacity:1;visibility:visible;transition:opacity .2s}
 .lock:not(.on){pointer-events:none}
 .lock-in{width:min(440px,100%)}
-.lock .brand{font-size:22px}
-.lock h2{margin:34px 0 4px;font:600 28px/1.2 var(--read)}
+.lock .brand{font-size:26px;gap:12px}
+.lock .brand img{width:52px;height:52px}
+.lock .update{margin:14px 0 0;padding:10px 12px;border-radius:var(--r);background:var(--pen-soft);font-size:14px;max-width:46ch}
+.lock h2{margin:30px 0 4px;font:700 27px/1.2 var(--disp)}
 .lock .msub{margin:0;color:var(--ink-2);min-height:24px}
 .lock .msub.err{color:var(--danger);font-weight:600}
 .people-pick{display:grid;gap:8px;margin-top:24px}
 .pick{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--rule);border-radius:10px;background:var(--sheet);transition:border-color .15s}
 .pick:hover{border-color:var(--pen)}
 .pick .ini{width:38px;height:38px;font-size:14px}
-.pick b{display:block;font:500 19px/1.2 var(--read)}
+.pick b{display:block;font:700 17px/1.2 var(--disp)}
 .pick small{color:var(--ink-3);font-size:13px}
 .dots{display:flex;gap:12px;margin:26px 0 6px;min-height:14px}
 .dots i{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--ink-3);transition:background-color .1s}
@@ -307,7 +314,7 @@ select.field{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:p
 .dots.shake{animation:shake .4s}
 @keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 .pad{display:grid;grid-template-columns:repeat(3,72px);gap:10px;margin-top:20px}
-.key{display:grid;place-items:center;height:56px;border-radius:10px;border:1px solid var(--rule);background:var(--sheet);font:500 24px var(--read);font-variant-numeric:lining-nums;transition:background-color .1s,border-color .1s}
+.key{display:grid;place-items:center;height:56px;border-radius:10px;border:1px solid var(--rule);background:var(--sheet);font:700 22px var(--disp);font-variant-numeric:lining-nums;transition:background-color .1s,border-color .1s}
 .key:hover{border-color:var(--ink-3)}
 .key:active{background:var(--pen-soft)}
 .key.txt{font:600 14px var(--ui);border-color:transparent;background:none;color:var(--ink-2)}
@@ -359,7 +366,7 @@ select.field{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:p
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span>Key</span>Scan</div>
+  <div class="brand"><img src="/static/logo.svg" alt="">KeyScan</div>
   <nav class="nav" aria-label="Navigation">
     <a href="#/dossiers" data-tab="dossiers">Dossiers</a>
     <a href="#/mots-cles" data-tab="mots-cles">Liste par défaut</a>
@@ -1120,7 +1127,7 @@ document.addEventListener("keydown", e => {
 /* ================================================================ écran du code PIN
    Étapes : choose (qui êtes-vous ?) → pin (saisie) | setup1/setup2 (création) | change-old/new/confirm (changement) */
 let L = null;
-let profilesCache = [];
+let profilesCache = [], updatedTo = null;
 let idleMs = 30 * 60 * 1000, lastInput = Date.now();
 
 async function boot(){
@@ -1142,7 +1149,7 @@ async function showLock(opts){
     ["#view", "#rail"].forEach(s => { $(s).innerHTML = ""; $(s)._html = ""; });
     $("#railSum").textContent = ""; state.dossiers = []; state.keywords = [];   // rien ne reste visible derrière
   }
-  try{ const sess = await (await fetch("/api/session")).json(); profilesCache = sess.profiles; state.settings.operators = sess.profiles.map(p => p.name); }catch{}
+  try{ const sess = await (await fetch("/api/session")).json(); profilesCache = sess.profiles; updatedTo = sess.updated_to; state.settings.operators = sess.profiles.map(p => p.name); }catch{}
   L = {buf:"", msg:"", err:false, ...opts};
   if(L.step === "pin" && !L.len){ const pr = profilesCache.find(x => x.name === L.owner); L.len = pr && pr.pin_len; }
   drawLock();
@@ -1161,7 +1168,8 @@ const LOCK_TEXT = {
 function drawLock(){
   const el = $("#lock");
   if(L.step === "choose"){
-    el.innerHTML = `<div class="lock-in"><div class="brand"><span>Key</span>Scan</div><h2>Qui ouvre KeyScan ?</h2>
+    el.innerHTML = `<div class="lock-in"><div class="brand big"><img src="/static/logo.svg" alt="">KeyScan</div><h2>Qui ouvre KeyScan ?</h2>
+      ${updatedTo ? `<p class="update">KeyScan est passé à la version ${esc(updatedTo)}. Pour la sécurité, chaque profil choisit un nouveau code. Les dossiers et mots-clés sont conservés.</p>` : ""}
       <div class="people-pick">${profilesCache.map(p => `<button class="pick" data-pick="${esc(p.name)}">
         <span class="ini" style="${profStyle(p.name)}">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b>
         <small>${p.has_pin ? plural(p.dossiers, "dossier") : "Code à créer"}</small></span></button>`).join("")}</div></div>`;
@@ -1172,7 +1180,7 @@ function drawLock(){
   const n = fixed || Math.max(4, L.buf.length);
   const showOk = !fixed;
   el.innerHTML = `<div class="lock-in">
-    <div class="brand"><span>Key</span>Scan</div>
+    <div class="brand big"><img src="/static/logo.svg" alt="">KeyScan</div>
     <h2>${esc(title)}</h2><p class="msub ${L.err ? "err" : ""}">${esc(L.msg || hint || L.owner)}</p>
     <div class="dots" id="dots">${Array.from({length:n}, (_, i) => `<i class="${i < L.buf.length ? "on" : ""}"></i>`).join("")}</div>
     <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button class="key" data-key="${k}">${k}</button>`).join("")}

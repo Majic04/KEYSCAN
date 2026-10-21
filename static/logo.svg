@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="80 60 880 880" role="img" aria-label="KeyScan">
+  <path d="M180 120 h360 l130 130 v600 a44 44 0 0 1 -44 44 h-446 a44 44 0 0 1 -44 -44 v-686 a44 44 0 0 1 44 -44 z"
+        fill="#FFFFFF" stroke="#1C2B3F" stroke-width="30" stroke-linejoin="round"/>
+  <path d="M540 120 v86 a44 44 0 0 0 44 44 h86" fill="none" stroke="#1C2B3F" stroke-width="30" stroke-linejoin="round"/>
+  <line x1="225" y1="260" x2="560" y2="260" stroke="#C5CED9" stroke-width="26" stroke-linecap="round"/><line x1="225" y1="335" x2="600" y2="335" stroke="#C5CED9" stroke-width="26" stroke-linecap="round"/><line x1="225" y1="410" x2="480" y2="410" stroke="#C5CED9" stroke-width="26" stroke-linecap="round"/><line x1="225" y1="485" x2="380" y2="485" stroke="#C5CED9" stroke-width="26" stroke-linecap="round"/><line x1="225" y1="560" x2="330" y2="560" stroke="#C5CED9" stroke-width="26" stroke-linecap="round"/><line x1="225" y1="635" x2="340" y2="635" stroke="#C5CED9" stroke-width="26" stroke-linecap="round"/>
+  <line x1="755" y1="755" x2="895" y2="895" stroke="#1C2B3F" stroke-width="86" stroke-linecap="round"/>
+  <circle cx="585" cy="585" r="235" fill="#FFE35A" stroke="#1C2B3F" stroke-width="44"/>
+  <path d="M586.1441441441441 588.1036036036037V575.7432432432432L713.5 657.6306306306307H631.3918918918919L523.2387387387388 582.5855855855856L623.0045045045046 516.3693693693695H701.581081081081ZM468.5 516.3693693693695H523.6801801801802V657.6306306306307H468.5Z" fill="#1C2B3F"/>
+  <path d="M435 490 a175 175 0 0 1 95 -78" fill="none" stroke="#FFFFFF" stroke-opacity=".75"
+        stroke-width="22" stroke-linecap="round"/>
+</svg>

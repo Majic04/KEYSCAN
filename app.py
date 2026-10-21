@@ -193,6 +193,24 @@ def init_db():
             )
 
 
+def reset_pins_on_new_version(version: str) -> bool:
+    """
+    Application installée : à la première ouverture d'une nouvelle version, les codes PIN sont effacés
+    (chaque profil en choisit un nouveau). Dossiers, mots-clés et réglages sont conservés.
+    Retourne True si les codes viennent d'être effacés.
+    """
+    init_db()
+    with db() as con:
+        r = con.execute("SELECT value FROM settings WHERE key='app_version'").fetchone()
+        if r and json.loads(r["value"]) == version:
+            return False
+        n = con.execute("DELETE FROM settings WHERE key LIKE 'pin:%'").rowcount
+        con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('app_version', ?)", (json.dumps(version),))
+        if n:
+            con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('pin_reset_notice', ?)", (json.dumps(version),))
+    return bool(n)
+
+
 def get_settings(owner: str | None = None) -> dict:
     """
     Réglages vus par un profil : la liste de l'équipe (commune) + les seuils de CE profil.
@@ -528,7 +546,16 @@ def get_session():
     for o in ops:
         r = _pin_record(o)
         profiles.append({"name": o, "has_pin": bool(r), "pin_len": r["len"] if r else None, "dossiers": counts.get(o, 0)})
-    return jsonify({"owner": owner if ok else None, "profiles": profiles, "idle_minutes": IDLE_MINUTES})
+    # après une mise à jour : codes effacés, message affiché jusqu'à ce que chaque profil ait recréé le sien
+    notice = None
+    with db() as con:
+        r = con.execute("SELECT value FROM settings WHERE key='pin_reset_notice'").fetchone()
+        if r:
+            if all(p["has_pin"] for p in profiles):
+                con.execute("DELETE FROM settings WHERE key='pin_reset_notice'")
+            else:
+                notice = json.loads(r["value"])
+    return jsonify({"owner": owner if ok else None, "profiles": profiles, "idle_minutes": IDLE_MINUTES, "updated_to": notice})
 
 
 @app.post("/api/unlock")
