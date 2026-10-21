@@ -76,7 +76,7 @@ Application complète depuis le code source : `python app.py` (s'ouvre dans le n
 python tests/test_regles.py                                   # règles de décision (répétitions, doublons, illisibles…)
 python tests/make_bench.py /tmp/banc && python tests/evaluate.py . /tmp/banc resultats.json   # précision / rappel
 ```
-À chaque envoi sur `main`, GitHub lance ces tests. Une version publiée (étiquette `v1.2.0`…) est en plus construite, testée et publiée pour Mac et Windows (`.github/workflows/build.yml`).
+À chaque envoi sur `main`, GitHub lance ces tests. Quand `APP_VERSION` (dans `desktop.py`) annonce une nouvelle version, les applications Mac et Windows sont en plus construites, testées sur de vrais Mac et Windows, puis publiées (`.github/workflows/build.yml`).
 
 ## Organisation du code
 
