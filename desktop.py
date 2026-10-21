@@ -27,7 +27,7 @@ import time
 import urllib.request
 
 APP_NAME = "KeyScan"
-APP_VERSION = "1.2.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
+APP_VERSION = "1.3.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
 DEFAULT_PORT = 47815
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))

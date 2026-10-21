@@ -370,6 +370,8 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
             cells[k["id"]] = {
                 "term": k["term"], "score": score, "decision": decision, "reliability": reliability,
                 "count": len(occ), "occurrences": occ,
+                # où le mot a été lu (fichier, page) : affiché dans la liste sans charger le détail
+                "where": [{"file": f, "page": p} for f, p in dict.fromkeys((o["filename"], o["page"]) for o in occ)],
             }
         # pour chaque document : où sont les mots trouvés (et lesquels sont à vérifier), page par page
         hits: dict[int, list] = {}
@@ -921,14 +923,15 @@ def page_preview(doc_id, page):
                 x0, y0, x1, y1 = o["box"]
                 box = [x0 * W - 4, y0 * H - 3, x1 * W + 4, y1 * H + 3]
                 sure = o["score"] * 100 >= thr and o.get("certain", True)
-                color = (22, 128, 84) if sure else (214, 120, 0)
-                draw.rectangle(box, fill=color + (45,), outline=color + (255,), width=lw)
+                # mêmes couleurs que les surligneurs de l'interface : vert = présent, jaune = à vérifier
+                fill, edge = ((90, 210, 150, 95), (20, 110, 70, 255)) if sure else ((255, 214, 40, 110), (150, 110, 0, 255))
+                draw.rectangle(box, fill=fill, outline=edge, width=max(2, lw - 1))
                 if len(kws) > 1:     # vue d'ensemble : nom du mot-clé au-dessus du cadre
                     tw = draw.textlength(term, font=font)
                     th = font.size + 6 if hasattr(font, "size") else 16
                     ty = box[1] - th - 2 if box[1] - th - 2 > 0 else box[3] + 2
-                    draw.rounded_rectangle([box[0], ty, box[0] + tw + 12, ty + th], radius=6, fill=color + (235,))
-                    draw.text((box[0] + 6, ty + 2), term, fill=(255, 255, 255), font=font)
+                    draw.rectangle([box[0], ty, box[0] + tw + 12, ty + th], fill=fill[:3] + (240,))
+                    draw.text((box[0] + 6, ty + 2), term, fill=(28, 43, 63), font=font)
     if crop:   # zoom : la zone et un peu de contexte (la ligne entière et ses voisines)
         W, H = img.size
         x0, y0, x1, y1 = crop

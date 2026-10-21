@@ -28,12 +28,13 @@ Les données sont rangées dans `~/Library/Application Support/KeyScan` (Mac) ou
 
 ## Utiliser
 
-| Écran | Ce qu'on y fait |
+L'écran est un bureau : à gauche la liste des candidats (avec recherche), à droite le dossier ouvert.
+
+| Endroit | Ce qu'on y fait |
 |---|---|
-| **Dossiers** | Un candidat par ligne ; l'anneau indique combien de ses mots-clés sont trouvés. |
-| **+** (nouveau dossier) | Nom du candidat, **mots-clés de départ** (liste par défaut, copie d'un autre dossier, ou aucun) + mots-clés en plus, documents à glisser. Import de plusieurs dossiers d'un coup (.zip). |
-| Page d'un dossier | Au centre, le résultat. *Mots-clés* : décision et score de chacun ; un clic montre la preuve (zoom sur le mot, ce qui a été lu, page entière). **Modifier les mots-clés** : la liste propre à ce dossier. *Documents* : pour chaque document, les mots **à vérifier** et leur page ; l'œil affiche le document avec tous les mots-clés encadrés. |
-| **Mots-clés** | La **liste par défaut**, proposée à chaque nouveau dossier. La modifier ne change pas les dossiers existants. |
+| **Colonne de gauche** | Un candidat par ligne. La petite bande indique un mot-clé par case : vert trouvé, jaune à vérifier. **Nouveau** crée un dossier : nom, mots-clés de départ (liste par défaut, copie d'un autre dossier, ou aucun), mots-clés en plus, documents. Import de plusieurs dossiers d'un coup (.zip). |
+| **Dossier ouvert** | Les mots-clés sont rangés par décision : *Présents* et *À vérifier* sont surlignés comme au feutre, *Absence incertaine* est soulignée en pointillé. Un clic ouvre la preuve dans un volet : zoom sur le mot, ce qui a été lu, page entière. **Modifier les mots-clés** change la liste de ce dossier seulement. L'onglet *Documents* montre, pour chaque document, les mots à vérifier et leur page ; l'œil affiche le document avec tous les mots-clés surlignés. |
+| **Liste par défaut** | Proposée à chaque nouveau dossier. La modifier ne change pas les dossiers existants. |
 | **Réglages** | Seuils de décision, équipe, code PIN, export CSV. |
 
 - **Deux profils séparés** (un par responsable), chacun protégé par un **code PIN** : dossiers, mots-clés et seuils propres à chacun. Verrouillage automatique après 30 min. Code oublié : `KeyScan --reset-pin "Prénom Nom"` (voir l'écran du code).

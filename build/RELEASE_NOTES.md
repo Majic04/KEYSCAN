@@ -1,4 +1,11 @@
-## Nouveautés de la version 1.2
+## Nouveautés de la version 1.3
+
+- **Nouvelle interface, « le bureau du jury »** : la liste des candidats reste à gauche (avec une recherche), le dossier ouvert à droite. Les mots-clés sont rangés par décision et surlignés comme au feutre : vert présent, jaune à vérifier ; une absence incertaine est soulignée en pointillé. Les preuves s'ouvrent dans un volet à côté du dossier.
+- Polices intégrées, choisies pour la lecture : Atkinson Hyperlegible Next pour l'interface, Literata pour les noms et les extraits de documents.
+- Les pages des documents utilisent les mêmes couleurs de surligneur que l'interface.
+- Un document illisible est expliqué en clair (« fichier corrompu ou protégé ») au lieu d'un message technique.
+
+## Version 1.2
 
 - **Écriture manuscrite bien mieux lue** sur les vraies lettres (papier jauni, écriture cursive, lignes serrées) : découpage des lignes refait (grain du papier, pointillés et bords de carte ignorés, lignes qui se touchent séparées), et une lettre manuscrite n'est plus retournée à l'envers par erreur.
 - **Où sont les mots « À vérifier »** : dans l'onglet Documents, chaque document liste ses mots à vérifier avec leur page ; un clic montre un zoom sur le mot, ce qui a été lu, et la page entière. Le bouton œil affiche le document avec tous ses mots-clés encadrés et nommés (vert : présent, orange : à vérifier).

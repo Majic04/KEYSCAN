@@ -20,6 +20,7 @@ WIN = sys.platform == "win32"
 
 datas = [
     (os.path.join(ROOT, "templates"), "templates"),
+    (os.path.join(ROOT, "static"), "static"),          # polices de l'interface (Atkinson Hyperlegible Next, Literata ; licence OFL)
     (os.path.join(ROOT, "exemples", "manuscrit.png"), "exemples"),
 ]
 tess = os.path.join(ROOT, "build", "tesseract")

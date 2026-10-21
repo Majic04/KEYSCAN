@@ -5,541 +5,383 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KeyScan</title>
 <style>
-/* ================================================================ tokens */
+/* ======================================================================================
+   KeyScan, « le bureau du jury »
+   On relit des dossiers et on repère des mots dans des documents : l'interface reprend le
+   surligneur (décisions) et le stylo bleu (actions). Couleurs = information, rien d'autre.
+   Typo : Atkinson Hyperlegible Next (interface), Literata (noms, extraits de documents).
+   ====================================================================================== */
+@font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-400-italic.woff2") format("woff2");font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Atkinson";src:url("/static/fonts/atkinson-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Literata";src:url("/static/fonts/literata.woff2") format("woff2");font-weight:200 900;font-display:swap}
+@font-face{font-family:"Literata";src:url("/static/fonts/literata-italic.woff2") format("woff2");font-weight:200 900;font-style:italic;font-display:swap}
+
 :root{
-  --ink:#0E2A47; --muted:#6A84A0; --faint:#9DB2C7;
-  --blue:#2F7BF5; --cyan:#22C3D6; --mint:#8FDDB4; --bg:#EAF3FA;
-  --glass:rgba(255,255,255,.58); --glass-strong:rgba(255,255,255,.78); --solid:rgba(246,250,253,.97);
-  --stroke:rgba(255,255,255,.8); --edge:rgba(14,42,71,.07); --hair:rgba(14,42,71,.07);
-  --shadow:0 1px 1px rgba(14,42,71,.04), 0 12px 32px -10px rgba(30,80,130,.20);
-  --lift:0 2px 4px rgba(14,42,71,.05), 0 20px 44px -12px rgba(30,100,170,.32);
-  --ok:#1B7F55; --ok-bg:rgba(143,221,180,.45);
-  --rev:#A86B12; --rev-bg:rgba(255,213,150,.5);
-  --no:#6A84A0; --no-bg:rgba(190,208,226,.40);
-  --bad:#B8435A; --bad-bg:rgba(255,186,198,.5);
-  --spring:cubic-bezier(.34,1.56,.64,1); --out:cubic-bezier(.22,1,.36,1);
-  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased; color-scheme:light;
+  --paper:#F2F4F6; --sheet:#FFFFFF; --ink:#1C2B3F; --ink-2:#4F5E72; --ink-3:#8593A5; --rule:#D9DFE6; --rule-2:#E7EBF0;
+  --pen:#2B4ACB; --pen-soft:#E3E8FB;
+  --hl-ok:#9FE6C2; --hl-rev:#FFE35A; --hl-doubt:#FFC4D2;
+  --t-ok:#145A3A; --t-rev:#6B5300; --t-doubt:#8A1F3D; --t-no:#8593A5;
+  --danger:#B42343;
+  --lift:0 18px 48px -12px rgba(28,43,63,.28), 0 2px 6px rgba(28,43,63,.08);   /* la seule ombre : ce qui est posé par-dessus */
+  --r:8px; --ease:cubic-bezier(.2,.8,.2,1);
+  --ui:"Atkinson",system-ui,-apple-system,"Segoe UI",sans-serif; --read:"Literata",Georgia,"Times New Roman",serif;
+  color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --ink:#E6F1FA; --muted:#8FA9C2; --faint:#5F7A94;
-  --blue:#5B9BFF; --cyan:#4FD9E6; --mint:#7FD9AA; --bg:#06131F;
-  --glass:rgba(22,44,66,.62); --glass-strong:rgba(30,56,82,.78); --solid:rgba(16,34,52,.97);
-  --stroke:rgba(180,220,255,.14); --edge:rgba(0,0,0,.4); --hair:rgba(180,220,255,.08);
-  --shadow:0 1px 1px rgba(0,0,0,.25), 0 14px 34px -10px rgba(0,0,0,.6);
-  --lift:0 2px 4px rgba(0,0,0,.3), 0 22px 46px -12px rgba(20,120,200,.35);
-  --ok:#8AE6B6; --ok-bg:rgba(80,190,140,.2); --rev:#F3C27A; --rev-bg:rgba(230,160,60,.18);
-  --no:#8FA9C2; --no-bg:rgba(140,170,200,.13); --bad:#FF9DAF; --bad-bg:rgba(230,90,120,.2);
+  --paper:#141A22; --sheet:#1B232E; --ink:#E5EAF1; --ink-2:#AEB9C7; --ink-3:#76839A; --rule:#2D3846; --rule-2:#242E3B;
+  --pen:#91A7FF; --pen-soft:#25305A;
+  --hl-ok:rgba(70,200,140,.38); --hl-rev:rgba(255,215,60,.40); --hl-doubt:rgba(255,120,160,.34);
+  --t-ok:#A8F0CB; --t-rev:#FFE68A; --t-doubt:#FFC0D0; --t-no:#76839A; --danger:#FF8FA6;
+  --lift:0 18px 48px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3);
   color-scheme:dark;
 }}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;overflow-x:hidden;padding-bottom:140px}
-button,input,textarea{font:inherit;color:inherit}
-button{background:none;border:0;padding:0;cursor:pointer}
-:focus-visible{outline:2.5px solid color-mix(in srgb,var(--cyan) 85%,transparent);outline-offset:3px;border-radius:12px}
-.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--ui);-webkit-font-smoothing:antialiased;
+  font-feature-settings:"kern","liga";overflow:hidden}
+button,input,textarea,select{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--pen);outline-offset:2px;border-radius:4px}
+.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+h1,h2,h3{margin:0;font-weight:600}
 
-/* ================================================================ fond */
-/* halos déjà doux (dégradés radiaux) : pas besoin de flou ni d'animation, le calque est peint une seule fois */
-.aura{position:fixed;inset:0;z-index:-1;pointer-events:none;transform:translateZ(0);
-  background:
-    radial-gradient(48vmax 48vmax at 12% 8%,rgba(140,200,255,.75),transparent 70%),
-    radial-gradient(42vmax 42vmax at 92% 30%,rgba(127,231,236,.65),transparent 70%),
-    radial-gradient(46vmax 46vmax at 50% 105%,rgba(180,239,207,.7),transparent 70%)}
-@media (prefers-color-scheme:dark){.aura{opacity:.32}}
+/* ---------------------------------------------------------------- surligneur (élément signature) */
+.hl{position:relative;z-index:0;white-space:nowrap;padding:0 .12em}
+.hl::before{content:"";position:absolute;z-index:-1;left:-.2em;right:-.25em;top:.12em;bottom:.02em;background:var(--hl);
+  border-radius:.18em .55em .3em .45em / .45em .25em .55em .3em;transform:rotate(-.8deg) skewX(-7deg);transform-origin:0 50%}
+.hl.ok{--hl:var(--hl-ok)} .hl.rev{--hl:var(--hl-rev)}
+/* « absence incertaine » : rien n'a été trouvé, donc pas de surligneur ; un pointillé dit « pas sûr » */
+.hl.doubt::before{display:none}
+.hl.doubt{text-decoration:underline dotted var(--danger);text-decoration-thickness:1.5px;text-underline-offset:4px;color:var(--ink-2)}
+/* le seul moment animé sans action : à l'ouverture d'un dossier, le surligneur passe sur les mots trouvés */
+.reveal .hl::before{animation:swipe .5s var(--ease) both;animation-delay:calc(var(--n,0) * 45ms + 120ms)}
+@keyframes swipe{from{transform:rotate(-.8deg) skewX(-7deg) scaleX(0)}}
 
-/* ================================================================ verre */
-.glass{position:relative;background:var(--glass);
-  border:1px solid var(--stroke);
-  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -1px 0 var(--edge)}
-.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,0) 42%)}
-@media (prefers-color-scheme:dark){.glass::after{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0) 42%)}}
-/* vrai flou d'arrière-plan : uniquement pour ce qui flotte au-dessus du contenu qui défile */
-.frost{-webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%)}
+/* ---------------------------------------------------------------- boutons */
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:var(--r);font-weight:600;white-space:nowrap;
+  border:1px solid var(--rule);background:var(--sheet);transition:background-color .15s,border-color .15s,color .15s}
+.btn:hover{border-color:var(--ink-3)}
+.btn:active{background:var(--rule-2)}
+.btn.pen{background:var(--pen);border-color:var(--pen);color:#fff}
+@media (prefers-color-scheme:dark){.btn.pen{color:#0F1530}}
+.btn.pen:hover{filter:brightness(1.08)}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.plain{border-color:transparent;background:none;color:var(--ink-2)}
+.btn.plain:hover{color:var(--ink);background:var(--rule-2)}
+.btn:disabled{opacity:.45;pointer-events:none}
+.icon{width:34px;height:34px;display:inline-grid;place-items:center;border-radius:var(--r);color:var(--ink-2);transition:background-color .15s,color .15s}
+.icon:hover{background:var(--rule-2);color:var(--ink)}
+.icon.del:hover{color:var(--danger)}
+.textlink{color:var(--pen);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.textlink:hover{text-decoration-thickness:2px}
 
-/* ================================================================ boutons (transform piloté par variables : survol, appui, magnétisme) */
-.btn,.iconbtn,.fab{
-  --tx:0px;--ty:0px;--s:1;
-  transform:translate(var(--tx),var(--ty)) scale(var(--s));
-  transition:transform .5s var(--spring),background-color .25s,color .2s,opacity .2s;
-}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border-radius:999px;
-  font-weight:600;letter-spacing:-.01em;white-space:nowrap;
-  background:var(--glass-strong);border:1px solid var(--stroke);
-  box-shadow:0 1px 2px rgba(14,42,71,.06),inset 0 1px 0 rgba(255,255,255,.7)}
-.btn,.iconbtn,.fab,.rowc,.krow{position:relative}
-/* ombre de survol pré-dessinée : seule son opacité varie (calcul fait par la carte graphique) */
-.btn::before,.iconbtn::before,.fab::before,.rowc::before,.krow::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  box-shadow:var(--lift);opacity:0;transition:opacity .35s var(--out);will-change:opacity}
-.btn:hover::before,.iconbtn:hover::before,.fab:hover::before,.rowc:hover::before,.krow:hover::before{opacity:1}
-.iconbtn.flat::before,.btn.quiet::before,.krow.doc::before{display:none}
-.btn:hover,.iconbtn:hover,.fab:hover{--s:1.04}
-.btn:active,.iconbtn:active,.fab:active{--s:.94;transition-duration:.15s}
-.btn.primary{color:#fff;border-color:rgba(255,255,255,.35);
-  background:linear-gradient(135deg,var(--blue),#2AA3EA 55%,var(--cyan));
-  box-shadow:0 8px 20px -8px color-mix(in srgb,var(--blue) 75%,transparent),inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 6px rgba(0,40,120,.18)}
-.btn.primary::before,.fab::before{box-shadow:0 16px 32px -10px color-mix(in srgb,var(--cyan) 80%,transparent)}
-.btn.danger{color:#fff;background:linear-gradient(135deg,#E0617A,#C9455F);border-color:rgba(255,255,255,.3)}
-.btn.quiet{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
-.btn.quiet:hover{background:var(--glass);color:var(--ink)}
-.btn:disabled{opacity:.4;pointer-events:none}
-.iconbtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:var(--ink);
-  background:var(--glass-strong);border:1px solid var(--stroke);box-shadow:0 1px 2px rgba(14,42,71,.06),inset 0 1px 0 rgba(255,255,255,.7)}
-.iconbtn.sm{width:34px;height:34px}
-.iconbtn.sm .i{width:17px;height:17px}
-.iconbtn.flat{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
-.iconbtn.flat:hover{background:var(--glass);color:var(--ink)}
-.iconbtn.flat.del:hover{color:var(--bad)}
+/* ---------------------------------------------------------------- barre du haut */
+.top{display:flex;align-items:center;gap:28px;height:56px;padding:0 20px;border-bottom:1px solid var(--rule);background:var(--paper)}
+.brand{font:600 19px/1 var(--read);letter-spacing:-.01em}
+.brand span{position:relative;z-index:0}
+.brand span::before{content:"";position:absolute;z-index:-1;left:-2px;right:-3px;top:55%;bottom:-2px;background:var(--hl-rev);transform:skewX(-8deg)}
+.nav{display:flex;gap:4px;height:100%}
+.nav a{display:flex;align-items:center;padding:0 10px;text-decoration:none;color:var(--ink-2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--pen)}
+.who{margin-left:auto;display:flex;align-items:center;gap:10px;height:38px;padding:0 6px 0 12px;border-radius:var(--r);font-weight:600}
+.who:hover{background:var(--rule-2)}
+.ini{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:var(--pa,var(--pen));flex:none}
 
-/* ================================================================ en-tête */
-.top{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto;padding:22px 20px 0;
-  animation:fadeDown .8s var(--out) both}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
-.lens{width:28px;height:28px;border-radius:50%;
-  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95) 0 14%,transparent 34%),conic-gradient(from 200deg,var(--blue),var(--cyan),var(--mint),var(--blue));
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),0 4px 12px -2px color-mix(in srgb,var(--cyan) 60%,transparent)}
-.avatar{font-size:13px;font-weight:700;letter-spacing:.02em}
-.avatar.prof{color:#fff;border-color:rgba(255,255,255,.5);background:linear-gradient(135deg,var(--pa),var(--pb));transition:background .4s,transform .5s var(--spring)}
-.ini.prof{background:linear-gradient(135deg,var(--pa),var(--pb))}
-.owner{color:var(--pa,var(--blue))}
-@keyframes fadeDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+/* ---------------------------------------------------------------- bureau : liste à gauche, dossier à droite */
+.desk{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 56px)}
+.desk.full{grid-template-columns:1fr}
+.desk.full .rail{display:none}
+.rail{border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0}
+.rail-head{display:flex;gap:8px;padding:14px 14px 10px}
+.rail-head .search{flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet);outline:none}
+.rail-head .search:focus{border-color:var(--pen)}
+.rail-list{flex:1;overflow:auto;padding:0 8px 16px}
+.rail-sum{padding:2px 14px 10px;color:var(--ink-3);font-size:13px}
+.item{display:block;width:100%;padding:10px 10px 10px 14px;border-radius:var(--r);position:relative;text-decoration:none}
+.item:hover{background:var(--rule-2)}
+.item[aria-current=page]{background:var(--sheet);box-shadow:inset 0 0 0 1px var(--rule)}
+.item[aria-current=page]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--pen)}
+.item b{display:block;font:500 16px/1.3 var(--read);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item small{display:block;color:var(--ink-2);font-size:13px;margin-top:2px}
+.item small .warn{color:var(--t-rev)} .item small .bad{color:var(--danger)}
+/* bande de pointage : une case par mot-clé, colorée par la décision */
+.tally{display:flex;gap:2px;margin-top:7px;height:5px}
+.tally i{flex:1;max-width:16px;border-radius:1px;background:var(--rule)}
+.tally i.ok{background:var(--hl-ok)} .tally i.rev{background:var(--hl-rev)} .tally i.doubt{background:var(--hl-doubt)}
+.pbar{display:block;height:3px;border-radius:2px;background:var(--rule);overflow:hidden;margin-top:7px}
+.pbar i{display:block;height:100%;background:var(--pen);transform-origin:left;transform:scaleX(var(--p));transition:transform .8s var(--ease);will-change:transform}
 
-/* ================================================================ barre d'onglets flottante */
-.dock{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));z-index:40;display:flex;gap:10px;align-items:center;
-  transform:translateX(-50%);will-change:transform;animation:dockIn 1s var(--spring) .15s both}
-@keyframes dockIn{from{opacity:0;transform:translate(-50%,40px) scale(.9)}to{opacity:1;transform:translate(-50%,0)}}
-.tabs{position:relative;display:flex;padding:5px;border-radius:999px}
-.tab{position:relative;z-index:1;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:92px;padding:7px 14px 6px;border-radius:999px;
-  color:var(--muted);font-size:11.5px;font-weight:600;transition:color .3s}
-.tab .i{width:22px;height:22px;transition:transform .5s var(--spring)}
-.tab:hover{color:var(--ink)}
-.tab:hover .i{transform:translateY(-1px) scale(1.08)}
-.tab[aria-current=page]{color:var(--blue)}
-.thumb{position:absolute;z-index:0;top:5px;bottom:5px;left:0;width:0;border-radius:999px;
-  background:var(--glass-strong);border:1px solid var(--stroke);
-  box-shadow:0 4px 14px -4px rgba(14,42,71,.2),inset 0 1px 0 rgba(255,255,255,.85);
-  transition:transform .6s var(--spring),width .6s var(--spring)}
-.thumb.instant{transition:none}
-.fab{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;color:#fff;
-  background:linear-gradient(135deg,var(--blue),var(--cyan));border:1px solid rgba(255,255,255,.4);
-  box-shadow:0 12px 26px -8px color-mix(in srgb,var(--blue) 80%,transparent),inset 0 1px 0 rgba(255,255,255,.5)}
-.fab .i{width:26px;height:26px;stroke-width:2.2;transition:transform .5s var(--spring)}
-.fab:hover .i{transform:rotate(90deg)}
+#view{overflow:auto;min-height:0;transition:opacity .12s}
+#view.leave{opacity:0}
+.page{max-width:860px;padding:32px 40px 80px}
+.desk.full .page{max-width:760px;margin:0 auto}
 
-/* ================================================================ pages */
-#view{max-width:760px;margin:0 auto;padding:0 20px}
-#view.enter{animation:enter .7s var(--out) both}
-#view.push{animation:push .65s var(--out) both}
-@keyframes enter{from{opacity:0;transform:translate3d(0,14px,0) scale(.985)}to{opacity:1;transform:none}}
-@keyframes push{from{opacity:0;transform:translate3d(40px,0,0)}to{opacity:1;transform:none}}
-.head{text-align:center;padding:44px 0 26px}
-.title{margin:0;font-size:clamp(34px,6vw,46px);font-weight:750;letter-spacing:-.035em;line-height:1.05}
-.sub{margin:8px 0 0;color:var(--muted);font-size:15px}
-.live{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:6px 14px;border-radius:999px;background:var(--rev-bg);color:var(--rev);font-size:13px;font-weight:600}
+/* ---------------------------------------------------------------- page d'un dossier */
+.dhead{display:flex;align-items:flex-start;gap:16px}
+.dhead h1{flex:1;min-width:0;font:600 32px/1.15 var(--read);letter-spacing:-.015em}
+.dhead .acts{display:flex;gap:8px;padding-top:4px}
+.verdict{margin:10px 0 0;font:400 18px/1.5 var(--read);color:var(--ink-2);max-width:60ch}
+.verdict strong{color:var(--ink);font-weight:600}
+.running{display:flex;align-items:center;gap:10px;margin-top:14px;color:var(--ink-2);font-size:14px}
+.running .pbar{flex:1;max-width:260px;margin:0}
+.alert{display:flex;gap:10px;margin-top:18px;padding:12px 14px;border-radius:var(--r);border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);
+  background:color-mix(in srgb,var(--danger) 7%,var(--sheet));color:var(--ink);font-size:14px;max-width:64ch}
+.alert .i{color:var(--danger);margin-top:2px}
+.tabs{display:flex;align-items:flex-end;gap:22px;margin-top:30px;border-bottom:1px solid var(--rule)}
+.tabs button{padding:0 0 10px;white-space:nowrap;font-weight:600;color:var(--ink-2);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-pressed=true]{color:var(--ink);border-bottom-color:var(--pen)}
+.tabs button small{color:var(--ink-3);font-weight:400;margin-left:4px}
+.tabs .end{margin-left:auto;padding-bottom:6px}
 
-/* liste des dossiers */
-.list{display:grid;gap:10px}
-.rowc{--d:0;display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 14px 12px 12px;border-radius:22px;
-  transition:transform .5s var(--spring),background-color .25s}
-.enter .rowc,.push .rowc{animation:rise .7s var(--out) both;animation-delay:calc(var(--d) * 55ms + 160ms)}
-@keyframes rise{from{opacity:0;transform:translate3d(0,12px,0)}to{opacity:1;transform:none}}
-.rowc:hover{transform:translateY(-2px)}
-.rowc:active{transform:scale(.985);transition-duration:.15s}
-.ini{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;flex:none;font-weight:700;font-size:15px;color:#fff;
-  background:linear-gradient(135deg,var(--blue),var(--cyan));box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
-.rowc:nth-child(3n+2) .ini{background:linear-gradient(135deg,var(--cyan),#5FD3A8)}
-.rowc:nth-child(3n+3) .ini{background:linear-gradient(135deg,#4C8DF7,#7BC8F0)}
-.rtxt{flex:1;min-width:0}
-.rtxt b{display:block;font-size:16px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rtxt small{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:6px}
-.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
-.chev{color:var(--faint);transition:transform .45s var(--spring),color .2s}
-.rowc:hover .chev{transform:translateX(3px);color:var(--ink)}
+.group{margin-top:26px}
+.group h2{font-size:14px;font-weight:700;color:var(--ink-2);margin:0 0 6px}
+.group h2 small{font-weight:400;color:var(--ink-3);margin-left:6px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 64px minmax(0,220px) 20px;align-items:center;gap:16px;width:100%;
+  padding:11px 10px;border-bottom:1px solid var(--rule-2);border-radius:0;transition:background-color .12s}
+.row:hover{background:var(--sheet)}
+.row .term{font:400 18px/1.35 var(--read)}
+.row .score{font:600 16px var(--read);font-variant-numeric:tabular-nums lining-nums;text-align:right}
+.row .where{color:var(--ink-2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .i{color:var(--ink-3)}
+.row.quiet .term{color:var(--ink-2)}
+.absents{display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 10px;font:400 16px/1.6 var(--read);color:var(--t-no)}
+.absents button:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.note{color:var(--ink-3);font-size:13px;margin-top:22px;max-width:64ch}
 
-/* mini-anneau dans la liste */
-.mring{--p:0;position:relative;width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;
-  background:conic-gradient(var(--blue),var(--cyan) calc(var(--p) * .55%),var(--mint) calc(var(--p) * 1%),var(--no-bg) calc(var(--p) * 1%))}
-.mring::before{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--glass-strong)}
-.mring span{position:relative;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+/* documents */
+.doc{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:start;padding:14px 10px;border-bottom:1px solid var(--rule-2)}
+.doc .name{font-weight:600;text-decoration:none}
+.doc .name:hover{text-decoration:underline;text-underline-offset:3px}
+.doc small{display:block;color:var(--ink-2);font-size:13px;margin-top:2px}
+.doc .state{font-size:13px;font-weight:600;color:var(--ink-2);padding-top:2px;white-space:nowrap}
+.doc .state.err{color:var(--danger)} .doc .state.run{color:var(--pen)}
+.doc .acts{display:flex;gap:2px}
+.hits{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:14px}
+.hits button{font:400 15px/1.5 var(--read)}
+.hits button small{display:inline;font:400 12px var(--ui);color:var(--ink-3);margin-left:3px}
+.hits .more{font:600 13px var(--ui);color:var(--pen)}
+.drop{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:18px;padding:22px;border:1.5px dashed var(--rule);
+  border-radius:var(--r);color:var(--ink-2);font-weight:600;transition:border-color .15s,background-color .15s,color .15s}
+.drop:hover,.drop.over{border-color:var(--pen);color:var(--pen);background:var(--pen-soft)}
+.drop.big{flex-direction:column;padding:56px 20px;margin-top:30px}
+.drop.big .i{width:26px;height:26px}
+.drop span{font-weight:400;color:var(--ink-3)}
 
-/* état vide central */
-.hero-empty{display:grid;justify-items:center;text-align:center;padding:40px 0 10px}
-.bubble{width:180px;height:180px;border-radius:50%;display:grid;place-items:center;color:var(--blue);margin-bottom:26px;
-  transition:transform .6s var(--spring)}
-.bubble .i{width:54px;height:54px;stroke-width:1.5}
-.bubble::before{content:"";position:absolute;inset:-10px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--cyan) 45%,transparent);animation:breathe 3.2s ease-in-out infinite;will-change:transform,opacity}
-.bubble:hover{transform:scale(1.05)}
-@keyframes breathe{0%,100%{transform:scale(.96);opacity:.35}50%{transform:scale(1.04);opacity:.9}}
-.hero-empty h2{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em}
-.hero-empty p{margin:6px 0 20px;color:var(--muted)}
+/* ---------------------------------------------------------------- accueil / page vide */
+.welcome{padding:72px 40px;max-width:620px}
+.welcome h1{font:600 30px/1.2 var(--read);letter-spacing:-.01em}
+.welcome p{color:var(--ink-2);font-size:16px;margin:12px 0 24px;max-width:52ch}
+.todo{margin:-8px 0 28px;padding:0;list-style:none;font-size:16px}
+.todo li{padding:6px 0;border-bottom:1px solid var(--rule-2)}
+.todo .hl{font-family:var(--read)}
 
-/* page d'un dossier */
-.bar{display:flex;justify-content:space-between;align-items:center;padding-top:26px}
-.hero{display:grid;justify-items:center;text-align:center;padding:4px 0 26px}
-.ring{position:relative;width:220px;height:220px;margin-bottom:18px}
-.ring svg{width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
-.ring .track{fill:none;stroke:var(--no-bg);stroke-width:14}
-.ring .val{fill:none;stroke:url(#g);stroke-width:14;stroke-linecap:round}
-.ring::before{content:"";position:absolute;inset:6%;border-radius:50%;box-shadow:0 10px 40px -8px color-mix(in srgb,var(--cyan) 45%,transparent)}
-.ring.anim .val{animation:ringIn 1.4s var(--out) .15s both}
-.ring .val.prog{stroke-dashoffset:calc(var(--c) * 1px * (1 - var(--p)));transition:stroke-dashoffset .9s var(--out)}
-@keyframes ringIn{from{stroke-dashoffset:var(--c)}}
-.ring .in{position:absolute;inset:0;display:grid;place-content:center;justify-items:center}
-.ring .big{font-size:64px;font-weight:750;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
-.ring .big small{font-size:26px;color:var(--muted);font-weight:600;letter-spacing:-.02em}
-.ring .cap{margin-top:4px;color:var(--muted);font-size:13px}
-.hero h1{margin:0;font-size:28px;font-weight:750;letter-spacing:-.03em}
-.hero .sub{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-.warn{color:var(--rev);font-weight:600}
+/* ---------------------------------------------------------------- liste par défaut, réglages */
+.ptitle{font:600 30px/1.2 var(--read);letter-spacing:-.01em}
+.plead{color:var(--ink-2);margin:10px 0 0;max-width:60ch;font-size:16px}
+.addline{display:flex;gap:8px;margin-top:26px;max-width:520px}
+.addline input{flex:1;min-width:0;height:40px;padding:0 12px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet);outline:none;font-size:16px}
+.addline input:focus{border-color:var(--pen)}
+.terms{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.term-tag{display:inline-flex;align-items:center;gap:2px;height:34px;padding:0 4px 0 12px;border:1px solid var(--rule);border-radius:var(--r);
+  background:var(--sheet);font:400 16px var(--read)}
+.term-tag .icon{width:26px;height:26px}
+.term-tag .i{width:14px;height:14px}
+.term-tag.new{animation:tagIn .35s var(--ease) both}
+.term-tag.leaving{opacity:0;transform:scale(.9);transition:opacity .18s,transform .18s}
+@keyframes tagIn{from{opacity:0;transform:translateY(4px)}}
+.count{color:var(--ink-3);font-size:13px;margin-top:14px}
 
-/* contrôle segmenté */
-.segwrap{display:flex;justify-content:center;margin:0 0 18px}
-.seg{position:relative;display:inline-flex;padding:4px;border-radius:999px;background:var(--no-bg);box-shadow:inset 0 1px 2px rgba(14,42,71,.08);max-width:100%;overflow-x:auto;scrollbar-width:none}
-.seg button{position:relative;z-index:1;height:36px;padding:0 20px;border-radius:999px;color:var(--muted);font-weight:600;font-size:14px;white-space:nowrap;transition:color .25s}
-.seg button:hover{color:var(--ink)}
-.seg button[aria-pressed=true]{color:var(--ink)}
-.seg .thumb{top:4px;bottom:4px}
+.settings{margin-top:30px}
+.set{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;padding:20px 0;border-top:1px solid var(--rule)}
+.set h2{font-size:15px}
+.set .hint{color:var(--ink-3);font-size:13px;margin-top:4px;font-weight:400}
+.slider{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:14px;align-items:center;margin-bottom:14px}
+.slider label{grid-column:1/-1;font-weight:600;font-size:14px}
+.slider label span{font-weight:400;color:var(--ink-3)}
+.slider output{font:600 16px var(--read);font-variant-numeric:tabular-nums lining-nums;text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--pen) calc(var(--v)*1%),var(--rule) calc(var(--v)*1%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--rule)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--pen)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:var(--sheet);border:2px solid var(--pen)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--sheet);border:2px solid var(--pen)}
+.people{display:grid;gap:4px}
+.person{display:flex;align-items:center;gap:12px;padding:6px 0}
+.person div{flex:1}
+.person small{display:block;color:var(--ink-3);font-size:13px}
+.choice{display:inline-flex;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;background:var(--sheet)}
+.choice button{padding:7px 14px;font-weight:600;color:var(--ink-2);border-right:1px solid var(--rule)}
+.choice button:last-child{border-right:0}
+.choice button[aria-pressed=true]{background:var(--pen-soft);color:var(--ink)}
+.field{width:100%;height:42px;padding:0 12px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet);outline:none;font-size:16px}
+.field:focus{border-color:var(--pen)}
+select.field{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:pointer;
+  background:var(--sheet) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238593A5' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center/16px}
 
-/* lignes mot-clé / document */
-.krow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 14px 14px 20px;border-radius:20px;
-  transition:transform .5s var(--spring)}
-.krow:hover{transform:translateY(-2px)}
-.krow:active{transform:scale(.985);transition-duration:.15s}
-.enter .krow,.push .krow,.swap .krow{animation:rise .6s var(--out) both;animation-delay:calc(var(--d) * 40ms + 120ms)}
-.swap .krow{animation-delay:calc(var(--d) * 30ms)}
-.krow .t{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.krow .t small{display:block;color:var(--muted);font-weight:400;font-size:12.5px}
-.pill{display:inline-flex;align-items:center;justify-content:center;min-width:76px;height:32px;padding:0 12px;border-radius:999px;
-  font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums;border:1px solid color-mix(in srgb,currentColor 14%,transparent)}
-.present{background:var(--ok-bg);color:var(--ok)} .a_verifier{background:var(--rev-bg);color:var(--rev)}
-.absent{background:var(--no-bg);color:var(--no)} .absent_douteux{background:var(--bad-bg);color:var(--bad)}
-.krow.doc{cursor:default;padding:10px 10px 10px 18px}
-.krow.doc:hover{transform:none}
-.doc .acts{display:flex;gap:2px;opacity:.35;transition:opacity .25s}
-.doc:hover .acts,.doc:focus-within .acts{opacity:1}
-.tag{font-size:12px;font-weight:650;padding:4px 10px;border-radius:999px;background:var(--no-bg);color:var(--no);white-space:nowrap}
-.tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.run{background:var(--rev-bg);color:var(--rev)} .tag.err{background:var(--bad-bg);color:var(--bad)}
-
-/* zone de dépôt */
-.drop{display:grid;justify-items:center;gap:6px;width:100%;padding:34px 20px;border-radius:26px;text-align:center;color:var(--muted);
-  border:1.5px dashed color-mix(in srgb,var(--cyan) 50%,transparent);background:color-mix(in srgb,var(--glass) 70%,transparent);
-  transition:transform .5s var(--spring),border-color .25s,background-color .25s,color .25s}
-.drop .i{width:30px;height:30px;color:var(--cyan);transition:transform .5s var(--spring)}
-.drop b{color:var(--ink);font-size:16px}
-.drop:hover{border-color:var(--cyan);color:var(--ink)}
-.drop:hover .i{transform:translateY(-3px)}
-.drop.over{transform:scale(1.02);border-style:solid;border-color:var(--cyan);
-  background:linear-gradient(135deg,color-mix(in srgb,var(--cyan) 18%,transparent),color-mix(in srgb,var(--mint) 24%,transparent))}
-.drop.over .i{transform:translateY(-6px) scale(1.15)}
-.drop.big{padding:60px 20px;margin-top:10px}
-
-/* mots-clés */
-.addfield{display:flex;align-items:center;gap:8px;padding:7px 7px 7px 24px;border-radius:999px;max-width:560px;margin:0 auto;
-  outline:5px solid transparent;transition:outline-color .3s,transform .5s var(--spring)}
-.addfield:focus-within{outline-color:color-mix(in srgb,var(--cyan) 22%,transparent);transform:scale(1.015)}
-.addfield input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:17px;height:46px}
-.addfield input::placeholder{color:var(--faint)}
-.addfield .iconbtn{width:46px;height:46px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));border-color:rgba(255,255,255,.35)}
-.chips{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:30px auto 0;max-width:640px}
-.chip{display:inline-flex;align-items:center;gap:2px;height:40px;padding:0 6px 0 16px;border-radius:999px;font-weight:550;
-  background:linear-gradient(135deg,color-mix(in srgb,var(--cyan) 16%,var(--glass)),color-mix(in srgb,var(--mint) 22%,var(--glass)));
-  border:1px solid var(--stroke);box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
-  animation:chipIn .55s var(--spring) both;animation-delay:calc(var(--d) * 35ms);transition:transform .45s var(--spring),opacity .25s}
-.chip.old{animation:none}
-.chip:hover{transform:translateY(-2px)}
-.chip .iconbtn{width:30px;height:30px}
-.chip .iconbtn .i{width:15px;height:15px}
-.chip.leaving{transform:scale(.5);opacity:0}
-@keyframes chipIn{from{transform:scale(.5);opacity:0}to{transform:none;opacity:1}}
-.count{text-align:center;color:var(--faint);font-size:13px;margin-top:22px}
-.hits{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.hit{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:999px;font-size:12.5px;font-weight:650;
-  background:var(--rev-bg);color:var(--rev);transition:transform .35s var(--spring)}
-.hit.ok{background:var(--ok-bg);color:var(--ok)}
-.hit:hover{transform:translateY(-1px)}
-.hit small{font-weight:500;opacity:.8}
-.krow.doc .t{white-space:normal}
-.legend{display:flex;justify-content:center;gap:16px;margin-top:10px;font-size:13px;color:var(--muted)}
-.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-.pageview{margin-top:18px;border-radius:22px;overflow:hidden;background:var(--glass);border:1px solid var(--stroke);animation:rise .6s var(--out) both;animation-delay:calc(var(--d) * 80ms + 150ms)}
-.pageview .ph{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;font-weight:650;font-size:14px}
-.pageview img{display:block;width:100%;background:#fff;border-top:1px solid var(--stroke)}
-.pageview .hits{padding:0 16px 12px;margin:0}
-.occ .read{padding:0 18px 4px;color:var(--muted);font-size:13px}
-.occ .read b{color:var(--ink)}
-.occ .zoom{display:block;width:100%;background:#fff;border-top:1px solid var(--stroke)}
-.occ .full{display:none}
-.occ.wide .full{display:block} .occ.wide .zoom{display:none}
-.kwbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 4px 2px;color:var(--muted);font-size:13px}
-.btn.sm{height:34px;padding:0 14px;font-size:13.5px;gap:6px}
-.btn.sm .i{width:16px;height:16px}
-.bad{color:var(--bad);font-weight:600}
-.alert{display:flex;gap:10px;align-items:flex-start;text-align:left;max-width:520px;margin:16px auto 0;padding:12px 16px;border-radius:18px;
-  background:var(--bad-bg);color:var(--bad);font-size:13.5px;animation:rise .6s var(--out) .35s both}
-.alert .i{margin-top:1px}
-.flabel{margin:22px 0 10px;text-align:center;font-size:13px;font-weight:650;color:var(--muted)}
-.modal .seg{display:flex;width:max-content;margin:0 auto}
-.modal .chips{margin-top:20px}
-select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:42px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236A84A0' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 16px center;background-size:18px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-
-/* réglages */
-.group{border-radius:26px;padding:6px 20px;margin-bottom:16px}
-.enter .group{animation:rise .7s var(--out) both;animation-delay:calc(var(--d) * 70ms + 120ms)}
-.gtitle{margin:26px 0 8px 8px;font-size:13px;font-weight:650;color:var(--muted)}
-.gtitle:first-child{margin-top:0}
-.line{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--hair)}
-.line:last-child{border-bottom:0}
-.line.col{display:block}
-.line .lbl{font-weight:600}
-.line .val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--blue)}
-.line .hint{color:var(--muted);font-size:13px;margin-top:2px}
-.lhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-input[type=range]{--v:50;-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:9px;background:linear-gradient(90deg,var(--blue),var(--cyan) calc(var(--v)*1%),var(--no-bg) calc(var(--v)*1%))}
-input[type=range]::-moz-range-track{height:6px;border-radius:9px;background:linear-gradient(90deg,var(--blue),var(--cyan) calc(var(--v)*1%),var(--no-bg) calc(var(--v)*1%))}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-11px;border-radius:50%;background:#fff;border:0;
-  box-shadow:0 3px 10px rgba(14,42,71,.25),0 0 0 .5px rgba(14,42,71,.1);transition:transform .4s var(--spring)}
-input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:0;box-shadow:0 3px 10px rgba(14,42,71,.25)}
-input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.1)}
-input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
-.inline-add{display:flex;gap:8px;padding:12px 0}
-.inline-add input{flex:1;min-width:0;border:0;background:transparent;outline:none;height:38px}
-.inline-add input::placeholder{color:var(--faint)}
-
-/* ================================================================ modales */
-.mwrap{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px;pointer-events:none}
-.mwrap .scrim{position:absolute;inset:0;background:rgba(8,30,55,.32);opacity:0;transition:opacity .35s var(--out)}
+/* ---------------------------------------------------------------- fenêtres : petite boîte au centre, ou volet à droite */
+.mwrap{position:fixed;inset:0;z-index:60;pointer-events:none}
+.mwrap .scrim{position:absolute;inset:0;background:rgba(20,30,45,.28);opacity:0;transition:opacity .2s}
 .mwrap.on{pointer-events:auto}
 .mwrap.on .scrim{opacity:1}
-.modal{position:relative;width:min(560px,100%);max-height:min(86vh,900px);overflow:auto;border-radius:34px;padding:30px;
-  background:var(--solid);will-change:transform,opacity;
-  opacity:0;transform:translate3d(0,18px,0) scale(.92);transition:transform .5s var(--spring),opacity .25s var(--out)}
-.modal.wide{width:min(680px,100%)}
-.mwrap.on .modal{opacity:1;transform:none}
-.modal h3{margin:0;text-align:center;font-size:22px;font-weight:750;letter-spacing:-.025em}
-.modal .msub{margin:6px 0 0;text-align:center;color:var(--muted)}
-.modal .actions{display:flex;justify-content:center;gap:10px;margin-top:24px}
-.modal .actions .btn{min-width:130px}
-.modal .x{position:absolute;top:16px;right:16px}
-.field{width:100%;height:52px;padding:0 20px;border-radius:18px;border:1px solid var(--stroke);font-size:16px;
-  background:var(--glass-strong);box-shadow:inset 0 1px 3px rgba(14,42,71,.06);
-  outline:5px solid transparent;outline-offset:0;transition:border-color .25s,outline-color .3s}
-.field:focus{border-color:color-mix(in srgb,var(--cyan) 70%,transparent);outline-color:color-mix(in srgb,var(--cyan) 20%,transparent)}
-.field::placeholder{color:var(--faint)}
-.mt{margin-top:20px}
-.link{display:block;margin:16px auto 0;color:var(--blue);font-weight:600;font-size:14px;transition:opacity .2s}
-.link:hover{opacity:.7}
-.files{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:12px}
+#modal{position:absolute;background:var(--sheet);box-shadow:var(--lift);overflow:auto;opacity:0;will-change:transform,opacity}
+#modal.box{left:50%;top:50%;width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:28px;border-radius:12px;
+  transform:translate(-50%,-48%);transition:transform .22s var(--ease),opacity .15s}
+.mwrap.on #modal.box{opacity:1;transform:translate(-50%,-50%)}
+#modal.sheet{top:0;right:0;bottom:0;width:min(720px,100vw);padding:28px 32px 40px;border-left:1px solid var(--rule);
+  transform:translateX(40px);transition:transform .26s var(--ease),opacity .15s}
+.mwrap.on #modal.sheet{opacity:1;transform:none}
+#modal h3{font:600 24px/1.25 var(--read);padding-right:40px}
+#modal .msub{margin:6px 0 0;color:var(--ink-2)}
+#modal .x{position:absolute;top:18px;right:18px}
+#modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.mt{margin-top:16px}
+.flabel{display:block;margin:20px 0 8px;font-weight:600;font-size:14px}
+.files{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font-size:13px;color:var(--ink-2)}
 
 /* preuve */
-.score{display:grid;justify-items:center;text-align:center;margin:18px 0 6px}
-.score .num{font-size:76px;font-weight:780;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;
-  background:linear-gradient(135deg,var(--blue),var(--cyan) 60%,var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
-.score.none .num{background:none;color:var(--no)}
-.score .pill{margin-top:12px}
-.facts{display:flex;justify-content:center;gap:18px;color:var(--muted);font-size:13.5px;margin-top:14px;flex-wrap:wrap}
-.facts b{color:var(--ink)}
-.explain{font-size:13.5px;color:var(--muted);text-align:center;max-width:460px;margin:0 auto;overflow:hidden;max-height:0;opacity:0;transition:max-height .5s var(--out),opacity .35s,margin .4s}
-.explain.on{max-height:200px;opacity:1;margin:14px auto 0}
-.occ{border-radius:22px;overflow:hidden;margin-top:14px;background:var(--glass);border:1px solid var(--stroke);animation:rise .6s var(--out) both;animation-delay:calc(var(--d) * 80ms + 250ms)}
-.occ .ctx{padding:14px 18px 6px;font-size:15px}
-.occ mark{background:linear-gradient(transparent 55%,color-mix(in srgb,var(--cyan) 42%,transparent) 55%);color:inherit;font-weight:650}
-.occ .meta{display:flex;gap:6px;flex-wrap:wrap;padding:4px 18px 14px}
-.occ img{display:block;width:100%;background:#fff;border-top:1px solid var(--stroke)}
+.ev-top{display:flex;align-items:baseline;gap:14px;margin-top:16px;flex-wrap:wrap}
+.ev-top .big{font:600 44px/1 var(--read);font-variant-numeric:tabular-nums}
+.ev-top .dec{font-size:16px}
+.ev-why{color:var(--ink-2);font-size:14px;margin:12px 0 0;max-width:62ch}
+.occ{margin-top:26px;padding-top:20px;border-top:1px solid var(--rule)}
+.occ .ctx{font:400 17px/1.65 var(--read);max-width:62ch}
+.occ .meta{color:var(--ink-3);font-size:13px;margin-top:8px}
+.occ .read{color:var(--ink-2);font-size:14px;margin-top:6px}
+.occ figure{margin:12px 0 0;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;background:#fff}
+.occ img{display:block;width:100%}
+.occ .full{display:none}
+.occ.wide .full{display:block} .occ.wide .zoom{display:none}
+.occ .textlink{display:inline-block;margin-top:8px;font-size:14px}
+.pageview{margin-top:24px}
+.pageview h4{margin:0 0 8px;font-size:14px}
+.pageview .hits{margin:0 0 10px}
+.pageview figure{margin:0;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;background:#fff}
+.pageview img{display:block;width:100%}
+.legend{display:flex;gap:18px;margin-top:12px;font-size:14px}
 
-/* menu contextuel */
-.menu{position:fixed;z-index:70;min-width:210px;padding:6px;border-radius:20px;background:var(--solid);will-change:transform,opacity;
-  opacity:0;transform:scale(.85) translateY(-6px);transform-origin:top right;pointer-events:none;transition:transform .45s var(--spring),opacity .2s}
+/* menu */
+.menu{position:fixed;z-index:70;min-width:220px;padding:6px;border-radius:10px;background:var(--sheet);border:1px solid var(--rule);box-shadow:var(--lift);
+  opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .12s,transform .15s var(--ease)}
 .menu.on{opacity:1;transform:none;pointer-events:auto}
-.menu button{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border-radius:14px;font-weight:550;text-align:left;transition:background-color .2s}
-.menu button:hover{background:var(--glass-strong)}
-.menu button.del{color:var(--bad)}
-.ini.sm{width:32px;height:32px;border-radius:11px;font-size:12px}
-.menu .who{flex:1;display:flex;flex-direction:column;line-height:1.25}
-.menu .who small{color:var(--muted);font-weight:500;font-size:12px}
-.menu [aria-checked=true] .i{color:var(--blue)}
-.owner{font-weight:650}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:6px;font-weight:600}
+.menu button:hover{background:var(--rule-2)}
+.menu button.del{color:var(--danger)}
+.menu hr{border:0;border-top:1px solid var(--rule);margin:6px 4px}
+.menu .whoami{flex:1;display:flex;flex-direction:column;line-height:1.25}
+.menu .whoami small{color:var(--ink-3);font-weight:400;font-size:12px}
+.menu [aria-checked=true] .check{color:var(--pen)}
 
-/* toast (îlot) */
-.toast{position:fixed;top:14px;left:50%;z-index:90;max-width:calc(100vw - 32px);padding:11px 20px;border-radius:999px;font-weight:600;font-size:14px;
-  background:rgba(14,42,71,.94);color:#EAF6FF;box-shadow:0 14px 30px -8px rgba(0,30,70,.45);will-change:transform,opacity;
-  transform:translate(-50%,-150%) scale(.7);opacity:0;pointer-events:none;transition:transform .6s var(--spring),opacity .3s}
-.toast.on{transform:translate(-50%,0) scale(1);opacity:1}
-
-.spin{display:inline-block;width:13px;height:13px;border-radius:50%;flex:none;background:conic-gradient(from 0deg,transparent,currentColor);
-  -webkit-mask:radial-gradient(circle,transparent 4px,#000 4.5px);mask:radial-gradient(circle,transparent 4px,#000 4.5px);animation:spin .9s linear infinite}
+/* message bref */
+.toast{position:fixed;left:20px;bottom:20px;z-index:90;max-width:min(460px,calc(100vw - 40px));padding:10px 16px;border-radius:var(--r);
+  background:var(--ink);color:var(--paper);font-weight:600;font-size:14px;opacity:0;transform:translateY(8px);pointer-events:none;
+  transition:opacity .18s,transform .22s var(--ease)}
+.toast.on{opacity:1;transform:none}
+.spin{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ================================================================ écran de verrouillage (code PIN) */
-.lock{position:fixed;inset:0;z-index:85;display:grid;place-items:center;padding:24px;overflow:auto;
-  background:
-    radial-gradient(48vmax 48vmax at 12% 8%,rgba(140,200,255,.75),transparent 70%),
-    radial-gradient(42vmax 42vmax at 92% 30%,rgba(127,231,236,.65),transparent 70%),
-    radial-gradient(46vmax 46vmax at 50% 105%,rgba(180,239,207,.7),transparent 70%),var(--bg);
-  opacity:0;visibility:hidden;transition:opacity .35s var(--out),visibility 0s .35s}
-@media (prefers-color-scheme:dark){.lock{background:var(--bg)}}
-.lock.on{opacity:1;visibility:visible;transition:opacity .35s var(--out)}
-.lock:not(.on){pointer-events:none}        /* pendant sa disparition, l'écran ne capte plus les clics */
-.lock-in{display:grid;justify-items:center;text-align:center;width:min(420px,100%);animation:enter .6s var(--out) both}
-.lock h2{margin:18px 0 4px;font-size:26px;font-weight:750;letter-spacing:-.03em}
-.lock .msub{margin:0;color:var(--muted);min-height:22px}
-.lock .msub.err{color:var(--bad);font-weight:600}
-.lock .lens.big{width:54px;height:54px}
-.who-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;margin-top:30px}
-.who-card{display:grid;justify-items:center;gap:8px;width:150px;padding:18px 10px 16px;border-radius:26px;
-  transition:transform .5s var(--spring)}
-.who-card:hover{transform:translateY(-4px)}
-.who-card:active{transform:scale(.96);transition-duration:.15s}
-.who-card b{font-size:15px}
-.who-card small{color:var(--muted);font-size:12.5px}
-.ava{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:24px;font-weight:700;
-  background:linear-gradient(135deg,var(--pa),var(--pb));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 10px 24px -10px var(--pa)}
-.ava.sm{width:64px;height:64px;font-size:20px}
-.dots{display:flex;gap:16px;justify-content:center;margin:26px 0 8px;min-height:16px}
-.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--ink) 45%,transparent);transition:background-color .15s,transform .3s var(--spring)}
-.dots i.on{background:var(--ink);border-color:var(--ink);transform:scale(1.08)}
-.dots.shake{animation:shake .45s cubic-bezier(.36,.07,.19,.97)}
-@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
-.pad{display:grid;grid-template-columns:repeat(3,76px);gap:16px 22px;margin-top:18px}
-.key{width:76px;height:76px;border-radius:50%;font-size:28px;font-weight:500;display:grid;place-items:center;
-  background:var(--glass-strong);border:1px solid var(--stroke);box-shadow:0 1px 2px rgba(14,42,71,.06),inset 0 1px 0 rgba(255,255,255,.7);
-  transition:transform .4s var(--spring),background-color .15s}
-.key:hover{transform:scale(1.05)}
-.key:active{transform:scale(.92);background:color-mix(in srgb,var(--cyan) 25%,var(--glass-strong));transition-duration:.08s}
-.key.txt{font-size:14px;font-weight:600;background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
+/* ---------------------------------------------------------------- écran du code PIN */
+.lock{position:fixed;inset:0;z-index:85;display:grid;place-items:center;padding:24px;overflow:auto;background:var(--paper);
+  opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.lock.on{opacity:1;visibility:visible;transition:opacity .2s}
+.lock:not(.on){pointer-events:none}
+.lock-in{width:min(440px,100%)}
+.lock .brand{font-size:22px}
+.lock h2{margin:34px 0 4px;font:600 28px/1.2 var(--read)}
+.lock .msub{margin:0;color:var(--ink-2);min-height:24px}
+.lock .msub.err{color:var(--danger);font-weight:600}
+.people-pick{display:grid;gap:8px;margin-top:24px}
+.pick{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--rule);border-radius:10px;background:var(--sheet);transition:border-color .15s}
+.pick:hover{border-color:var(--pen)}
+.pick .ini{width:38px;height:38px;font-size:14px}
+.pick b{display:block;font:500 19px/1.2 var(--read)}
+.pick small{color:var(--ink-3);font-size:13px}
+.dots{display:flex;gap:12px;margin:26px 0 6px;min-height:14px}
+.dots i{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--ink-3);transition:background-color .1s}
+.dots i.on{background:var(--ink);border-color:var(--ink)}
+.dots.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:10px;margin-top:20px}
+.key{display:grid;place-items:center;height:56px;border-radius:10px;border:1px solid var(--rule);background:var(--sheet);font:500 24px var(--read);font-variant-numeric:lining-nums;transition:background-color .1s,border-color .1s}
+.key:hover{border-color:var(--ink-3)}
+.key:active{background:var(--pen-soft)}
+.key.txt{font:600 14px var(--ui);border-color:transparent;background:none;color:var(--ink-2)}
 .key.txt:hover{color:var(--ink)}
 .key[disabled]{visibility:hidden}
-.lock .link{margin-top:22px}
-.forgot{font-size:13px;color:var(--muted);max-width:360px;margin:10px auto 0;display:none}
+.forgot{font-size:13px;color:var(--ink-2);margin-top:12px;display:none;max-width:44ch}
 .forgot.on{display:block}
-.forgot code{display:block;margin-top:6px;padding:8px 10px;border-radius:10px;background:var(--glass-strong);color:var(--ink);font-size:12px;word-break:break-all}
+.forgot code{display:block;margin-top:6px;padding:8px 10px;border-radius:6px;background:var(--rule-2);font-size:12px;word-break:break-all}
 
-/* ================================================================ progression des analyses */
-.pbar{display:block;height:4px;border-radius:4px;background:var(--no-bg);overflow:hidden;margin-top:7px;max-width:320px}
-.pbar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--cyan));
-  transform-origin:left;transform:scaleX(var(--p));transition:transform .9s var(--out);will-change:transform}
-.eta{color:var(--muted);font-weight:500}
-
-/* ================================================================ curseur personnalisé : un seul cercle */
+/* ---------------------------------------------------------------- curseur : un cercle à l'encre bleue */
 .cc,.cc *{cursor:none!important}
-#cur-ring{position:fixed;left:0;top:0;width:36px;height:36px;pointer-events:none;z-index:9999;opacity:0;will-change:transform;contain:strict;
-  border-radius:999px;border:1.5px solid color-mix(in srgb,var(--blue) 70%,var(--cyan));
-  background:color-mix(in srgb,var(--cyan) 10%,transparent);
-  transition:opacity .2s,background-color .25s,border-color .25s}
-#cur-ring.morph{background:rgba(255,255,255,.2);border-color:color-mix(in srgb,var(--blue) 55%,white)}
-#cur-ring.text{background:var(--blue);border-color:transparent}
-#cur-ring.point{background:color-mix(in srgb,var(--cyan) 22%,transparent)}
+#cur-ring{position:fixed;left:0;top:0;width:28px;height:28px;pointer-events:none;z-index:9999;opacity:0;will-change:transform;contain:strict;
+  border-radius:999px;border:1.5px solid var(--pen);transition:opacity .2s,background-color .2s,border-color .2s}
+#cur-ring.morph{border-color:color-mix(in srgb,var(--pen) 55%,transparent);background:color-mix(in srgb,var(--pen) 6%,transparent)}
+#cur-ring.text{background:var(--pen);border-color:transparent}
+#cur-ring.point{background:color-mix(in srgb,var(--pen) 10%,transparent)}
 .cc #cur-ring{opacity:1}
 .cc.cur-out #cur-ring{opacity:0}
 
-
-/* ================================================================ effets premium
-   Règle des 60 images/s : on anime surtout transform et opacity (calculés par la carte graphique),
-   jamais les ombres, les flous ni la mise en page. Seules exceptions : de toutes petites zones
-   (anneau des dossiers de 48 px, reflet d'un bouton). Tout est coupé si l'utilisateur a demandé moins d'animations. */
-@property --p{syntax:"<number>";inherits:true;initial-value:0}
-.mring{transition:--p 1.1s var(--out)}
-.enter .mring,.push .mring{animation:fillIn 1.2s var(--out) both;animation-delay:calc(var(--d,0) * 55ms + 260ms)}
-@keyframes fillIn{from{--p:0}}
-
-/* changement de page : l'ancienne page s'efface en reculant (opacité + transformation seulement),
-   puis la nouvelle entre en cascade */
-#view.leave{transition:opacity .14s ease-in,transform .14s ease-in;opacity:0;transform:translate3d(0,-6px,0) scale(.99);pointer-events:none}
-
-/* reflet qui traverse les boutons principaux au survol */
-.btn.primary,.fab,.addfield .iconbtn{isolation:isolate}
-.btn.primary::after,.fab::after,.addfield .iconbtn::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
-  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.42) 50%,transparent 65%) no-repeat;background-size:300% 100%;background-position:100% 0}
-.btn.primary:hover::after,.fab:hover::after,.addfield .iconbtn:hover::after{background-position:0 0;transition:background-position .9s var(--out)}
-
-/* onde de clic */
-.key,.who-card{position:relative}
-.ripwrap{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none;contain:strict}
-.ripple{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;pointer-events:none;
-  background:currentColor;opacity:.22;transform:scale(0);animation:ripple .6s var(--out) forwards}
-@keyframes ripple{to{transform:scale(var(--rs,30));opacity:0}}
-
-/* pastilles de score : apparition élastique, en cascade */
-.enter .krow .pill,.push .krow .pill,.swap .krow .pill{animation:pop .55s var(--spring) both;animation-delay:calc(var(--d) * 40ms + 260ms)}
-@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
-
-/* onglet choisi : petit rebond de l'icône */
-.tab[aria-current=page] .i{animation:tabPop .55s var(--spring)}
-@keyframes tabPop{0%{transform:scale(1)}40%{transform:scale(1.22) translateY(-2px)}100%{transform:none}}
-
-/* barre d'avancement : reflet qui glisse pendant l'analyse */
-.pbar{position:relative}
-.pbar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
-  transform:translateX(-100%);animation:sheen 1.6s ease-in-out infinite;will-change:transform}
-@keyframes sheen{to{transform:translateX(100%)}}
-
-/* anneau du dossier : halo qui respire une fois arrivé, mots trouvés */
-.ring::after{content:"";position:absolute;inset:-4%;border-radius:50%;pointer-events:none;opacity:0;
-  background:radial-gradient(circle,color-mix(in srgb,var(--cyan) 26%,transparent) 55%,transparent 70%);will-change:transform,opacity}
-.ring.anim::after{animation:halo 1.6s var(--out) 1.1s both}
-@keyframes halo{0%{opacity:0;transform:scale(.85)}45%{opacity:1}100%{opacity:0;transform:scale(1.12)}}
-
-
-/* puce ajoutée : éclat bref */
-.chip:not(.old){position:relative}
-.chip:not(.old)::after{content:"";position:absolute;inset:-3px;border-radius:inherit;pointer-events:none;border:2px solid var(--cyan);
-  opacity:0;animation:flash .9s var(--out) both;animation-delay:calc(var(--d) * 35ms + 120ms)}
-@keyframes flash{0%{opacity:.9;transform:scale(.9)}100%{opacity:0;transform:scale(1.15)}}
-
-/* alerte : léger signal à l'arrivée */
-.alert .i{animation:nudge 1.4s var(--spring) .9s both}
-@keyframes nudge{0%,100%{transform:none}20%{transform:rotate(-12deg) scale(1.15)}40%{transform:rotate(9deg)}60%{transform:rotate(-5deg)}}
-
-/* ================================================================ responsive / accessibilité */
-@media (max-width:620px){
-  #view{padding:0 16px}
-  .head{padding:30px 0 20px}
-  .tab{min-width:74px;padding:7px 8px 6px}
-  .fab{width:54px;height:54px}
-  .ring{width:180px;height:180px}
-  .ring .big{font-size:52px}
-  .modal{padding:24px 20px;border-radius:28px}
-  .mwrap{align-items:end;padding:10px}
-  .score .num{font-size:60px}
+/* ---------------------------------------------------------------- petits écrans */
+@media (max-width:820px){
+  body{overflow:auto}
+  .top{gap:12px;padding:0 12px;height:auto;min-height:56px;flex-wrap:wrap}
+  .nav{order:3;width:100%;height:44px;overflow-x:auto}
+  .desk,.desk.full{display:block;height:auto}
+  .desk.open .rail{display:none}
+  .desk:not(.open) #view{display:none}
+  .desk.full #view{display:block}
+  .rail{border-right:0}
+  #view{overflow:visible}
+  .page{padding:22px 16px 60px}
+  .welcome{padding:40px 16px}
+  .row{grid-template-columns:minmax(0,1fr) 54px 18px}
+  .row .where{display:none}
+  .set{grid-template-columns:1fr;gap:10px}
+  #modal.sheet{padding:22px 16px 40px}
+  .back{display:inline-grid!important}
+  .dhead{flex-wrap:wrap}
+  .dhead h1{font-size:26px;flex-basis:calc(100% - 50px)}
+  .dhead .acts{order:3;width:100%}
+  .tabs{gap:16px}
+  .tabs .end .btn{padding:0 6px}
 }
+.back{display:none}
 @media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
-  .pbar::after{display:none}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
 }
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--glass:rgba(255,255,255,.9);--glass-strong:rgba(255,255,255,.96)}}
 </style>
 </head>
 <body>
-<div class="aura" aria-hidden="true"></div>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2F7BF5"/><stop offset=".55" stop-color="#22C3D6"/><stop offset="1" stop-color="#8FDDB4"/></linearGradient>
-</defs></svg>
-
 <header class="top">
-  <div class="brand"><div class="lens" aria-hidden="true"></div>KeyScan</div>
-  <button class="iconbtn avatar" id="avatar" data-action="who" aria-haspopup="menu" title="Changer de prof"></button>
+  <div class="brand"><span>Key</span>Scan</div>
+  <nav class="nav" aria-label="Navigation">
+    <a href="#/dossiers" data-tab="dossiers">Dossiers</a>
+    <a href="#/mots-cles" data-tab="mots-cles">Liste par défaut</a>
+    <a href="#/reglages" data-tab="reglages">Réglages</a>
+  </nav>
+  <button class="who" id="avatar" data-action="who" aria-haspopup="menu"></button>
 </header>
+<div class="desk" id="desk">
+  <aside class="rail" aria-label="Dossiers">
+    <div class="rail-head">
+      <label for="railSearch" class="sr">Rechercher un candidat</label>
+      <input class="search" id="railSearch" placeholder="Rechercher" autocomplete="off">
+      <button class="btn pen" data-action="new" title="Nouveau dossier">${ic}Nouveau</button>
+    </div>
+    <div class="rail-sum" id="railSum"></div>
+    <div class="rail-list" id="rail"></div>
+  </aside>
+  <main id="view"></main>
+</div>
 
-<main id="view"></main>
-
-<nav class="dock" aria-label="Navigation">
-  <div class="tabs glass frost" id="tabs">
-    <span class="thumb"></span>
-    <a class="tab" href="#/dossiers" data-tab="dossiers"></a>
-    <a class="tab" href="#/mots-cles" data-tab="mots-cles"></a>
-    <a class="tab" href="#/reglages" data-tab="reglages"></a>
-  </div>
-  <button class="fab" data-action="new" aria-label="Nouveau dossier" title="Nouveau dossier"></button>
-</nav>
-
-<div class="mwrap" id="mwrap" aria-hidden="true"><div class="scrim" data-close></div><div class="modal glass" id="modal" role="dialog" aria-modal="true"></div></div>
-<div class="menu glass" id="menu" role="menu"></div>
+<div class="mwrap" id="mwrap" aria-hidden="true"><div class="scrim" data-close></div><div id="modal" class="box" role="dialog" aria-modal="true"></div></div>
+<div class="menu" id="menu" role="menu"></div>
 <div class="lock" id="lock" aria-hidden="true"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <input type="file" id="zipInput" accept=".zip" hidden>
@@ -549,81 +391,66 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
 /* ================================================================ utilitaires */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const plural = (n, w) => `${n} ${w}${n>1?"s":""}`;
-const kwN = n => `${n} ${n>1?"mots-clés":"mot-clé"}`;
-const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:JSON.parse(v); }catch{ return d; } },
-                set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
+const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+const kwN = n => `${n} ${n > 1 ? "mots-clés" : "mot-clé"}`;
+const store = { get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch{ return d; } },
+                set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
 const ICON = {
-  folder:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2h7.4A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z"/>',
-  tag:'<path d="M3.5 12.2V5.5a2 2 0 0 1 2-2h6.7l8.3 8.3a2 2 0 0 1 0 2.8l-5.9 5.9a2 2 0 0 1-2.8 0z"/><circle cx="8" cy="8" r="1.4"/>',
-  sliders:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   plus:'<path d="M12 5v14M5 12h14"/>', back:'<path d="M15 5l-7 7 7 7"/>', chev:'<path d="M9.5 6l6 6-6 6"/>',
-  more:'<circle cx="6" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="18" cy="12" r=".6"/>',
+  more:'<circle cx="6" cy="12" r=".7"/><circle cx="12" cy="12" r=".7"/><circle cx="18" cy="12" r=".7"/>',
   upload:'<path d="M12 16V5M7 10l5-5 5 5M5 19h14"/>', download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   refresh:'<path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/>', x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>', swap:'<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', lock:'<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   del:'<path d="M20 6H9l-6 6 6 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1zM12 9.5l5 5M17 9.5l-5 5"/>', edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
-  trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>',
-  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>', zip:'<path d="M7 3h7l5 5v13H7zM14 3v5h5M11 9h1M11 12h1M11 15h1"/>'
+  trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>', tag:'<path d="M3.5 12.2V5.5a2 2 0 0 1 2-2h6.7l8.3 8.3a2 2 0 0 1 0 2.8l-5.9 5.9a2 2 0 0 1-2.8 0z"/><circle cx="8" cy="8" r="1.4"/>',
+  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  sliders:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'
 };
-const ic = (n, cls="") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
-const LABEL = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Incertain"};
+const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+document.querySelector('[data-action="new"]').innerHTML = ic("plus") + "Nouveau";
 const LONG  = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Absence incertaine"};
-const ORDER = {present:0, a_verifier:1, absent_douteux:2, absent:3};
-const STATUS = {en_attente:["En attente",""], en_cours:["Analyse…","run"], ok:["Prêt","ok"], erreur:["Erreur","err"]};
+const HL    = {present:"ok", a_verifier:"rev", absent_douteux:"doubt", absent:""};
+const STATUS = {en_attente:["En attente",""], en_cours:["Analyse en cours","run"], ok:["Lu",""], erreur:["Illisible","err"]};
+const calm = matchMedia("(prefers-reduced-motion:reduce)");
 
-function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),2600); }
-async function api(url, opts={}){
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2800); }
+async function api(url, opts = {}){
   const r = await fetch(url, opts);
   if(r.status === 401){ showLock({step:"choose"}); throw new Error("verrouillé"); }   // session expirée ou verrouillée
   if(!r.ok){
-    const msg = (await r.text()).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+    const msg = (await r.text()).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     const m = msg.match(/(?:Bad Request|Forbidden|Conflict|Not Found|Too Many Requests)\s+(.*)/);
-    const e = new Error((m ? m[1] : msg).slice(0,140)); e.status = r.status;
-    if(!opts.quiet) toast("Erreur : " + e.message);
+    const e = new Error((m ? m[1] : msg).slice(0, 140)); e.status = r.status;
+    if(!opts.quiet) toast(e.message);
     throw e;
   }
   return r.json();
 }
-const jpost = (url, body, method="POST") => api(url,{method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-const initials = s => (s||"?").replace(/[_-]+/g," ").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+const jpost = (url, body, method = "POST") => api(url, {method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+const initials = s => (s || "?").replace(/[_-]+/g, " ").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+/* une couleur d'encre par profil, pour voir d'un coup d'œil qui est connecté */
+const INKS = ["#2B4ACB", "#0F7A5C", "#8A3FB0", "#B4502B"];
+const profStyle = o => `--pa:${INKS[Math.max(0, (state.settings.operators || []).indexOf(o)) % INKS.length]}`;
 
 /* ================================================================ état & navigation */
 let state = {keywords:[], dossiers:[], settings:{}};
 let currentOp = store.get("ks_op", null);
 let dossierTab = "kw";
-let pollTimer = null;
-let lastPage = null;
+let pollTimer = null, lastPage = null, lastDossier = null, railFilter = "";
 
 function route(){
-  const h = location.hash.replace(/^#\/?/, "");
-  const [p, id] = h.split("/");
+  const [p, id] = location.hash.replace(/^#\/?/, "").split("/");
   if(p === "dossier" && id) return {page:"dossier", id:+id};
   if(p === "mots-cles" || p === "reglages") return {page:p};
   return {page:"dossiers"};
 }
 const go = h => { if(location.hash === h) render(true); else location.hash = h; };
-const calm = matchMedia("(prefers-reduced-motion:reduce)");
-/* changement de page : sortie rapide de l'ancienne page, puis entrée animée de la nouvelle */
-let leaveT = null;
-function transition(fn){
-  const v = $("#view");
-  if(calm.matches || !v.innerHTML){ fn(); return; }
-  clearTimeout(leaveT);
-  v.classList.remove("enter","push"); v.classList.add("leave");
-  leaveT = setTimeout(() => { v.classList.remove("leave"); fn(); }, 140);
-}
-window.addEventListener("hashchange", () => { closeMenu(); transition(() => render(true)); });
+window.addEventListener("hashchange", () => { closeMenu(); render(true); });
 
-const resultsUrl = () => "/api/results";
-/* couleur propre à chaque profil (avatar, nom) : on voit d'un coup d'œil dans quel profil on est */
-const PALETTE = [["#2F7BF5","#22C3D6"], ["#14A38B","#8FDDB4"], ["#5B6CF5","#7BC8F0"], ["#0E9FBF","#7FE7EC"]];
-const profColors = o => PALETTE[Math.max(0, (state.settings.operators || []).indexOf(o)) % PALETTE.length];
-const profStyle = o => { const [a, b] = profColors(o); return `--pa:${a};--pb:${b}`; };
 async function load(animate, passive){
   clearTimeout(pollTimer);
-  try{ state = await api(resultsUrl(), passive ? {headers:{"X-Passive":"1"}} : {}); }
+  try{ state = await api("/api/results", passive ? {headers:{"X-Passive":"1"}} : {}); }
   catch(e){ return; }
   currentOp = state.settings.profile || currentOp;
   render(animate);
@@ -631,15 +458,12 @@ async function load(animate, passive){
   if(state.dossiers.some(d => d.pending)) pollTimer = setTimeout(() => load(false, true), 1500);
 }
 
-/* Clics fiables : un bouton se rétrécit légèrement quand on appuie dessus. Si on appuie près de son bord,
-   le relâchement tombe à côté et le navigateur envoie le clic au parent : le bouton « ne répond pas ».
-   On retient donc l'élément sous le doigt au moment de l'appui, et on le reprend si besoin. */
-let pressed = null, pressT = 0, pointerDown = false, deferredRender = null;
+/* Clics fiables : si on appuie sur un bouton et qu'on relâche juste à côté, le navigateur envoie le clic
+   au parent. On retient l'élément sous le doigt au moment de l'appui et on le reprend si besoin.
+   Le rafraîchissement automatique attend aussi la fin d'un appui (sinon le bouton disparaît sous le doigt). */
+let pressed = null, pressT = 0, pointerDown = false, deferredRender = false;
 document.addEventListener("pointerdown", e => { pressed = e.target; pressT = performance.now(); pointerDown = true; }, {capture:true, passive:true});
-const releasePointer = () => {
-  pointerDown = false;
-  if(deferredRender){ const a = deferredRender; deferredRender = null; setTimeout(() => render(a.animate), 0); }
-};
+const releasePointer = () => { pointerDown = false; if(deferredRender){ deferredRender = false; setTimeout(() => render(false), 0); } };
 document.addEventListener("pointerup", releasePointer, {capture:true, passive:true});
 document.addEventListener("pointercancel", releasePointer, {capture:true, passive:true});
 function clickTarget(e, sel){
@@ -647,41 +471,45 @@ function clickTarget(e, sel){
   if(t) return t;
   if(pressed && pressed.isConnected && performance.now() - pressT < 800){
     const p = pressed.closest(sel);
-    if(p && p.contains(pressed) && (p.contains(e.target) || e.target.contains(p))) return p;
+    if(p && (p.contains(e.target) || e.target.contains(p))) return p;
   }
   return null;
 }
 
+/* mise à jour d'une zone : rien si rien n'a changé ; si seuls les compteurs d'avancement ont bougé, on les patche
+   sur place (les barres glissent, pas de clignotement) ; sinon on remplace le contenu */
+const stripProgress = h => h.replace(/(data-pg="[^"]+">)[^<]*</g, "$1<").replace(/--p:[\d.]+/g, "--p:_");
+function paint(el, html, force){
+  if(!force && html === el._html) return false;
+  if(!force && el._html && stripProgress(html) === stripProgress(el._html)){
+    const t = document.createElement("template"); t.innerHTML = html;
+    t.content.querySelectorAll("[data-pg]").forEach(n => { const o = el.querySelector(`[data-pg="${n.dataset.pg}"]`); if(o) o.textContent = n.textContent; });
+    t.content.querySelectorAll("[data-bar]").forEach(n => { const o = el.querySelector(`[data-bar="${n.dataset.bar}"]`); if(o) o.style.setProperty("--p", n.style.getPropertyValue("--p")); });
+    el._html = html; return false;
+  }
+  el._html = html; el.innerHTML = html; return true;
+}
+
 function render(animate){
   const r = route();
-  // rafraîchissement automatique pendant un appui : on attend le relâchement (sinon le clic se perd)
-  if(!animate && pointerDown){ deferredRender = {animate:false}; return; }
+  if(!animate && pointerDown){ deferredRender = true; return; }
   renderChrome(r);
+  const desk = $("#desk");
+  desk.classList.toggle("full", r.page === "mots-cles" || r.page === "reglages");
+  desk.classList.toggle("open", r.page === "dossier");
+  paint($("#rail"), railHtml(r));
+  $("#railSum").textContent = railSummary();
   // les pages de saisie ne sont pas redessinées par le rafraîchissement automatique (on ne perd pas la frappe)
   if(!animate && r.page === lastPage && (r.page === "mots-cles" || r.page === "reglages")) return;
   const v = $("#view");
-  const y = window.scrollY;
-  const html = PAGES[r.page](r);
-  if(!animate && html === v._html) return;          // rien de neuf : on ne touche pas au DOM
-  if(!animate && v._html && stripProgress(html) === stripProgress(v._html)){ patchProgress(html); v._html = html; return; }
-  v._html = html;
-  v.innerHTML = html;
-  v.classList.remove("enter","push");
-  if(animate){ void v.offsetWidth; v.classList.add(r.page === "dossier" && lastPage !== "dossier" ? "push" : "enter"); window.scrollTo({top:0, behavior:"instant"}); }
-  else window.scrollTo({top:y, behavior:"instant"});
-  lastPage = r.page;
-  placeThumbs(v, !animate);
-  if(animate) afterEnter(r);
+  const opening = r.page === "dossier" && (animate || lastDossier !== r.id);
+  const changed = paint(v, PAGES[r.page](r), animate);
+  if(changed && (animate || opening)) v.scrollTop = 0;
+  if(changed && opening && !calm.matches){ v.classList.remove("reveal"); void v.offsetWidth; v.classList.add("reveal"); }
+  lastPage = r.page; lastDossier = r.page === "dossier" ? r.id : null;
 }
 
-/* seuls les compteurs de pages ont changé : on met à jour textes et barres sans redessiner (les barres glissent) */
-const stripProgress = h => h.replace(/(data-pg="[^"]+">)[^<]*</g, "$1<").replace(/--p:[\d.]+/g, "--p:_");
-function patchProgress(html){
-  const t = document.createElement("template"); t.innerHTML = html;
-  t.content.querySelectorAll("[data-pg]").forEach(n => { const o = $("#view").querySelector(`[data-pg="${n.dataset.pg}"]`); if(o) o.textContent = n.textContent; });
-  t.content.querySelectorAll("[data-bar]").forEach(n => { const o = $("#view").querySelector(`[data-bar="${n.dataset.bar}"]`); if(o) o.style.setProperty("--p", n.style.getPropertyValue("--p")); });
-}
-const fmtEta = s => s == null ? "" : s < 50 ? "moins d'une minute" : `≈ ${Math.round(s / 60)} min`;
+const fmtEta = s => s == null ? "" : s < 50 ? "moins d'une minute" : `environ ${Math.round(s / 60)} min`;
 function prog(d){   // avancement cumulé des documents d'un dossier
   let done = 0, total = 0, eta = null;
   d.documents.forEach(x => { if(x.progress){ done += x.progress.done; total += x.progress.total; if(x.progress.eta != null) eta = Math.max(eta || 0, x.progress.eta); } });
@@ -689,347 +517,279 @@ function prog(d){   // avancement cumulé des documents d'un dossier
 }
 
 function renderChrome(r){
-  const tabs = {dossiers:["folder","Dossiers"], "mots-cles":["tag","Mots-clés"], reglages:["sliders","Réglages"]};
   const active = r.page === "dossier" ? "dossiers" : r.page;
-  document.querySelectorAll(".tab").forEach(t => {
-    const [i, l] = tabs[t.dataset.tab];
-    if(!t.innerHTML) t.innerHTML = ic(i) + `<span>${l}</span>`;
-    t.toggleAttribute("aria-current", t.dataset.tab === active);
-    if(t.dataset.tab === active) t.setAttribute("aria-current","page");
+  document.querySelectorAll(".nav a").forEach(a => {
+    if(a.dataset.tab === active) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
-  placeThumbs($("#tabs"));
-  const av = $("#avatar"); av.textContent = initials(currentOp); av.title = `Profil : ${currentOp || "—"} · changer de profil`;
-  av.setAttribute("style", profStyle(currentOp)); av.classList.add("prof");
-  const fab = document.querySelector(".fab"); if(!fab.innerHTML) fab.innerHTML = ic("plus");
+  const av = $("#avatar");
+  const html = `<span>${esc(currentOp || "")}</span><span class="ini" style="${profStyle(currentOp)}">${esc(initials(currentOp))}</span>`;
+  if(av._html !== html){ av._html = html; av.innerHTML = html; }
+  av.title = "Changer de profil ou verrouiller";
 }
 
-/* pastille glissante des onglets et des contrôles segmentés */
-function placeThumbs(root, instant){
-  root.querySelectorAll(".thumb").forEach(th => {
-    const box = th.parentElement;
-    const on = box.querySelector("[aria-current=page],[aria-pressed=true]");
-    if(!on){ th.style.width = "0"; return; }
-    const first = !th.dataset.placed || instant;
-    if(first) th.classList.add("instant");
-    th.style.width = on.offsetWidth + "px";
-    th.style.transform = `translateX(${on.offsetLeft}px)`;
-    if(first){ void th.offsetWidth; th.classList.remove("instant"); th.dataset.placed = 1; }
-  });
+/* ================================================================ résumé d'un dossier */
+function summary(d){
+  const ready = d.documents.some(x => x.status === "ok");
+  const c = {present:0, a_verifier:0, absent:0, absent_douteux:0};
+  if(ready) d.keywords.forEach(k => { const x = d.cells[k.id]; if(x) c[x.decision]++; });
+  return {ready, c, total:d.keywords.length};
 }
-window.addEventListener("resize", () => { placeThumbs(document, true); });
+function tally(d){
+  const {ready} = summary(d);
+  const cells = d.keywords.map(k => d.cells[k.id]).filter(Boolean).sort((a, b) => order(a.decision) - order(b.decision));
+  return `<span class="tally" aria-hidden="true">${(ready ? cells : d.keywords).map(c => `<i class="${ready ? HL[c.decision] : ""}"></i>`).join("")}</span>`;
+}
+const order = dec => ({present:0, a_verifier:1, absent_douteux:2, absent:3}[dec]);
+function verdictText(d){
+  const {ready, c, total} = summary(d);
+  if(!total) return "Aucun mot-clé à rechercher.";
+  if(!ready) return d.pending ? "Lecture des documents en cours." : d.documents.length ? "Aucun document lisible." : "Aucun document pour l'instant.";
+  let s = `${c.present} ${c.present > 1 ? "mots-clés trouvés" : "mot-clé trouvé"} sur ${total}`;
+  if(c.a_verifier) s += `, ${c.a_verifier} à vérifier`;
+  return s + ".";
+}
+
+/* ================================================================ colonne des dossiers */
+function railSummary(){
+  const D = state.dossiers, p = D.reduce((a, d) => a + d.pending, 0);
+  if(!D.length) return "";
+  return `${plural(D.length, "dossier")}` + (p ? `, ${plural(p, "document")} en lecture` : "");
+}
+function railHtml(r){
+  const q = railFilter.trim().toLowerCase();
+  const D = state.dossiers.filter(d => !q || d.name.toLowerCase().includes(q));
+  if(!state.dossiers.length) return `<p class="note" style="padding:0 6px">Les dossiers créés apparaîtront ici.</p>`;
+  if(!D.length) return `<p class="note" style="padding:0 6px">Aucun candidat ne correspond à « ${esc(railFilter)} ».</p>`;
+  return D.map(d => {
+    const {ready, c} = summary(d), q2 = prog(d);
+    let sub;
+    if(d.pending) sub = `<span data-pg="r${d.id}">${q2.total ? `Lecture : ${q2.done} pages sur ${q2.total}` : "En attente de lecture"}</span>`;
+    else if(!d.documents.length) sub = "Aucun document";
+    else if(!ready) sub = "Aucun document lisible";
+    else sub = `${c.present} sur ${d.keywords.length}` + (c.a_verifier ? `, <span class="warn">${c.a_verifier} à vérifier</span>` : "");
+    if(d.unread.length) sub += `, <span class="bad">${d.unread.length} illisible${d.unread.length > 1 ? "s" : ""}</span>`;
+    return `<a class="item" href="#/dossier/${d.id}" ${r.page === "dossier" && r.id === d.id ? 'aria-current="page"' : ""}>
+      <b>${esc(d.name)}</b><small>${sub}</small>
+      ${d.pending ? `<span class="pbar"><i data-bar="r${d.id}" style="--p:${q2.p.toFixed(3)}"></i></span>` : tally(d)}</a>`;
+  }).join("");
+}
 
 /* ================================================================ pages */
 const PAGES = {};
 
 PAGES.dossiers = () => {
-  const D = state.dossiers, K = state.keywords;
-  const pending = D.reduce((a,d) => a + d.pending, 0);
-  if(!D.length) return `
-    <div class="hero-empty">
-      <button class="bubble glass" data-action="new" aria-label="Créer un dossier">${ic("plus")}</button>
-      <h2>Aucun dossier</h2>
-      <p class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</p>
-      <p>Créez le dossier d'un candidat : vous choisirez ses mots-clés et déposerez ses documents.</p>
-      <button class="btn primary" data-action="new">Créer un dossier</button>
-    </div>`;
-  return `
-    <div class="head">
-      <h1 class="title">Dossiers</h1>
-      <p class="sub"><span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span> · ${plural(D.length,"candidat")}</p>
-      ${pending ? (() => { let dn = 0, tt = 0; D.forEach(d => { const q = prog(d); dn += q.done; tt += q.total; });
-        return `<div class="live"><span class="spin"></span>${plural(pending,"document")} en analyse<span data-pg="live">${tt ? ` · ${Math.round(dn / tt * 100)} %` : ""}</span></div>`; })() : ""}
-    </div>
-    <div class="list">${D.map((d,i) => dossierRow(d,i)).join("")}</div>`;
+  const D = state.dossiers;
+  if(!D.length) return `<div class="welcome">
+      <h1>Premier dossier</h1>
+      <p>Créez le dossier d'un candidat, choisissez les mots-clés à y chercher et déposez ses documents : PDF, scans, photos ou lettres manuscrites. KeyScan les lit et surligne ce qu'il trouve.</p>
+      <button class="btn pen" data-action="new">${ic("plus")}Créer un dossier</button></div>`;
+  const all = D.map(summary);
+  const pend = D.filter(d => d.pending), unread = D.filter(d => d.unread.length);
+  const check = D.map((d, i) => ({d, n: all[i].c.a_verifier})).filter(x => x.n).sort((a, b) => b.n - a.n);
+  let line = `${plural(D.length, "dossier")}`;
+  line += pend.length ? `, dont ${pend.length} en cours de lecture.` : ", tous lus.";
+  const todo = [...check.map(({d, n}) => `<li><a class="textlink" href="#/dossier/${d.id}">${esc(d.name)}</a> : <span class="hl rev">${n} à vérifier</span></li>`),
+                ...unread.filter(d => !check.some(x => x.d === d)).map(d => `<li><a class="textlink" href="#/dossier/${d.id}">${esc(d.name)}</a> : document illisible</li>`)];
+  return `<div class="welcome">
+    <h1>Dossiers de ${esc(currentOp || "")}</h1>
+    <p>${line} ${todo.length ? "À regarder en priorité :" : "Aucun mot n'est à vérifier pour l'instant."}</p>
+    ${todo.length ? `<ul class="todo">${todo.join("")}</ul>` : ""}
+    <button class="btn" data-action="export">${ic("download")}Exporter les résultats (CSV)</button></div>`;
 };
-
-function summary(d){
-  const K = d.keywords, ready = d.documents.some(x => x.status === "ok");
-  const c = {present:0, a_verifier:0, absent:0, absent_douteux:0};
-  if(ready) K.forEach(k => { const x = d.cells[k.id]; if(x) c[x.decision]++; });
-  return {ready, c, total:K.length};
-}
-
-function dossierRow(d, i){
-  const {ready, c, total} = summary(d);
-  const pct = ready && total ? c.present / total * 100 : 0;
-  let sub;
-  const q = prog(d);
-  const running = d.documents.some(x => x.status === "en_cours");
-  if(d.pending) sub = `<span class="spin"></span><span data-pg="r${d.id}">${q.total && running ? `Analyse : ${q.done}/${q.total} pages` : q.total ? `En attente : ${q.total} pages` : "En attente d'analyse"}</span>`
-    + `<span class="eta" data-pg="r${d.id}e">${q.eta != null ? " · " + fmtEta(q.eta) : ""}</span>`;
-  else if(!d.documents.length) sub = "Aucun document";
-  else sub = `${plural(d.documents.length, "document")} · ${kwN(total)}`;
-  if(d.unread.length) sub += `<span class="dot" style="background:var(--bad)"></span><span class="bad">${d.unread.length} non lu${d.unread.length > 1 ? "s" : ""}</span>`;
-  if(c.a_verifier) sub += `<span class="dot" style="background:var(--rev)"></span><span class="warn">${c.a_verifier} à vérifier</span>`;
-  return `<button class="rowc glass" style="--d:${i}" data-go="#/dossier/${d.id}">
-    <span class="ini">${esc(initials(d.name))}</span>
-    <span class="rtxt"><b>${esc(d.name)}</b><small>${sub}</small>${d.pending ? `<span class="pbar"><i data-bar="r${d.id}" style="--p:${q.p.toFixed(3)}"></i></span>` : ""}</span>
-    <span class="mring" style="--p:${pct}" title="${c.present} mot(s)-clé(s) présent(s) sur ${total}"><span>${ready ? `${c.present}/${total}` : "—"}</span></span>
-    ${ic("chev","chev")}
-  </button>`;
-}
 
 PAGES.dossier = r => {
   const d = state.dossiers.find(x => x.id === r.id);
-  if(!d) return `<div class="hero-empty"><h2>Dossier introuvable</h2><p>Il a été supprimé ou il est confié à un autre prof.</p><button class="btn" data-go="#/dossiers">Dossiers de ${esc(currentOp || "")}</button></div>`;
-  const {ready, c, total} = summary(d);
-  const C = 2 * Math.PI * 92, p = ready && total ? c.present / total : 0;
-  const bar = `<div class="bar"><button class="iconbtn" data-go="#/dossiers" aria-label="Retour">${ic("back")}</button>
-    <button class="iconbtn" data-action="menu" data-id="${d.id}" aria-label="Options du dossier">${ic("more")}</button></div>`;
-
-  if(!d.documents.length) return bar + `
-    <div class="hero"><h1>${esc(d.name)}</h1><p class="sub">Aucun document pour l'instant<span>·</span>${kwN(d.keywords.length)}</p></div>
-    <button class="drop big" data-drop="${d.id}">${ic("upload")}<b>Déposez les documents du candidat</b><span>ou cliquez pour les choisir</span></button>
-    <div class="row" style="justify-content:center;margin-top:16px"><button class="btn quiet sm" data-action="edit-kw" data-id="${d.id}">${ic("edit")}${d.keywords.length ? "Modifier les mots-clés" : "Choisir les mots-clés"}</button></div>`;
-
-  const q = prog(d);
-  let sub = [plural(d.documents.length,"document"), kwN(d.keywords.length)];
-  if(d.pending) sub.push(`<span class="warn"><span class="spin"></span> <span data-pg="h${d.id}">${q.total ? `${q.done}/${q.total} pages analysées` : `${d.pending} en attente`}</span><span data-pg="h${d.id}e">${q.eta != null ? " · " + fmtEta(q.eta) : ""}</span></span>`);
-  else sub.push(`lecture ${Math.round(d.quality)} %`);
-  if(c.a_verifier) sub.push(`<span class="warn">${c.a_verifier} à vérifier</span>`);
-
-  // pendant la première analyse, l'anneau central montre l'avancement des pages
-  const analysing = !ready && d.pending && q.total;
-  const ringInner = analysing
-    ? `<svg viewBox="0 0 220 220"><circle class="track" cx="110" cy="110" r="92"/>
-         <circle class="val prog" cx="110" cy="110" r="92" stroke-dasharray="${C}" data-bar="g${d.id}" style="--p:${q.p.toFixed(3)}"/></svg>
-       <div class="in"><div class="big"><span data-pg="g${d.id}">${Math.round(q.p * 100)}</span><small>%</small></div><div class="cap" data-pg="g${d.id}c">${d.documents.some(x => x.status === "en_cours") ? "analyse des pages" : "en attente d'analyse"}</div></div>`
-    : `<svg viewBox="0 0 220 220"><circle class="track" cx="110" cy="110" r="92"/>
-         <circle class="val" cx="110" cy="110" r="92" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}" style="${p ? "" : "opacity:0"}"/></svg>
-       <div class="in"><div class="big"><span data-count="${ready ? c.present : 0}">${ready ? c.present : "–"}</span><small>/${total}</small></div><div class="cap">mots-clés trouvés</div></div>`;
-  const hero = `<div class="hero">
-    <div class="ring ${analysing ? "" : ""}" ${analysing ? "" : "data-ring"} style="--c:${C}">${ringInner}</div>
-    <h1>${esc(d.name)}</h1><p class="sub">${sub.join("<span>·</span>")}</p>
-    ${d.unread.length ? `<div class="alert" role="alert">${ic("info")}<span><b>${d.unread.length > 1 ? `${d.unread.length} documents n'ont pas pu être lus` : "Un document n'a pas pu être lu"}</b> (${d.unread.map(esc).join(", ")}) : aucune absence n'est affirmée tant qu'il n'est pas remplacé.</span></div>` : ""}</div>`;
-
-  const seg = `<div class="segwrap"><div class="seg" role="group"><span class="thumb"></span>
-    <button data-dtab="kw" aria-pressed="${dossierTab==="kw"}">Mots-clés</button>
-    <button data-dtab="docs" aria-pressed="${dossierTab==="docs"}">Documents</button></div></div>`;
-
-  return bar + hero + seg + `<div class="list" id="dlist">${dossierTab === "kw" ? kwList(d) : docList(d)}</div>`;
+  if(!d) return `<div class="welcome"><h1>Dossier introuvable</h1><p>Il a été supprimé ou confié à une autre personne.</p>
+    <a class="btn" href="#/dossiers">Retour aux dossiers</a></div>`;
+  const q = prog(d), nDocs = d.documents.length;
+  const head = `<div class="dhead">
+      <a class="icon back" href="#/dossiers" aria-label="Retour à la liste">${ic("back")}</a>
+      <h1>${esc(d.name)}</h1>
+      <div class="acts"><button class="btn" data-action="add-docs" data-id="${d.id}">${ic("upload")}Ajouter des documents</button>
+      <button class="icon" data-action="menu" data-id="${d.id}" aria-label="Autres actions">${ic("more")}</button></div></div>
+    <p class="verdict">${verdictText(d)}</p>
+    ${d.pending ? `<div class="running"><span class="spin"></span><span data-pg="h${d.id}">${q.total ? `${q.done} pages lues sur ${q.total}` : `${plural(d.pending, "document")} en attente`}</span>
+      <span class="pbar"><i data-bar="h${d.id}" style="--p:${q.p.toFixed(3)}"></i></span><span data-pg="h${d.id}e">${q.eta != null ? fmtEta(q.eta) : ""}</span></div>` : ""}
+    ${d.unread.length ? `<div class="alert" role="alert">${ic("info")}<span><b>${d.unread.length > 1 ? `${d.unread.length} documents n'ont pas pu être lus` : "Un document n'a pas pu être lu"}</b> (${d.unread.map(esc).join(", ")}). Tant qu'il n'est pas remplacé, aucun mot n'est déclaré absent.</span></div>` : ""}`;
+  if(!nDocs) return `<div class="page">${head}
+    <button class="drop big" data-drop="${d.id}">${ic("upload")}Déposez les documents du candidat<span>ou cliquez pour les choisir</span></button>
+    <p class="note">Mots-clés recherchés : ${d.keywords.length ? d.keywords.map(k => esc(k.term)).join(", ") : "aucun pour l'instant"}. <button class="textlink" data-action="edit-kw" data-id="${d.id}">Modifier</button></p></div>`;
+  const tabs = `<div class="tabs" role="tablist">
+    <button data-dtab="kw" aria-pressed="${dossierTab === "kw"}">Mots-clés<small>${d.keywords.length}</small></button>
+    <button data-dtab="docs" aria-pressed="${dossierTab === "docs"}">Documents<small>${nDocs}</small></button>
+    <span class="end"><button class="btn plain" data-action="edit-kw" data-id="${d.id}">${ic("edit")}Modifier les mots-clés</button></span></div>`;
+  return `<div class="page">${head}${tabs}<div id="dlist">${dossierTab === "kw" ? kwList(d) : docList(d)}</div></div>`;
 };
 
 function kwList(d){
   const K = d.keywords;
-  const tools = `<div class="kwbar"><span>${K.length ? `${kwN(K.length)} propres à ce dossier` : ""}</span>
-    <button class="btn quiet sm" data-action="edit-kw" data-id="${d.id}">${ic("edit")}Modifier les mots-clés</button></div>`;
-  if(!K.length) return `<div class="hero-empty"><p>Aucun mot-clé à rechercher dans ce dossier.</p><button class="btn primary" data-action="edit-kw" data-id="${d.id}">Choisir les mots-clés</button></div>`;
-  if(!d.documents.some(x => x.status === "ok")) return tools + `<div class="hero-empty"><span class="spin" style="width:28px;height:28px;color:var(--cyan)"></span><p>${d.pending ? "Lecture des documents…" : "Aucun document lisible"}</p></div>`;
-  const rows = K.map(k => ({k, c:d.cells[k.id]})).filter(x => x.c)
-    .sort((a,b) => ORDER[a.c.decision] - ORDER[b.c.decision] || b.c.score - a.c.score);
-  return tools + rows.map(({k,c}, i) => `<button class="krow glass" style="--d:${i}" data-kw="${k.id}" data-dossier="${d.id}">
-      <span class="t">${esc(k.term)}${c.count ? `<small>${plural(c.count,"occurrence")}</small>` : ""}</span>
-      <span class="pill ${c.decision}">${c.count ? Math.round(c.score) + " %" : LABEL[c.decision]}</span>${ic("chev","chev")}
-    </button>`).join("");
+  if(!K.length) return `<p class="note">Aucun mot-clé n'est recherché dans ce dossier. <button class="textlink" data-action="edit-kw" data-id="${d.id}">Choisir les mots-clés</button></p>`;
+  if(!d.documents.some(x => x.status === "ok")) return `<p class="note">${d.pending ? "Les résultats apparaîtront dès que les documents seront lus." : "Aucun document n'a pu être lu."}</p>`;
+  const cells = K.map(k => ({k, c:d.cells[k.id]})).filter(x => x.c);
+  const where = c => { const f = {}; (c.where || []).forEach(w => (f[w.file] = f[w.file] || []).push(w.page)); return Object.entries(f).map(([n, p]) => `${n}, p. ${p.join(", ")}`).join(" ; "); };
+  let n = 0;
+  const rows = list => list.sort((a, b) => b.c.score - a.c.score).map(({k, c}) => `
+    <button class="row" data-kw="${k.id}" data-dossier="${d.id}">
+      <span class="term"><span class="hl ${HL[c.decision]}" style="--n:${n++}">${esc(k.term)}</span></span>
+      <span class="score">${Math.round(c.score)} %</span>
+      <span class="where">${esc(where(c)) || plural(c.count, "occurrence")}</span>${ic("chev")}</button>`).join("");
+  const by = dec => cells.filter(x => x.c.decision === dec);
+  const grp = (dec, title, hint) => { const L = by(dec); return L.length ? `<section class="group"><h2>${title}<small>${L.length}${hint ? `, ${hint}` : ""}</small></h2>${rows(L)}</section>` : ""; };
+  const words = (L, cls) => `<div class="absents">${L.map(({k}) => `<button data-kw="${k.id}" data-dossier="${d.id}"><span class="${cls}">${esc(k.term)}</span></button>`).join("")}</div>`;
+  const doubt = by("absent_douteux"), absent = by("absent");
+  const doubtFound = doubt.filter(x => x.c.count), doubtNone = doubt.filter(x => !x.c.count);
+  return grp("present", "Présents") + grp("a_verifier", "À vérifier", "un mot proche a été lu, regardez la preuve")
+    + (doubt.length ? `<section class="group"><h2>Absence incertaine<small>${doubt.length}, rien de sûr n'a été lu, mais la lecture ne permet pas d'affirmer l'absence</small></h2>
+        ${doubtFound.length ? rows(doubtFound) : ""}${doubtNone.length ? words(doubtNone, "hl doubt") : ""}</section>` : "")
+    + (absent.length ? `<section class="group"><h2>Absents<small>${absent.length}</small></h2>${words(absent, "")}</section>` : "");
 }
 
 function docList(d){
-  return d.documents.map((x, i) => {
+  return d.documents.map(x => {
     const [lab, cls] = x.duplicate_of ? ["Doublon ignoré", "err"] : STATUS[x.status], pg = x.progress;
-    const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)}/${pg.total}` : lab;
+    const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)} sur ${pg.total}` : lab;
     const hwl = x.pages.reduce((a, p) => a + (p.manuscrit || 0), 0);
-    const info = x.status === "ok" ? `${plural(x.pages.length,"page")}, lecture ${Math.round(x.quality)} %${hwl ? ` · ${plural(hwl, "ligne")} manuscrite${hwl > 1 ? "s" : ""}` : ""}`
-               : pg && pg.total ? `${plural(pg.total,"page")}${pg.eta != null ? " · " + fmtEta(pg.eta) : ""}` : "";
-    return `<div class="krow doc glass" style="--d:${i}">
-      <span class="t"><a href="/api/documents/${x.id}/file" target="_blank" style="color:inherit;text-decoration:none">${esc(x.filename)}</a>
+    const info = x.duplicate_of ? `Identique à ${esc(x.duplicate_of)}, compté une seule fois`
+      : x.status === "erreur" ? `<span title="${esc(x.error || "")}">Fichier corrompu ou protégé par un mot de passe : KeyScan ne peut pas l'ouvrir. Remplacez-le par une autre copie.</span>`
+      : x.status === "ok" ? `${plural(x.pages.length, "page")}, lecture ${Math.round(x.quality)} %${hwl ? `, ${plural(hwl, "ligne")} manuscrite${hwl > 1 ? "s" : ""}` : ""}`
+      : pg && pg.total ? `${plural(pg.total, "page")}${pg.eta != null ? `, ${fmtEta(pg.eta)}` : ""}` : "";
+    return `<div class="doc">
+      <div><a class="name" href="/api/documents/${x.id}/file" target="_blank">${esc(x.filename)}</a>
         <small data-pg="x${x.id}i">${info}</small>
-        ${pg && pg.total ? `<span class="pbar"><i data-bar="x${x.id}" style="--p:${(pg.done / pg.total).toFixed(3)}"></i></span>` : ""}
-        ${x.status === "ok" && !x.duplicate_of && x.hits.length ? docHits(d, x) : ""}</span>
-      <span class="tag ${cls}" title="${esc(x.duplicate_of ? `Identique à ${x.duplicate_of} : non compté` : x.error || "")}">${x.status==="en_cours" ? `<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ` : ""}<span data-pg="x${x.id}t">${label}</span></span>
+        ${pg && pg.total ? `<span class="pbar" style="max-width:260px"><i data-bar="x${x.id}" style="--p:${(pg.done / pg.total).toFixed(3)}"></i></span>` : ""}
+        ${x.status === "ok" && !x.duplicate_of && x.hits.length ? docHits(d, x) : ""}</div>
+      <span class="state ${cls}" data-pg="x${x.id}t">${label}</span>
       <span class="acts">
-        ${x.status === "ok" && x.hits.length ? `<button class="iconbtn sm flat" data-view-doc="${x.id}" aria-label="Voir les mots dans le document" title="Voir les mots dans le document">${ic("eye")}</button>` : ""}
-        <button class="iconbtn sm flat" data-re-doc="${x.id}" aria-label="Relancer l'analyse" title="Relancer l'analyse">${ic("refresh")}</button>
-        <button class="iconbtn sm flat del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer" title="Retirer">${ic("x")}</button>
+        ${x.status === "ok" && x.hits.length ? `<button class="icon" data-view-doc="${x.id}" aria-label="Voir les mots surlignés dans le document" title="Voir les mots surlignés">${ic("eye")}</button>` : ""}
+        <button class="icon" data-re-doc="${x.id}" aria-label="Relire ce document" title="Relire">${ic("refresh")}</button>
+        <button class="icon del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer ${esc(x.filename)}" title="Retirer">${ic("x")}</button>
       </span></div>`;
-  }).join("") + `<button class="drop" data-drop="${d.id}" style="margin-top:6px">${ic("upload")}<b>Ajouter des documents</b><span>PDF ou images</span></button>`;
+  }).join("") + `<button class="drop" data-drop="${d.id}">${ic("upload")}Ajouter des documents<span>PDF ou images</span></button>`;
 }
-
-/* dans un document : les mots à vérifier (orange) un par un, les mots sûrs (vert) résumés */
+/* dans un document : les mots à vérifier un par un (avec leur page), les mots sûrs résumés */
 function docHits(d, x){
   const rev = x.hits.filter(h => h.review), sure = x.hits.filter(h => !h.review);
-  const pg = h => `<small>p. ${h.pages.join(", ")}</small>`;
-  return `<span class="hits">${rev.map(h => `<button class="hit" data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}" title="Voir où est « ${esc(h.term)} »">${esc(h.term)} ${pg(h)}</button>`).join("")}
-    ${sure.length ? `<button class="hit ok" data-view-doc="${x.id}" title="${esc(sure.map(h => h.term).join(", "))}">${sure.length} trouvé${sure.length > 1 ? "s" : ""} ${ic("eye")}</button>` : ""}</span>`;
+  return `<div class="hits">${rev.map(h => `<button data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}" title="Voir où est « ${esc(h.term)} »"><span class="hl rev">${esc(h.term)}</span><small>p. ${h.pages.join(", ")}</small></button>`).join("")}
+    ${sure.length ? `<button class="more" data-view-doc="${x.id}">${sure.length > 1 ? `${sure.length} mots présents` : "1 mot présent"}, voir dans le document</button>` : ""}</div>`;
 }
 
-/* un document, page par page, avec tous les mots trouvés encadrés et nommés */
-function openDocViewer(docId){
-  const d = state.dossiers.find(x => x.documents.some(y => y.id === docId)); if(!d) return;
-  const x = d.documents.find(y => y.id === docId);
-  const byPage = {};
-  x.hits.forEach(h => h.pages.forEach(p => (byPage[p] = byPage[p] || []).push(h)));
-  const pages = Object.keys(byPage).map(Number).sort((a, b) => a - b);
-  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
-    <h3>${esc(x.filename)}</h3><p class="msub">${esc(d.name)} · ${plural(pages.length, "page")} avec des mots-clés</p>
-    <div class="legend"><span><i style="background:#168054"></i>Présent</span><span><i style="background:#D67800"></i>À vérifier</span></div>
-    ${pages.map((p, i) => `<div class="pageview" style="--d:${i}">
-      <div class="ph"><span>Page ${p}</span><span class="tag">${plural(byPage[p].length, "mot-clé")}</span></div>
-      <div class="hits">${byPage[p].map(h => `<button class="hit ${h.review ? "" : "ok"}" data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}">${esc(h.term)}</button>`).join("")}</div>
-      <img loading="lazy" src="/api/documents/${x.id}/page/${p}.png?all=1" alt="Page ${p} : mots-clés encadrés"></div>`).join("")}`, true);
-}
-
+/* ---------------------------------------------------------------- liste par défaut */
 PAGES["mots-cles"] = () => {
   const K = state.keywords, counts = state.keyword_counts || {};
   const others = (state.settings.operators || []).filter(o => o !== currentOp && counts[o]);
-  const copy = others.map(o => `<button class="btn" data-action="copy-kw" data-from="${esc(o)}">${ic("swap")}Reprendre les ${kwN(counts[o])} de ${esc(o)}</button>`).join("");
-  return `<div class="head"><h1 class="title">Liste par défaut</h1>
-      <p class="sub">Proposée à chaque nouveau dossier de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span>.<br>Chaque dossier garde ensuite sa propre liste, modifiable depuis le dossier.</p></div>
-    <form class="addfield glass" id="kwForm" autocomplete="off">
+  return `<div class="page">
+    <h1 class="ptitle">Liste par défaut</h1>
+    <p class="plead">Ces mots-clés sont proposés à chaque nouveau dossier de ${esc(currentOp || "")}. Chaque dossier garde ensuite sa propre liste, que l'on modifie depuis le dossier.</p>
+    <form class="addline" id="kwForm" autocomplete="off">
       <label for="kwInput" class="sr">Nouveau mot-clé</label>
-      <input id="kwInput" placeholder="Ajouter un mot-clé">
-      <button class="iconbtn" type="submit" aria-label="Ajouter">${ic("plus")}</button>
-    </form>
-    <div class="chips" id="chips">${K.map((k,i) => chip(k,i)).join("")}</div>
-    ${K.length ? `<p class="count">${kwN(K.length)}, accents et majuscules ignorés</p>` :
-      `<p class="count">Astuce : collez une liste, un mot-clé par ligne.</p>`}
-    ${copy ? `<div class="row" style="justify-content:center;margin-top:${K.length ? 18 : 26}px">${copy}</div>` : ""}`;
+      <input id="kwInput" placeholder="Ajouter un mot-clé ou coller une liste">
+      <button class="btn pen" type="submit">Ajouter</button></form>
+    <div class="terms" id="chips">${K.map(k => tagHtml(k, false, "del-kw")).join("")}</div>
+    <p class="count">${K.length ? `${kwN(K.length)}. Les accents et les majuscules ne comptent pas dans la recherche.` : "Collez une liste pour tout ajouter d'un coup : un mot-clé par ligne, ou séparés par des virgules."}</p>
+    ${others.map(o => `<p class="note"><button class="textlink" data-action="copy-kw" data-from="${esc(o)}">Reprendre les ${kwN(counts[o])} de ${esc(o)}</button></p>`).join("")}</div>`;
 };
-const chip = (k, i, old) => `<span class="chip${old?" old":""}" style="--d:${i}" data-id="${k.id}" title="Ajouté par ${esc(k.created_by||"—")}">${esc(k.term)}
-  <button class="iconbtn flat del" data-del-kw="${k.id}" aria-label="Retirer ${esc(k.term)}">${ic("x")}</button></span>`;
+const tagHtml = (k, isNew, attr) => `<span class="term-tag${isNew ? " new" : ""}" data-id="${k.id}">${esc(k.term)}
+  <button class="icon del" data-${attr}="${k.id}" aria-label="Retirer ${esc(k.term)}">${ic("x")}</button></span>`;
 
+/* ---------------------------------------------------------------- réglages */
 PAGES.reglages = () => {
   const s = state.settings, ops = s.operators || [];
-  const slider = (id, label, hint, v) => `<div class="line col"><div class="lhead"><div><div class="lbl">${label}</div><div class="hint">${hint}</div></div><span class="val" id="${id}V">${v} %</span></div>
-    <input type="range" min="0" max="100" step="1" id="${id}" value="${v}" style="--v:${v}" aria-label="${label}"></div>`;
-  return `<div class="head"><h1 class="title">Réglages</h1></div>
-    <p class="gtitle">Profil actif</p>
-    <div class="group glass" style="--d:0;padding:14px 14px;text-align:center">
-      <div class="seg" role="group" aria-label="Opérateur"><span class="thumb"></span>${ops.map(o =>
-        `<button data-op="${esc(o)}" aria-pressed="${o===currentOp}"><span class="dot" style="background:${profColors(o)[0]};margin-right:7px;vertical-align:1px"></span>${esc(o)}</button>`).join("")}</div>
-    </div>
-    <p class="gtitle">Seuils de décision de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
-    <div class="group glass" style="--d:1">
-      ${slider("sPresent","Présent","À partir de ce score", s.present_thr)}
-      ${slider("sReview","À vérifier","Entre ce score et le précédent", s.review_thr)}
-      ${slider("sQuality","Lecture minimale","En dessous, un mot non trouvé reste incertain", s.min_quality)}
-    </div>
-    <p class="gtitle">Équipe</p>
-    <div class="group glass" style="--d:2">
-      ${ops.map(o => `<div class="line"><span style="display:flex;align-items:center;gap:12px"><span class="ini sm prof" style="${profStyle(o)}">${esc(initials(o))}</span><span><span class="lbl">${esc(o)}</span><div class="hint">${plural((state.owners || {})[o] || 0, "dossier")}, ${kwN((state.keyword_counts || {})[o] || 0)}</div></span></span>${ops.length > 1 ? `<button class="iconbtn sm flat del" data-del-op="${esc(o)}" aria-label="Retirer ${esc(o)}">${ic("x")}</button>` : ""}</div>`).join("")}
-      <form class="inline-add" id="opForm" autocomplete="off"><input id="opInput" placeholder="Ajouter une personne" aria-label="Ajouter une personne"><button class="iconbtn sm" type="submit" aria-label="Ajouter">${ic("plus")}</button></form>
-    </div>
-    <p class="gtitle">Écriture manuscrite</p>
-    <div class="group glass" style="--d:3">${(() => { const h = (state.engine || {}).handwriting || {};
-      return h.ready
-        ? `<div class="line"><span><span class="lbl">Activée</span><div class="hint">${esc(h.label || "")} : les lignes écrites à la main sont détectées puis lues. Commun à tous les profils.</div></span><span class="tag ok">Active</span></div>`
-        : `<div class="line col"><div class="lhead"><span class="lbl">Non installée</span><span class="tag">Optionnelle</span></div>
-           <div class="hint">Incluse dans l'application installée. Si vous lancez KeyScan avec Python, installez-la une fois avec
-           <b>python -m engine.handwriting --install</b> puis relancez. Sans elle, l'écriture manuscrite est souvent classée « à vérifier ».</div></div>`; })()}
-    </div>
-    <p class="gtitle">Sécurité de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
-    <div class="group glass" style="--d:3">
-      <div class="line"><span><span class="lbl">Code PIN</span><div class="hint">Demandé pour ouvrir ce profil. Verrouillage automatique après 30 min sans activité.</div></span>
-        <button class="btn" data-action="change-pin">Changer le code</button></div>
-      <div class="line"><span class="lbl">Verrouiller maintenant</span><button class="btn" data-action="lock">${ic("lock")}Verrouiller</button></div>
-    </div>
-    <p class="gtitle">Résultats de <span class="owner" style="${profStyle(currentOp)}">${esc(currentOp || "")}</span></p>
-    <div class="group glass" style="--d:3;padding:16px 20px;text-align:center">
-      <button class="btn primary" data-action="export">${ic("download")}Exporter en CSV</button>
-    </div>`;
+  const slider = (id, label, hint, v) => `<div class="slider"><label for="${id}">${label} <span>${hint}</span></label>
+    <input type="range" min="0" max="100" step="1" id="${id}" value="${v}" style="--v:${v}"><output id="${id}V">${v} %</output></div>`;
+  const hw = (state.engine || {}).handwriting || {};
+  return `<div class="page">
+    <h1 class="ptitle">Réglages</h1>
+    <div class="settings">
+      <div class="set"><div><h2>Seuils de décision</h2><p class="hint">Propres à ${esc(currentOp || "")}. Enregistrés dès qu'on les déplace.</p></div><div>
+        ${slider("sPresent", "Présent", "à partir de ce score", s.present_thr)}
+        ${slider("sReview", "À vérifier", "entre ce score et le précédent", s.review_thr)}
+        ${slider("sQuality", "Lecture minimale", "en dessous, un mot non trouvé reste incertain", s.min_quality)}</div></div>
+      <div class="set"><div><h2>Équipe</h2><p class="hint">Chaque personne a ses dossiers, ses mots-clés et son code.</p></div><div class="people">
+        ${ops.map(o => `<div class="person"><span class="ini" style="${profStyle(o)}">${esc(initials(o))}</span><div>${esc(o)}<small>${plural((state.owners || {})[o] || 0, "dossier")}</small></div>
+          ${ops.length > 1 ? `<button class="icon del" data-del-op="${esc(o)}" aria-label="Retirer ${esc(o)} de l'équipe">${ic("x")}</button>` : ""}</div>`).join("")}
+        <form class="addline" id="opForm" autocomplete="off" style="margin-top:8px"><label for="opInput" class="sr">Ajouter une personne</label>
+          <input id="opInput" placeholder="Prénom et nom"><button class="btn" type="submit">Ajouter</button></form></div></div>
+      <div class="set"><div><h2>Code PIN</h2><p class="hint">Demandé à l'ouverture. Verrouillage automatique après 30 minutes sans activité.</p></div><div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-action="change-pin">Changer mon code</button><button class="btn" data-action="lock">${ic("lock")}Verrouiller maintenant</button></div></div>
+      <div class="set"><div><h2>Écriture manuscrite</h2></div><div>${hw.ready
+        ? `<p style="margin:0">Activée (${esc(hw.label || "")}). Les lignes écrites à la main sont repérées puis lues ; leurs mots proches sont toujours à vérifier.</p>`
+        : `<p style="margin:0">Non installée. En mode Python, installez-la une fois avec <code>python -m engine.handwriting --install</code> puis relancez KeyScan.</p>`}</div></div>
+      <div class="set"><div><h2>Résultats</h2></div><div><button class="btn" data-action="export">${ic("download")}Exporter en CSV</button></div></div>
+    </div></div>`;
 };
 
-/* nombre qui défile jusqu'à sa valeur (une seule zone de texte : coût négligeable) */
-function countUp(el, target, dur = 900, suffix = ""){
-  if(calm.matches || !target){ el.textContent = Math.round(target) + suffix; return; }
-  const t0 = performance.now();
-  const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-    el.textContent = Math.round(target * e) + suffix; if(k < 1) requestAnimationFrame(step); };
-  el.textContent = "0" + suffix; requestAnimationFrame(step);
-}
-/* onde de clic sur les boutons */
-document.addEventListener("pointerdown", e => {
-  const b = e.target.closest(".btn,.iconbtn:not(.flat),.fab,.key,.rowc,.krow:not(.doc),.who-card");
-  if(!b || calm.matches) return;
-  const r = b.getBoundingClientRect(), w = document.createElement("span");
-  w.className = "ripple"; w.style.left = (e.clientX - r.left) + "px"; w.style.top = (e.clientY - r.top) + "px";
-  w.style.setProperty("--rs", (Math.hypot(r.width, r.height) / 6).toFixed(1));
-  const wrap = document.createElement("span"); wrap.className = "ripwrap"; wrap.appendChild(w);
-  b.appendChild(wrap); setTimeout(() => wrap.remove(), 650);
-}, {passive:true});
-
-/* animations après l'entrée d'une page */
-function afterEnter(r){
-  if(r.page !== "dossier") return;
-  const ring = document.querySelector("[data-ring]");
-  if(ring) ring.classList.add("anim");
-  const n = document.querySelector("[data-count]");
-  if(n && +n.dataset.count > 0) countUp(n, +n.dataset.count, 1100);
-}
-
-/* ================================================================ modales */
+/* ================================================================ fenêtres */
 let modalResolve = null;
-function openModal(html, wide){
-  const m = $("#modal"); m.className = "modal glass" + (wide ? " wide" : ""); m.innerHTML = html; m.scrollTop = 0;
-  $("#mwrap").classList.add("on"); $("#mwrap").setAttribute("aria-hidden","false");
-  setTimeout(() => { const f = m.querySelector("[autofocus]") || m.querySelector(".x"); f && f.focus(); }, 80);
+function openModal(html, kind = "box"){
+  const m = $("#modal"); m.className = kind; m.innerHTML = html; m.scrollTop = 0;
+  $("#mwrap").classList.add("on"); $("#mwrap").setAttribute("aria-hidden", "false");
+  setTimeout(() => { const f = m.querySelector("[autofocus]") || m.querySelector(".x"); f && f.focus(); }, 60);
 }
 function closeModal(val){
-  $("#mwrap").classList.remove("on"); $("#mwrap").setAttribute("aria-hidden","true");
+  $("#mwrap").classList.remove("on"); $("#mwrap").setAttribute("aria-hidden", "true");
   if(kwEditing){ kwEditing = null; load(false); }        // les résultats tiennent compte des nouveaux mots-clés
   if(modalResolve){ const r = modalResolve; modalResolve = null; r(val ?? null); }
 }
+const closeX = `<button class="icon x" data-close aria-label="Fermer">${ic("x")}</button>`;
 /* boîte de dialogue maison (remplace confirm/prompt) */
-function ask({title, text="", input=null, ok="Valider", danger=false, secret=false}){
+function ask({title, text = "", input = null, ok = "Valider", danger = false, secret = false}){
   openModal(`<h3>${esc(title)}</h3>${text ? `<p class="msub">${esc(text)}</p>` : ""}
     <form id="askForm">${input !== null ? `<input class="field mt" id="askInput" value="${esc(input)}" ${secret ? 'type="password" inputmode="numeric" autocomplete="off"' : ""} autofocus>` : ""}
-    <div class="actions"><button type="button" class="btn quiet" data-close>Annuler</button>
-    <button class="btn ${danger ? "danger" : "primary"}" type="submit" ${input === null ? "autofocus" : ""}>${esc(ok)}</button></div></form>`);
+    <div class="actions"><button type="button" class="btn plain" data-close>Annuler</button>
+    <button class="btn ${danger ? "danger" : "pen"}" type="submit" ${input === null ? "autofocus" : ""}>${esc(ok)}</button></div></form>`);
   return new Promise(res => { modalResolve = res; });
 }
 
-/* nouveau dossier : nom + documents en une seule étape */
+/* nouveau dossier : nom, mots-clés de départ, documents */
 let newFiles = [], newKwSrc = "default";
 function openNew(){
   newFiles = [];
   const nDef = state.keywords.length, others = state.dossiers.filter(d => d.keywords.length);
   newKwSrc = nDef ? "default" : "none";
-  const segBtn = (v, label) => `<button type="button" data-kwsrc="${v}" aria-pressed="${newKwSrc === v}">${label}</button>`;
-  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
-    <h3>Nouveau dossier</h3><p class="msub">Confié à ${esc(currentOp || "")}</p>
+  const opt = (v, label) => `<button type="button" data-kwsrc="${v}" aria-pressed="${newKwSrc === v}">${label}</button>`;
+  openModal(`${closeX}<h3>Nouveau dossier</h3><p class="msub">Il sera rangé dans les dossiers de ${esc(currentOp || "")}.</p>
     <form id="newForm" autocomplete="off">
-      <input class="field mt" id="newName" placeholder="Nom du candidat" autofocus>
-      <p class="flabel">Mots-clés recherchés dans ce dossier</p>
-      <div class="seg" role="group" aria-label="Mots-clés de départ"><span class="thumb"></span>
-        ${nDef ? segBtn("default", `Liste par défaut · ${nDef}`) : ""}${others.length ? segBtn("copy", "Copier un dossier") : ""}${segBtn("none", nDef || others.length ? "Aucun" : "Saisir")}</div>
+      <label class="flabel" for="newName">Nom du candidat</label>
+      <input class="field" id="newName" autofocus>
+      <span class="flabel">Mots-clés recherchés</span>
+      <div class="choice" role="group" aria-label="Mots-clés de départ">${nDef ? opt("default", `Liste par défaut (${nDef})`) : ""}${others.length ? opt("copy", "Copier un dossier") : ""}${opt("none", "Aucun")}</div>
       ${others.length ? `<select class="field mt" id="kwCopy" hidden aria-label="Dossier à copier">${others.map(d => `<option value="${d.id}">${esc(d.name)} (${kwN(d.keywords.length)})</option>`).join("")}</select>` : ""}
-      <input class="field mt" id="newTerms" placeholder="${nDef || others.length ? "Mots-clés en plus" : "Mots-clés"}, séparés par des virgules">
-      <button type="button" class="drop mt" data-drop="new">${ic("upload")}<b>Déposez ses documents</b><span id="newHint">PDF ou images, facultatif</span></button>
+      <input class="field mt" id="newTerms" placeholder="${nDef || others.length ? "Mots-clés en plus" : "Mots-clés"}, séparés par des virgules" aria-label="Mots-clés en plus">
+      <button type="button" class="drop" data-drop="new">${ic("upload")}<span id="newHint">Déposez ses documents (facultatif)</span></button>
       <div class="files" id="newFiles"></div>
-      <div class="actions"><button class="btn primary" type="submit" id="newOk" disabled>Créer le dossier</button></div>
-    </form>
-    <button class="link" data-action="zip">Importer plusieurs dossiers (.zip)</button>`);
-  requestAnimationFrame(() => placeThumbs($("#modal"), true));
+      <div class="actions"><button type="button" class="btn plain" data-action="zip">Importer un .zip de dossiers</button>
+        <button class="btn pen" type="submit" id="newOk" disabled>Créer le dossier</button></div>
+    </form>`);
+}
+function showNewFiles(){
+  $("#newFiles").textContent = newFiles.map(f => f.name).join(", ");
+  $("#newHint").textContent = newFiles.length ? `${plural(newFiles.length, "fichier")} prêt${newFiles.length > 1 ? "s" : ""}, cliquez pour en ajouter` : "Déposez ses documents (facultatif)";
 }
 
-/* mots-clés d'un dossier : éditeur dans une fenêtre */
+/* mots-clés d'un dossier */
 let kwEditing = null;
-const kwChip = (k, i, old) => `<span class="chip${old ? " old" : ""}" style="--d:${i}" data-id="${k.id}">${esc(k.term)}
-  <button class="iconbtn flat del" data-del-dkw="${k.id}" aria-label="Retirer ${esc(k.term)}">${ic("x")}</button></span>`;
 async function openKwEditor(did){
   const d = state.dossiers.find(x => x.id === did); if(!d) return;
   kwEditing = did;
   const others = state.dossiers.filter(x => x.id !== did && x.keywords.length);
-  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
-    <h3>Mots-clés du dossier</h3><p class="msub">${esc(d.name)} · propres à ce dossier, sans effet sur les autres</p>
-    <form class="addfield glass mt" id="dkwForm" autocomplete="off">
-      <label for="dkwInput" class="sr">Nouveau mot-clé</label>
-      <input id="dkwInput" placeholder="Ajouter un mot-clé" autofocus>
-      <button class="iconbtn" type="submit" aria-label="Ajouter">${ic("plus")}</button></form>
-    <div class="chips" id="dchips">${d.keywords.map((k, i) => kwChip(k, i)).join("")}</div>
-    <p class="count" id="dcount">${d.keywords.length ? kwN(d.keywords.length) : "Astuce : collez une liste, un mot-clé par ligne ou séparés par des virgules."}</p>
-    <div class="row" style="justify-content:center;margin-top:16px">
-      ${state.keywords.length ? `<button class="btn sm" data-action="kw-default">${ic("plus")}Ajouter la liste par défaut (${state.keywords.length})</button>` : ""}
-      ${others.length ? `<select class="field" id="kwFrom" style="height:34px;width:auto;max-width:280px;padding:0 38px 0 14px;font-size:13.5px;border-radius:999px;background-position:right 12px center" aria-label="Dossier à copier">
+  openModal(`${closeX}<h3>Mots-clés du dossier</h3><p class="msub">${esc(d.name)}. Cette liste ne concerne que ce dossier.</p>
+    <form class="addline" id="dkwForm" autocomplete="off" style="margin-top:18px">
+      <label for="dkwInput" class="sr">Nouveau mot-clé</label><input id="dkwInput" placeholder="Ajouter un mot-clé" autofocus>
+      <button class="btn pen" type="submit">Ajouter</button></form>
+    <div class="terms" id="dchips">${d.keywords.map(k => tagHtml(k, false, "del-dkw")).join("")}</div>
+    <p class="count" id="dcount">${d.keywords.length ? kwN(d.keywords.length) : "Collez une liste pour tout ajouter d'un coup."}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">
+      ${state.keywords.length ? `<button class="btn" data-action="kw-default">${ic("plus")}Ajouter la liste par défaut (${state.keywords.length})</button>` : ""}
+      ${others.length ? `<select class="field" id="kwFrom" style="width:auto;max-width:260px;height:36px" aria-label="Dossier à copier">
           ${others.map(x => `<option value="${x.id}">${esc(x.name)} (${kwN(x.keywords.length)})</option>`).join("")}</select>
-        <button class="btn sm" data-action="kw-copy">${ic("swap")}Copier</button>` : ""}
-    </div>
-    <div class="actions"><button class="btn primary" data-close>Terminé</button></div>`, true);
+        <button class="btn" data-action="kw-copy">${ic("swap")}Copier ses mots-clés</button>` : ""}</div>
+    <div class="actions"><button class="btn pen" data-close>Terminé</button></div>`);
 }
 async function refreshKwEditor(){
   const list = await api(`/api/keywords?dossier=${kwEditing}`);
   const box = $("#dchips"); if(!box) return;
   const have = new Set([...box.children].map(c => c.dataset.id));
-  box.innerHTML = list.map((k, i) => kwChip(k, have.has(String(k.id)) ? 0 : i, have.has(String(k.id)))).join("");
+  box.innerHTML = list.map(k => tagHtml(k, !have.has(String(k.id)), "del-dkw")).join("");
   $("#dcount").textContent = list.length ? kwN(list.length) : "Aucun mot-clé : rien ne sera recherché dans ce dossier.";
 }
 async function addDossierKeywords(text){
@@ -1038,59 +798,70 @@ async function addDossierKeywords(text){
   toast(r.added.length ? `${kwN(r.added.length)} ajouté${r.added.length > 1 ? "s" : ""}` : "Déjà dans la liste");
   await refreshKwEditor();
 }
-function showNewFiles(){
-  $("#newFiles").innerHTML = newFiles.map(f => `<span class="tag">${esc(f.name)}</span>`).join("");
-  $("#newHint").textContent = newFiles.length ? plural(newFiles.length, "fichier") + " prêt" + (newFiles.length>1?"s":"") : "PDF ou images, facultatif";
-}
 
-/* preuve d'un mot-clé dans un dossier */
+/* preuve d'un mot-clé : volet à droite */
 async function showEvidence(did, kid, docId){
   const d = state.dossiers.find(x => x.id === did), k = d.keywords.find(x => x.id === kid);
   const c = await api(`/api/dossiers/${did}/keyword/${kid}`);
-  const s = state.settings;
-  const found = c.count > 0;
-  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
-    <h3>« ${esc(k.term)} »</h3><p class="msub">${esc(d.name)}</p>
-    <div class="score ${found ? "" : "none"}"><div class="num" id="evNum">${found ? Math.round(c.score) + " %" : "0 %"}</div>
-      <span class="pill ${c.decision}">${LONG[c.decision]}</span></div>
-    <div class="facts"><span><b>${c.count}</b> ${c.count > 1 ? "occurrences" : "occurrence"}</span><span>fiabilité <b>${Math.round(c.reliability)} %</b></span>
-      <button class="link" style="margin:0;display:inline-flex;align-items:center;gap:4px" data-action="info">${ic("info")}Calcul</button></div>
-    <p class="explain" id="explain">Score = ressemblance avec le mot-clé × confiance de lecture. Plusieurs occurrences exactes renforcent le score ; un mot seulement approchant (« these » pour « thèse », lecture manuscrite approximative) reste « à vérifier », même répété. Un fichier déposé deux fois n'est compté qu'une fois. Présent dès ${s.present_thr} %, à vérifier dès ${s.review_thr} %.${found ? "" : " Sans occurrence, la fiabilité est la qualité de lecture des documents."}</p>
-    ${(docId ? [...c.occurrences.filter(o => o.doc_id === docId), ...c.occurrences.filter(o => o.doc_id !== docId)] : c.occurrences).map((o, i) => `<div class="occ" style="--d:${i}">
-      <div class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, "<mark>$1</mark>")} …</div>
-      ${o.certain === false ? `<p class="read">Lu : <b>« ${esc(o.text)} »</b> : ressemble à « ${esc(k.term)} » sans être identique. Vérifiez sur l'image.</p>` : ""}
-      <div class="meta"><span class="tag ${o.certain === false ? "run" : "ok"}">${Math.round(o.score * 100)} %${o.certain === false ? " · approchant" : ""}</span><span class="tag">${esc(o.filename)}, p. ${o.page}</span><span class="tag">${o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu par OCR" : "texte natif"}</span></div>
-      <img class="zoom" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}&crop=${o.box.map(v => v.toFixed(4)).join(",")}" alt="Zoom sur le mot, page ${o.page} de ${esc(o.filename)}">
-      <img class="full" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}, mot encadré">
-      <button class="link" style="margin:8px auto 12px" data-wide>Voir la page entière</button></div>`).join("")}`, true);
-  if(found) countUp($("#evNum"), Math.round(c.score), 800, " %");
+  const s = state.settings, found = c.count > 0;
+  const occ = docId ? [...c.occurrences.filter(o => o.doc_id === docId), ...c.occurrences.filter(o => o.doc_id !== docId)] : c.occurrences;
+  const why = {
+    present: `Lu tel quel dans les documents. Présent à partir de ${s.present_thr} %.`,
+    a_verifier: "Un mot proche a été lu, ou la lecture est incertaine. Regardez l'image pour trancher.",
+    absent_douteux: c.count ? "" : "Rien n'a été trouvé, mais la lecture d'un document est incertaine (scan difficile, écriture manuscrite, document illisible ou mot très court).",
+    absent: `Rien n'a été trouvé, et les documents sont bien lus (qualité ${Math.round(c.reliability)} %).`,
+  }[c.decision];
+  const src = o => o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu sur l'image" : "texte du PDF";
+  openModal(`${closeX}<h3>${esc(k.term)}</h3><p class="msub">${esc(d.name)}</p>
+    <div class="ev-top"><span class="big">${found ? Math.round(c.score) : 0} %</span>
+      <span class="dec">${HL[c.decision] ? `<span class="hl ${HL[c.decision]}">${LONG[c.decision]}</span>` : LONG[c.decision]}</span></div>
+    ${why ? `<p class="ev-why">${why}</p>` : ""}
+    ${occ.map(o => `<div class="occ">
+      <p class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, (m, w) => `<span class="hl ${o.certain === false || o.score * 100 < s.present_thr ? "rev" : "ok"}">${w}</span>`)} …</p>
+      ${o.certain === false ? `<p class="read">Lu : « ${esc(o.text)} », proche de « ${esc(k.term)} » sans être identique.</p>` : ""}
+      <p class="meta">${esc(o.filename)}, page ${o.page}, ${src(o)}, ${Math.round(o.score * 100)} %</p>
+      <figure><img class="zoom" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}&crop=${o.box.map(v => v.toFixed(4)).join(",")}" alt="Le mot dans le document, page ${o.page}">
+        <img class="full" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}"></figure>
+      <button class="textlink" data-wide>Voir la page entière</button></div>`).join("")}`, "sheet");
 }
 
-/* menu « ⋯ » */
+/* un document, page par page, avec tous les mots trouvés encadrés et nommés */
+function openDocViewer(docId){
+  const d = state.dossiers.find(x => x.documents.some(y => y.id === docId)); if(!d) return;
+  const x = d.documents.find(y => y.id === docId), byPage = {};
+  x.hits.forEach(h => h.pages.forEach(p => (byPage[p] = byPage[p] || []).push(h)));
+  const pages = Object.keys(byPage).map(Number).sort((a, b) => a - b);
+  openModal(`${closeX}<h3>${esc(x.filename)}</h3><p class="msub">${esc(d.name)}</p>
+    <div class="legend"><span class="hl ok">présent</span><span class="hl rev">à vérifier</span></div>
+    ${pages.map(p => `<div class="pageview"><h4>Page ${p}</h4>
+      <div class="hits">${byPage[p].map(h => `<button data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}"><span class="hl ${h.review ? "rev" : "ok"}">${esc(h.term)}</span></button>`).join("")}</div>
+      <figure><img loading="lazy" src="/api/documents/${x.id}/page/${p}.png?all=1" alt="Page ${p}, mots-clés encadrés"></figure></div>`).join("")}`, "sheet");
+}
+
+/* menus */
 function openWho(btn){
   const m = $("#menu"), ops = state.settings.operators || [], own = state.owners || {};
   m.innerHTML = ops.map(o => `<button data-switch="${esc(o)}" role="menuitemradio" aria-checked="${o === currentOp}">
-      <span class="ini sm prof" style="${profStyle(o)}">${esc(initials(o))}</span><span class="who"><b>${esc(o)}</b><small>${plural(own[o] || 0, "dossier")}, ${kwN((state.keyword_counts || {})[o] || 0)}</small></span>
-      ${o === currentOp ? ic("check") : ""}</button>`).join("") +
-    `<button data-go="#/reglages">${ic("sliders")}Réglages</button><button data-action="lock">${ic("lock")}Verrouiller</button>`;
+      <span class="ini" style="${profStyle(o)}">${esc(initials(o))}</span><span class="whoami">${esc(o)}<small>${plural(own[o] || 0, "dossier")}</small></span>
+      ${o === currentOp ? ic("check", "check") : ""}</button>`).join("") +
+    `<hr><button data-go="#/reglages">${ic("sliders")}Réglages</button><button data-action="lock">${ic("lock")}Verrouiller</button>`;
   place(m, btn);
 }
 function place(m, btn){
   const r = btn.getBoundingClientRect();
-  m.style.top = (r.bottom + 8) + "px";
+  m.style.top = (r.bottom + 6) + "px";
   m.style.right = Math.max(10, innerWidth - r.right) + "px";
   m.classList.add("on");
 }
 async function switchTo(o){
   closeMenu();
-  if(o === currentOp) return placeThumbs(document);
+  if(o === currentOp) return;
   await flushSettings();                                          // les réglages en cours vont au bon profil
   const sess = await api("/api/session");
   const pr = sess.profiles.find(x => x.name === o);
   if(!pr) return;
   showLock({step: pr.has_pin ? "pin" : "setup1", owner: o, len: pr.pin_len, cancelable: true});
 }
-/* après un déverrouillage réussi */
 async function enterProfile(o){
   currentOp = o; store.set("ks_op", o);
   hideLock();
@@ -1103,10 +874,9 @@ function openMenu(btn, id){
   const m = $("#menu");
   m.innerHTML = `<button data-action="rename" data-id="${id}">${ic("edit")}Renommer</button>
     <button data-action="edit-kw" data-id="${id}">${ic("tag")}Mots-clés du dossier</button>
-    <button data-action="add-docs" data-id="${id}">${ic("upload")}Ajouter des documents</button>
     ${(state.settings.operators || []).filter(o => o !== currentOp).map(o =>
       `<button data-action="give" data-id="${id}" data-to="${esc(o)}">${ic("swap")}Confier à ${esc(o)}</button>`).join("")}
-    <button class="del" data-action="delete" data-id="${id}">${ic("trash")}Supprimer le dossier</button>`;
+    <hr><button class="del" data-action="delete" data-id="${id}">${ic("trash")}Supprimer le dossier</button>`;
   place(m, btn);
 }
 function closeMenu(){ $("#menu").classList.remove("on"); }
@@ -1118,25 +888,26 @@ function pickFiles(cb){
 }
 async function uploadTo(did, files){
   if(!files.length) return;
-  const fd = new FormData(); files.forEach(f => fd.append("files", f)); fd.append("operator", currentOp || "");
+  const fd = new FormData(); files.forEach(f => fd.append("files", f));
   const r = await api(`/api/dossiers/${did}/files`, {method:"POST", body:fd});
   const dup = r.duplicates || [];
-  toast(`${plural(r.added.length,"document")} ajouté${r.added.length>1?"s":""}` + (r.rejected.length ? `, ${r.rejected.length} refusé(s)` : "")
-    + (dup.length ? ` · ${dup.length > 1 ? `${dup.length} doublons ignorés` : `doublon ignoré : identique à ${dup[0].same_as}`}` : ""));
+  let msg = `${plural(r.added.length, "document")} ajouté${r.added.length > 1 ? "s" : ""}`;
+  if(r.rejected.length) msg += `, ${r.rejected.length} refusé${r.rejected.length > 1 ? "s" : ""} (format non pris en charge)`;
+  if(dup.length) msg += dup.length > 1 ? `, ${dup.length} doublons ignorés` : `, doublon ignoré (identique à ${dup[0].same_as})`;
+  toast(msg);
   dossierTab = "docs";
   await load(false);
 }
 async function addKeywords(text){
   if(!text.trim()) return;
-  const r = await jpost("/api/keywords", {terms:text, operator:currentOp});
-  toast(r.added.length ? `${kwN(r.added.length)} ajouté${r.added.length>1?"s":""}` : "Déjà dans la liste");
-  state = await api(resultsUrl());
+  const r = await jpost("/api/keywords", {terms:text});
+  toast(r.added.length ? `${kwN(r.added.length)} ajouté${r.added.length > 1 ? "s" : ""}` : "Déjà dans la liste");
+  state = await api("/api/results");
   const box = $("#chips"), have = new Set([...box.children].map(c => c.dataset.id));
-  box.innerHTML = state.keywords.map((k,i) => chip(k, have.has(String(k.id)) ? 0 : i, have.has(String(k.id)))).join("");
-  const cnt = document.querySelector(".count"); if(cnt) cnt.textContent = `${kwN(state.keywords.length)}, accents et majuscules ignorés`;
+  box.innerHTML = state.keywords.map(k => tagHtml(k, !have.has(String(k.id)), "del-kw")).join("");
+  const cnt = document.querySelector(".count"); if(cnt) cnt.textContent = `${kwN(state.keywords.length)}. Les accents et les majuscules ne comptent pas dans la recherche.`;
 }
-/* ---------------------------------------------------------------- application de bureau (fenêtre native)
-   Dans l'application, les téléchargements passent par le système : boîte « Enregistrer sous » et application par défaut. */
+/* application de bureau : les téléchargements passent par le système (« Enregistrer sous », application par défaut) */
 const desktop = () => !!(window.pywebview && window.pywebview.api);
 async function exportCsv(){
   if(!desktop()){ location.href = "/export.csv"; return toast(`Export des dossiers de ${currentOp}`); }
@@ -1158,7 +929,6 @@ document.addEventListener("click", e => {
   if(a && desktop()){ e.preventDefault(); openDocument(a.getAttribute("href"), a.textContent.trim()); }
 }, true);
 
-/* la liste des profs est enregistrée tout de suite (le serveur peut refuser un retrait) */
 async function saveOps(ops, pin){
   try{ state.settings = await jpost("/api/settings", {operators:ops, pin}); }
   catch{ return; }
@@ -1170,8 +940,7 @@ function saveSettings(patch){
   Object.assign(state.settings, patch);
   const {present_thr, review_thr, min_quality} = state.settings;
   pending = {owner: currentOp, present_thr, review_thr, min_quality};   // le profil est fixé au moment du réglage
-  clearTimeout(saveT);
-  saveT = setTimeout(flushSettings, 450);
+  clearTimeout(saveT); saveT = setTimeout(flushSettings, 450);
 }
 async function flushSettings(){
   clearTimeout(saveT);
@@ -1181,10 +950,11 @@ async function flushSettings(){
   toast(`Seuils de ${body.owner} enregistrés`);
 }
 
+const SEL = "[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-view-doc],[data-wide]";
 document.addEventListener("click", async e => {
-  const t = clickTarget(e, "[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-op],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-view-doc],[data-wide]");
+  const t = clickTarget(e, SEL);
   if(!e.target.closest("#menu") && !e.target.closest("[data-action=menu],[data-action=who]")) closeMenu();
-  if(!t){   // onglet (lien) appuyé mais relâché juste à côté : on suit quand même le lien
+  if(!t){   // lien appuyé mais relâché juste à côté : on le suit quand même
     const link = clickTarget(e, "a[href^='#']");
     if(link && !link.contains(e.target)) go(link.getAttribute("href"));
     return;
@@ -1196,55 +966,45 @@ document.addEventListener("click", async e => {
   if(ds.dtab){
     if(dossierTab === ds.dtab) return;
     dossierTab = ds.dtab;
-    t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t));
-    placeThumbs(t.parentElement.parentElement);
+    t.parentElement.querySelectorAll("[data-dtab]").forEach(b => b.setAttribute("aria-pressed", b === t));
     const d = state.dossiers.find(x => x.id === route().id), list = $("#dlist");
     list.innerHTML = dossierTab === "kw" ? kwList(d) : docList(d);
-    list.classList.remove("swap"); void list.offsetWidth; list.classList.add("swap");
+    $("#view")._html = PAGES.dossier(route());
     return;
   }
   if(ds.kw) return showEvidence(+ds.dossier, +ds.kw, ds.doc ? +ds.doc : null);
   if(ds.viewDoc) return openDocViewer(+ds.viewDoc);
-  if("wide" in ds){ const o = t.closest(".occ"); o.classList.toggle("wide"); t.textContent = o.classList.contains("wide") ? "Zoomer sur le mot" : "Voir la page entière"; return; }
+  if("wide" in ds){ const o = t.closest(".occ"); o.classList.toggle("wide"); t.textContent = o.classList.contains("wide") ? "Revenir au mot" : "Voir la page entière"; return; }
   if(ds.kwsrc){
     newKwSrc = ds.kwsrc;
     t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t));
-    placeThumbs(t.parentElement.parentElement);
     const sel = $("#kwCopy"); if(sel) sel.hidden = newKwSrc !== "copy";
-    return;
-  }
-  if(ds.delDkw){
-    const c = t.closest(".chip"); c.classList.add("leaving");
-    await api(`/api/keywords/${ds.delDkw}`, {method:"DELETE"});
-    setTimeout(refreshKwEditor, 220);
     return;
   }
   if(ds.drop){
     if(ds.drop === "new") return pickFiles(f => { newFiles.push(...f); showNewFiles(); });
     return pickFiles(f => uploadTo(+ds.drop, f));
   }
-  if(ds.delKw){
-    const c = t.closest(".chip"); c.classList.add("leaving");
-    await api(`/api/keywords/${ds.delKw}`, {method:"DELETE"});
+  if(ds.delKw || ds.delDkw){
+    const c = t.closest(".term-tag"); c.classList.add("leaving");
+    await api(`/api/keywords/${ds.delKw || ds.delDkw}`, {method:"DELETE"});
+    if(ds.delDkw) return setTimeout(refreshKwEditor, 180);
     setTimeout(() => { c.remove(); state.keywords = state.keywords.filter(k => k.id != ds.delKw);
-      const cnt = document.querySelector(".count"); if(cnt) cnt.textContent = `${kwN(state.keywords.length)}, accents et majuscules ignorés`; }, 260);
+      const cnt = document.querySelector(".count"); if(cnt) cnt.textContent = `${kwN(state.keywords.length)}. Les accents et les majuscules ne comptent pas dans la recherche.`; }, 180);
     return;
   }
-  if(ds.reDoc){ await api(`/api/documents/${ds.reDoc}/reanalyse`, {method:"POST"}); toast("Analyse relancée"); return load(false); }
+  if(ds.reDoc){ await api(`/api/documents/${ds.reDoc}/reanalyse`, {method:"POST"}); toast("Document remis en lecture"); return load(false); }
   if(ds.delDoc){
     if(await ask({title:"Retirer ce document ?", text:ds.name, ok:"Retirer", danger:true})){
       await api(`/api/documents/${ds.delDoc}`, {method:"DELETE"}); toast("Document retiré"); load(false);
     } return;
   }
-  if(ds.op){
-    return switchTo(ds.op);          // le sélecteur ne bascule qu'après le bon code
-  }
   if(ds.delOp){
     const n = (state.owners || {})[ds.delOp] || 0;
-    if(n) return toast(`${ds.delOp} a encore ${plural(n,"dossier")} : confiez-les d'abord`);
+    if(n) return toast(`${ds.delOp} a encore ${plural(n, "dossier")} : confiez-les d'abord à quelqu'un d'autre`);
     const sess = await api("/api/session"), pr = sess.profiles.find(x => x.name === ds.delOp);
     const needPin = ds.delOp !== currentOp && pr && pr.has_pin;
-    const ans = await ask({title:`Retirer ${ds.delOp} ?`, text: needPin ? `Son profil, ses mots-clés et ses réglages seront supprimés. Saisissez le code de ${ds.delOp}.` : "", input: needPin ? "" : null, secret: true, ok:"Retirer", danger:true});
+    const ans = await ask({title:`Retirer ${ds.delOp} ?`, text: needPin ? `Son profil, ses mots-clés et ses réglages seront supprimés. Saisissez le code de ${ds.delOp}.` : "Son profil, ses mots-clés et ses réglages seront supprimés.", input: needPin ? "" : null, secret: true, ok:"Retirer", danger:true});
     if(!ans) return;
     return saveOps((state.settings.operators || []).filter(o => o !== ds.delOp), needPin ? ans : undefined);
   }
@@ -1252,8 +1012,9 @@ document.addEventListener("click", async e => {
     case "new": closeMenu(); return openNew();
     case "zip": return $("#zipInput").click();
     case "menu": return $("#menu").classList.contains("on") ? closeMenu() : openMenu(t, ds.id);
+    case "who": return $("#menu").classList.contains("on") ? closeMenu() : openWho(t);
     case "copy-kw": {
-      const r = await jpost("/api/keywords/copy", {from:ds.from, to:currentOp});
+      const r = await jpost("/api/keywords/copy", {from:ds.from});
       toast(r.added ? `${kwN(r.added)} repris de ${ds.from}` : "Vous les avez déjà tous");
       lastPage = null; return load(true);
     }
@@ -1267,13 +1028,11 @@ document.addEventListener("click", async e => {
       const sess = await api("/api/session"), pr = sess.profiles.find(x => x.name === currentOp);
       return showLock({step:"change-old", owner: currentOp, len: pr && pr.pin_len, cancelable: true});
     }
-    case "who": return $("#menu").classList.contains("on") ? closeMenu() : openWho(t);
     case "give": {
       closeMenu();
       await jpost(`/api/dossiers/${ds.id}`, {owner:ds.to}, "PATCH");
       toast(`Dossier confié à ${ds.to}`); await load(false); return go("#/dossiers");
     }
-    case "info": return $("#explain").classList.toggle("on");
     case "export": return exportCsv();
     case "add-docs": closeMenu(); return pickFiles(f => uploadTo(+ds.id, f));
     case "rename": {
@@ -1284,7 +1043,7 @@ document.addEventListener("click", async e => {
     }
     case "delete": {
       closeMenu(); const d = state.dossiers.find(x => x.id == ds.id);
-      if(await ask({title:"Supprimer ce dossier ?", text:`${d.name} et ses ${plural(d.documents.length,"document")} seront supprimés.`, ok:"Supprimer", danger:true})){
+      if(await ask({title:"Supprimer ce dossier ?", text:`${d.name} et ses ${plural(d.documents.length, "document")} seront supprimés.`, ok:"Supprimer", danger:true})){
         await api(`/api/dossiers/${ds.id}`, {method:"DELETE"}); toast("Dossier supprimé"); await load(false); go("#/dossiers");
       }
       return;
@@ -1311,7 +1070,7 @@ document.addEventListener("submit", async e => {
     const files = newFiles; closeModal();
     dossierTab = files.length ? "docs" : "kw";
     if(files.length){
-      const fd = new FormData(); files.forEach(x => fd.append("files", x)); fd.append("operator", currentOp || "");
+      const fd = new FormData(); files.forEach(x => fd.append("files", x));
       await api(`/api/dossiers/${r.id}/files`, {method:"POST", body:fd});
     }
     toast("Dossier créé"); await load(false); go(`#/dossier/${r.id}`);
@@ -1320,6 +1079,7 @@ document.addEventListener("submit", async e => {
 document.addEventListener("input", e => {
   const t = e.target;
   if(t.id === "newName") $("#newOk").disabled = !t.value.trim();
+  if(t.id === "railSearch"){ railFilter = t.value; paint($("#rail"), railHtml(route())); }
   if(t.type === "range"){
     let v = +t.value;
     if(t.id === "sReview" && v >= state.settings.present_thr){ v = state.settings.present_thr - 1; t.value = v; }
@@ -1336,16 +1096,16 @@ document.addEventListener("paste", e => {
 $("#zipInput").onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   closeModal();
-  const fd = new FormData(); fd.append("archive", f); fd.append("operator", currentOp || "");
-  toast("Import en cours…");
+  const fd = new FormData(); fd.append("archive", f);
+  toast("Import en cours");
   const r = await api("/api/import-zip", {method:"POST", body:fd});
-  toast(`${plural(r.dossiers.length,"dossier")} importé${r.dossiers.length>1?"s":""}`);
+  toast(`${plural(r.dossiers.length, "dossier")} importé${r.dossiers.length > 1 ? "s" : ""}`);
   e.target.value = ""; await load(false); go("#/dossiers");
 };
 document.addEventListener("keydown", e => {
   if(e.key === "Escape"){ closeMenu(); if($("#mwrap").classList.contains("on")) closeModal(null); }
 });
-["dragover","dragleave","drop"].forEach(ev => document.addEventListener(ev, e => {
+["dragover", "dragleave", "drop"].forEach(ev => document.addEventListener(ev, e => {
   const z = e.target.closest && e.target.closest("[data-drop]");
   if(!z){ if(ev !== "dragleave") e.preventDefault(); return; }
   e.preventDefault();
@@ -1357,9 +1117,9 @@ document.addEventListener("keydown", e => {
   }
 }));
 
-/* ================================================================ écran de verrouillage
+/* ================================================================ écran du code PIN
    Étapes : choose (qui êtes-vous ?) → pin (saisie) | setup1/setup2 (création) | change-old/new/confirm (changement) */
-let L = null;                // état de l'écran : {step, owner, len, buf, first, old, cancelable, msg, err}
+let L = null;
 let profilesCache = [];
 let idleMs = 30 * 60 * 1000, lastInput = Date.now();
 
@@ -1379,49 +1139,49 @@ async function showLock(opts){
   closeMenu(); if($("#mwrap").classList.contains("on")) closeModal(null);
   if(opts.step === "choose" || !opts.cancelable){
     clearTimeout(pollTimer);
-    $("#view").innerHTML = ""; $("#view")._html = ""; state.dossiers = []; state.keywords = [];   // rien ne reste visible derrière
+    ["#view", "#rail"].forEach(s => { $(s).innerHTML = ""; $(s)._html = ""; });
+    $("#railSum").textContent = ""; state.dossiers = []; state.keywords = [];   // rien ne reste visible derrière
   }
   try{ const sess = await (await fetch("/api/session")).json(); profilesCache = sess.profiles; state.settings.operators = sess.profiles.map(p => p.name); }catch{}
   L = {buf:"", msg:"", err:false, ...opts};
   if(L.step === "pin" && !L.len){ const pr = profilesCache.find(x => x.name === L.owner); L.len = pr && pr.pin_len; }
   drawLock();
-  const el = $("#lock"); el.classList.add("on"); el.setAttribute("aria-hidden","false");
+  const el = $("#lock"); el.classList.add("on"); el.setAttribute("aria-hidden", "false");
 }
-function hideLock(){ L = null; const el = $("#lock"); el.classList.remove("on"); el.setAttribute("aria-hidden","true"); }
+function hideLock(){ L = null; const el = $("#lock"); el.classList.remove("on"); el.setAttribute("aria-hidden", "true"); }
 
 const LOCK_TEXT = {
-  pin:            o => ["Saisissez votre code", ""],
-  setup1:         o => ["Créez votre code", "4 à 8 chiffres, demandé à chaque ouverture du profil"],
-  setup2:         o => ["Confirmez votre code", ""],
-  "change-old":   o => ["Code actuel", ""],
-  "change-new":   o => ["Nouveau code", "4 à 8 chiffres"],
-  "change-confirm": o => ["Confirmez le nouveau code", ""],
+  pin:              ["Votre code", ""],
+  setup1:           ["Créez votre code", "4 à 8 chiffres, demandés à chaque ouverture de votre profil"],
+  setup2:           ["Saisissez-le une seconde fois", ""],
+  "change-old":     ["Code actuel", ""],
+  "change-new":     ["Nouveau code", "4 à 8 chiffres"],
+  "change-confirm": ["Saisissez-le une seconde fois", ""],
 };
 function drawLock(){
   const el = $("#lock");
   if(L.step === "choose"){
-    el.innerHTML = `<div class="lock-in"><div class="lens big"></div><h2>Qui êtes-vous ?</h2><p class="msub">Choisissez votre profil</p>
-      <div class="who-grid">${profilesCache.map(p => `<button class="who-card glass" data-pick="${esc(p.name)}">
-        <span class="ava" style="${profStyle(p.name)}">${esc(initials(p.name))}</span><b>${esc(p.name)}</b>
-        <small>${p.has_pin ? plural(p.dossiers, "dossier") : "Code à créer"}</small></button>`).join("")}</div></div>`;
+    el.innerHTML = `<div class="lock-in"><div class="brand"><span>Key</span>Scan</div><h2>Qui ouvre KeyScan ?</h2>
+      <div class="people-pick">${profilesCache.map(p => `<button class="pick" data-pick="${esc(p.name)}">
+        <span class="ini" style="${profStyle(p.name)}">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b>
+        <small>${p.has_pin ? plural(p.dossiers, "dossier") : "Code à créer"}</small></span></button>`).join("")}</div></div>`;
     return;
   }
-  const [title, hint] = LOCK_TEXT[L.step](L.owner);
+  const [title, hint] = LOCK_TEXT[L.step];
   const fixed = (L.step === "pin" || L.step === "change-old") ? L.len : (L.step === "setup2" || L.step === "change-confirm") ? L.first.length : 0;
   const n = fixed || Math.max(4, L.buf.length);
-  const back = L.cancelable ? "Annuler" : "Retour";
   const showOk = !fixed;
   el.innerHTML = `<div class="lock-in">
-    <span class="ava sm" style="${profStyle(L.owner)}">${esc(initials(L.owner))}</span>
+    <div class="brand"><span>Key</span>Scan</div>
     <h2>${esc(title)}</h2><p class="msub ${L.err ? "err" : ""}">${esc(L.msg || hint || L.owner)}</p>
     <div class="dots" id="dots">${Array.from({length:n}, (_, i) => `<i class="${i < L.buf.length ? "on" : ""}"></i>`).join("")}</div>
-    <div class="pad">${[1,2,3,4,5,6,7,8,9].map(k => `<button class="key" data-key="${k}">${k}</button>`).join("")}
-      <button class="key txt" data-key="back">${back}</button><button class="key" data-key="0">0</button>
-      ${showOk && L.buf.length >= 4 ? `<button class="key txt" data-key="ok" style="color:var(--blue)">OK</button>` : `<button class="key txt" data-key="del" aria-label="Effacer" ${L.buf ? "" : "disabled"}>${ic("del")}</button>`}</div>
-    ${L.step === "pin" ? `<button class="link" data-key="forgot">Code oublié ?</button>
+    <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button class="key" data-key="${k}">${k}</button>`).join("")}
+      <button class="key txt" data-key="back">${L.cancelable ? "Annuler" : "Retour"}</button><button class="key" data-key="0">0</button>
+      ${showOk && L.buf.length >= 4 ? `<button class="key txt" data-key="ok" style="color:var(--pen)">Valider</button>` : `<button class="key txt" data-key="del" aria-label="Effacer" ${L.buf ? "" : "disabled"}>${ic("del")}</button>`}</div>
+    ${L.step === "pin" ? `<p style="margin-top:18px"><button class="textlink" data-key="forgot">Code oublié</button></p>
       <p class="forgot" id="forgot">Fermez KeyScan puis, sur cet ordinateur, lancez dans un Terminal :
       <code>${navigator.platform.startsWith("Win") ? `"%LOCALAPPDATA%\\Programs\\KeyScan\\KeyScan.exe"` : "/Applications/KeyScan.app/Contents/MacOS/KeyScan"} --reset-pin "${esc(L.owner)}"</code>
-      (avec Python : <code>python app.py --reset-pin "${esc(L.owner)}"</code>). Un nouveau code sera demandé à la prochaine ouverture.</p>` : ""}
+      Avec Python : <code>python app.py --reset-pin "${esc(L.owner)}"</code>Un nouveau code sera demandé à la prochaine ouverture.</p>` : ""}
   </div>`;
 }
 function lockError(msg){
@@ -1431,10 +1191,7 @@ function lockError(msg){
 async function lockKey(k){
   if(!L) return;
   if(k === "forgot"){ $("#forgot").classList.toggle("on"); return; }
-  if(k === "back"){
-    if(L.cancelable){ hideLock(); placeThumbs(document); return; }
-    return showLock({step:"choose"});
-  }
+  if(k === "back"){ if(L.cancelable){ hideLock(); return; } return showLock({step:"choose"}); }
   if(k === "del"){ L.buf = L.buf.slice(0, -1); L.err = false; L.msg = ""; return drawLock(); }
   const fixed = (L.step === "pin" || L.step === "change-old") ? L.len : (L.step === "setup2" || L.step === "change-confirm") ? L.first.length : 0;
   if(k === "ok"){ if(!fixed && L.buf.length >= 4) return lockSubmit(); return; }
@@ -1449,13 +1206,13 @@ async function lockSubmit(){
     if(L.step === "pin"){ await post("/api/unlock", {owner:L.owner, pin}); return enterProfile(L.owner); }
     if(L.step === "setup1"){ L.first = pin; L.buf = ""; L.step = "setup2"; return drawLock(); }
     if(L.step === "setup2"){
-      if(pin !== L.first){ L.step = "setup1"; L.first = null; return lockError("Les deux codes ne correspondent pas"); }
+      if(pin !== L.first){ L.step = "setup1"; L.first = null; return lockError("Les deux codes sont différents, recommencez"); }
       await post("/api/pin/setup", {owner:L.owner, pin}); toast("Code créé"); return enterProfile(L.owner);
     }
     if(L.step === "change-old"){ L.old = pin; L.buf = ""; L.step = "change-new"; return drawLock(); }
     if(L.step === "change-new"){ L.first = pin; L.buf = ""; L.step = "change-confirm"; return drawLock(); }
     if(L.step === "change-confirm"){
-      if(pin !== L.first){ L.step = "change-new"; L.first = null; return lockError("Les deux codes ne correspondent pas"); }
+      if(pin !== L.first){ L.step = "change-new"; L.first = null; return lockError("Les deux codes sont différents, recommencez"); }
       await post("/api/pin/change", {old:L.old, new:pin}); hideLock(); toast("Code modifié"); return;
     }
   }catch(e){
@@ -1481,83 +1238,56 @@ document.addEventListener("keydown", e => {
   e.preventDefault(); e.stopPropagation();
 }, true);
 /* verrouillage automatique après inactivité */
-["pointerdown","keydown","wheel","touchstart","pointermove"].forEach(ev => addEventListener(ev, () => { lastInput = Date.now(); }, {passive:true}));
+["pointerdown", "keydown", "wheel", "touchstart", "pointermove"].forEach(ev => addEventListener(ev, () => { lastInput = Date.now(); }, {passive:true}));
 setInterval(() => { if(!L && currentOp && Date.now() - lastInput > idleMs) lockNow(); }, 15000);
 
-/* ================================================================ curseur fluide (un seul cercle)
-   - le cercle suit la souris avec une légère inertie, calculée à la vitesse réelle de l'écran ;
-   - sur un bouton, il en épouse la forme (comme le pointeur de l'iPad) et le bouton est légèrement attiré ;
-   - sur un champ texte, il devient une barre d'insertion ;
-   - tout est piloté par les événements souris : aucune mesure de la page à chaque image,
-     et la boucle d'animation s'arrête dès que le cercle est immobile ;
-   - désactivé sur écran tactile et si les animations sont réduites. */
+/* ================================================================ curseur : un cercle à l'encre bleue
+   Il suit la souris avec une légère inertie, épouse la forme des boutons, devient une barre d'insertion
+   sur les champs de texte. Piloté par les événements souris ; la boucle s'arrête dès qu'il est immobile. */
 (function cursor(){
-  if(!matchMedia("(pointer:fine)").matches || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  if(!matchMedia("(pointer:fine)").matches || calm.matches) return;
   const root = document.documentElement, ring = $("#cur-ring");
-  const MORPH = ".btn,.iconbtn,.fab,.tab,.seg button,.link,.menu button,.key,.who-card";
+  const MORPH = ".btn,.icon,.key,.pick,.who,.nav a,.tabs button,.choice button,.menu button,.textlink";
   const TEXT = "input:not([type=range]),textarea,[contenteditable]";
-  const POINT = "a,button,[data-drop],label,input[type=range],.rowc,.krow";
-  const BASE = 36;
+  const POINT = "a,button,[data-drop],label,input[type=range],select";
+  const BASE = 28;
   let mx = -100, my = -100, x = -100, y = -100, w = BASE, h = BASE, rad = BASE / 2, sc = 1;
   let target = null, mode = "", rect = null, radius = 0, down = false, running = false, last = 0, seen = false;
   root.classList.add("cc");
-
-  function measure(){
-    if(!target) return;
-    rect = target.getBoundingClientRect();
-    radius = Math.min(parseFloat(getComputedStyle(target).borderRadius) || 12, rect.height / 2);
-  }
-  function release(){ if(target && mode === "morph"){ target.style.removeProperty("--tx"); target.style.removeProperty("--ty"); } }
+  function measure(){ if(!target) return; rect = target.getBoundingClientRect(); radius = Math.min(parseFloat(getComputedStyle(target).borderRadius) || 6, rect.height / 2); }
   function setTarget(el){
     const m = el && el.closest(MORPH), t = !m && el && el.closest(TEXT), pt = !m && !t && el && el.closest(POINT);
     const next = m || t || pt || null, nmode = m ? "morph" : t ? "text" : pt ? "point" : "";
     if(next === target && nmode === mode) return;
-    release(); target = next; mode = nmode; rect = null;
-    if(mode === "morph"){ measure(); if(rect.width > 320){ mode = "point"; } }
+    target = next; mode = nmode; rect = null;
+    if(mode === "morph"){ measure(); if(rect.width > 320) mode = "point"; }
     ring.className = mode;
   }
-  function magnet(){
-    if(mode !== "morph" || !rect) return;
-    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-    const dx = Math.max(-1, Math.min(1, (mx - cx) / (rect.width / 2))), dy = Math.max(-1, Math.min(1, (my - cy) / (rect.height / 2)));
-    target.style.setProperty("--tx", (dx * 2).toFixed(1) + "px"); target.style.setProperty("--ty", (dy * 2).toFixed(1) + "px");
-  }
   function kick(){ if(!running){ running = true; last = performance.now(); requestAnimationFrame(frame); } }
-
-  addEventListener("pointermove", e => {
-    if(e.pointerType !== "mouse") return;
-    mx = e.clientX; my = e.clientY;
-    if(!seen){ x = mx; y = my; seen = true; }
-    root.classList.remove("cur-out");
-    magnet(); kick();
-  }, {passive:true});
+  addEventListener("pointermove", e => { if(e.pointerType !== "mouse") return; mx = e.clientX; my = e.clientY;
+    if(!seen){ x = mx; y = my; seen = true; } root.classList.remove("cur-out"); kick(); }, {passive:true});
   document.addEventListener("pointerover", e => { if(e.pointerType === "mouse"){ setTarget(e.target); kick(); } }, {passive:true});
   document.addEventListener("mouseleave", () => root.classList.add("cur-out"));
   addEventListener("scroll", () => { if(mode === "morph") measure(); kick(); }, {passive:true, capture:true});
   addEventListener("pointerdown", () => { down = true; kick(); });
   addEventListener("pointerup", () => { down = false; kick(); });
-  // un élément survolé peut disparaître (changement de page) : on revient au cercle simple
-  new MutationObserver(() => { if(target && !target.isConnected){ release(); target = null; mode = ""; ring.className = ""; kick(); } })
+  new MutationObserver(() => { if(target && !target.isConnected){ target = null; mode = ""; ring.className = ""; kick(); } })
     .observe(document.body, {childList:true, subtree:true});
-
   function frame(now){
     const dt = Math.min(64, now - last) / 16.67; last = now;
     const f = a => 1 - Math.pow(1 - a, dt);
-    let tx = mx, ty = my, tw = BASE, th = BASE, tr = BASE / 2, k = .42;
-    if(mode === "morph" && rect){
-      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-      const dx = Math.max(-1, Math.min(1, (mx - cx) / (rect.width / 2))), dy = Math.max(-1, Math.min(1, (my - cy) / (rect.height / 2)));
-      tx = cx + dx * 2; ty = cy + dy * 2; tw = rect.width + 10; th = rect.height + 10; tr = radius + 5; k = .38;
-    } else if(mode === "text"){ tw = 2; th = 22; tr = 1; k = .75; }
-    else if(mode === "point"){ tw = th = 44; tr = 22; }
-    const ts = down ? .86 : 1;
+    let tx = mx, ty = my, tw = BASE, th = BASE, tr = BASE / 2, k = .45;
+    if(mode === "morph" && rect){ tx = rect.left + rect.width / 2; ty = rect.top + rect.height / 2; tw = rect.width + 8; th = rect.height + 8; tr = radius + 4; k = .4; }
+    else if(mode === "text"){ tw = 2; th = 20; tr = 1; k = .75; }
+    else if(mode === "point"){ tw = th = 34; tr = 17; }
+    const ts = down ? .9 : 1;
     x += (tx - x) * f(k); y += (ty - y) * f(k);
-    w += (tw - w) * f(.32); h += (th - h) * f(.32); rad += (tr - rad) * f(.35); sc += (ts - sc) * f(.4);
+    w += (tw - w) * f(.35); h += (th - h) * f(.35); rad += (tr - rad) * f(.35); sc += (ts - sc) * f(.4);
     const still = Math.abs(tx - x) < .05 && Math.abs(ty - y) < .05 && Math.abs(tw - w) < .05 && Math.abs(th - h) < .05 && Math.abs(ts - sc) < .005;
     if(still){ x = tx; y = ty; w = tw; h = th; rad = tr; sc = ts; }
     ring.style.width = w.toFixed(2) + "px"; ring.style.height = h.toFixed(2) + "px"; ring.style.borderRadius = rad.toFixed(2) + "px";
     ring.style.transform = `translate3d(${(x - w / 2).toFixed(2)}px,${(y - h / 2).toFixed(2)}px,0) scale(${sc.toFixed(3)})`;
-    if(still){ running = false; return; }      // immobile : la boucle s'arrête
+    if(still){ running = false; return; }
     requestAnimationFrame(frame);
   }
 })();
