@@ -52,7 +52,7 @@ try:
 except ImportError:  # anciennes versions de PyMuPDF
     import fitz
 from flask import Flask, abort, g, jsonify, render_template, request, send_file, session
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from werkzeug.utils import secure_filename
 
 from engine import ENGINE_VERSION
@@ -371,6 +371,19 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
                 "term": k["term"], "score": score, "decision": decision, "reliability": reliability,
                 "count": len(occ), "occurrences": occ,
             }
+        # pour chaque document : où sont les mots trouvés (et lesquels sont à vérifier), page par page
+        hits: dict[int, list] = {}
+        for kid, c in cells.items():
+            per_doc: dict[int, dict] = {}
+            for o in c["occurrences"]:
+                h = per_doc.setdefault(o["doc_id"], {"kid": kid, "term": c["term"], "decision": c["decision"],
+                                                      "pages": [], "review": False})
+                if o["page"] not in h["pages"]:
+                    h["pages"].append(o["page"])
+                if not (o.get("certain", True) and o["score"] * 100 >= ps["present_thr"]):
+                    h["review"] = True
+            for doc_id, h in per_doc.items():
+                hits.setdefault(doc_id, []).append(h)
         out.append({
             "id": d["id"], "name": d["name"], "owner": d["owner"], "created_by": d["created_by"], "created_at": d["created_at"],
             "quality": round(quality, 1), "pending": pending,
@@ -381,6 +394,7 @@ def dossier_results(dossier_id: int | None = None, owner: str | None = None) -> 
                 "quality": x["quality"], "pages": json.loads(x["pages"]) if x["pages"] else [],
                 "uploaded_by": x["uploaded_by"], "uploaded_at": x["uploaded_at"],
                 "progress": _progress(x), "duplicate_of": x["duplicate_of"],
+                "hits": sorted(hits.get(x["id"], []), key=lambda h: (not h["review"], h["term"].lower())),
             } for x in ddocs],
             "cells": cells,
         })
@@ -843,16 +857,33 @@ def original_file(doc_id):
 
 @app.get("/api/documents/<int:doc_id>/page/<int:page>.png")
 def page_preview(doc_id, page):
-    """Rendu d'une page avec les occurrences d'un mot-clé (?kw=<id>) encadrées."""
+    """
+    Rendu d'une page avec des occurrences encadrées (vert : présent ; orange : à vérifier) :
+      ?kw=<id>        occurrences d'un mot-clé
+      ?all=1          occurrences de tous les mots-clés du dossier, avec leur nom
+      &crop=x0,y0,x1,y1  zoom sur une zone (coordonnées 0-1), pour montrer précisément où est le mot
+    """
     own_document(doc_id)
     with db() as con:
-        r = con.execute("""SELECT d.id, d.path, d.status, d.pages, d.analysed_at, s.owner FROM documents d
+        r = con.execute("""SELECT d.id, d.path, d.status, d.pages, d.analysed_at, d.dossier_id, s.owner FROM documents d
                            JOIN dossiers s ON s.id = d.dossier_id WHERE d.id=?""", (doc_id,)).fetchone()
-        kw = con.execute("SELECT term FROM keywords WHERE id=? AND owner=?", (request.args.get("kw", 0), g.owner)).fetchone()
+        if request.args.get("all"):
+            kws = [x["term"] for x in con.execute("SELECT term FROM keywords WHERE dossier_id=? AND owner=? ORDER BY lower(term)",
+                                                  (r["dossier_id"] if r else 0, g.owner))]
+        else:
+            kw = con.execute("SELECT term FROM keywords WHERE id=? AND owner=?", (request.args.get("kw", 0), g.owner)).fetchone()
+            kws = [kw["term"]] if kw else []
     if not r:
         abort(404)
+    crop = None
+    if request.args.get("crop"):
+        try:
+            crop = [min(1.0, max(0.0, float(v))) for v in request.args["crop"].split(",")][:4]
+            assert len(crop) == 4 and crop[2] > crop[0] and crop[3] > crop[1]
+        except (ValueError, AssertionError):
+            abort(400, "Zone invalide")
     thr = get_settings(r["owner"])["present_thr"]
-    ckey = (doc_id, page, kw["term"] if kw else "", r["analysed_at"], thr)
+    ckey = (doc_id, page, tuple(kws), r["analysed_at"], thr, tuple(crop or ()))
     with _cache_lock:
         cached = _preview_cache.get(ckey)
     if cached:
@@ -867,31 +898,52 @@ def page_preview(doc_id, page):
             img = ImageOps.exif_transpose(im.copy()).convert("RGB")
     else:
         with fitz.open(r["path"]) as d:
-            pix = d[page - 1].get_pixmap(dpi=110)
+            pix = d[page - 1].get_pixmap(dpi=200 if crop else 110)
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
     if rot:
         img = img.rotate(-rot, expand=True)
     if skew:  # même redressement que pendant l'OCR, pour que les cadres tombent juste
         img = img.rotate(skew, expand=True, fillcolor=(255, 255, 255), resample=Image.BICUBIC)
-    if max(img.size) > 1600:
+    if not crop and max(img.size) > 1600:
         img.thumbnail((1600, 1600))
-    if kw and r["status"] == "ok":
-        present_thr = thr
+    if kws and r["status"] == "ok":
         draw = ImageDraw.Draw(img, "RGBA")
         W, H = img.size
-        for o in occurrences(r, kw["term"]):
-            if o["page"] != page:
-                continue
-            x0, y0, x1, y1 = o["box"]
-            box = [x0 * W - 4, y0 * H - 3, x1 * W + 4, y1 * H + 3]
-            color = (22, 128, 84) if o["score"] * 100 >= present_thr and o.get("certain", True) else (196, 120, 0)
-            draw.rectangle(box, fill=color + (50,), outline=color + (255,), width=3)
+        lw = max(3, W // 500)
+        try:
+            font = ImageFont.load_default(size=max(14, W // 70))
+        except TypeError:          # Pillow < 10.1
+            font = ImageFont.load_default()
+        for term in kws:
+            for o in occurrences(r, term):
+                if o["page"] != page:
+                    continue
+                x0, y0, x1, y1 = o["box"]
+                box = [x0 * W - 4, y0 * H - 3, x1 * W + 4, y1 * H + 3]
+                sure = o["score"] * 100 >= thr and o.get("certain", True)
+                color = (22, 128, 84) if sure else (214, 120, 0)
+                draw.rectangle(box, fill=color + (45,), outline=color + (255,), width=lw)
+                if len(kws) > 1:     # vue d'ensemble : nom du mot-clé au-dessus du cadre
+                    tw = draw.textlength(term, font=font)
+                    th = font.size + 6 if hasattr(font, "size") else 16
+                    ty = box[1] - th - 2 if box[1] - th - 2 > 0 else box[3] + 2
+                    draw.rounded_rectangle([box[0], ty, box[0] + tw + 12, ty + th], radius=6, fill=color + (235,))
+                    draw.text((box[0] + 6, ty + 2), term, fill=(255, 255, 255), font=font)
+    if crop:   # zoom : la zone et un peu de contexte (la ligne entière et ses voisines)
+        W, H = img.size
+        x0, y0, x1, y1 = crop
+        bh = max(y1 - y0, 0.01)
+        cx0, cx1 = max(0.0, x0 - 0.25), min(1.0, x1 + 0.25)
+        cy0, cy1 = max(0.0, y0 - 2.2 * bh), min(1.0, y1 + 2.2 * bh)
+        img = img.crop((int(cx0 * W), int(cy0 * H), int(cx1 * W), int(cy1 * H)))
+        if img.width > 1400:
+            img.thumbnail((1400, 1400))
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=False, compress_level=3)
     data = buf.getvalue()
     with _cache_lock:
         _preview_cache[ckey] = data
-        while len(_preview_cache) > 80:          # petit cache : les 80 derniers aperçus
+        while len(_preview_cache) > 120:         # petit cache : les 120 derniers aperçus
             _preview_cache.pop(next(iter(_preview_cache)))
     return _png(data)
 

@@ -1,4 +1,10 @@
-## Nouveautés de la version 1.1
+## Nouveautés de la version 1.2
+
+- **Écriture manuscrite bien mieux lue** sur les vraies lettres (papier jauni, écriture cursive, lignes serrées) : découpage des lignes refait (grain du papier, pointillés et bords de carte ignorés, lignes qui se touchent séparées), et une lettre manuscrite n'est plus retournée à l'envers par erreur.
+- **Où sont les mots « À vérifier »** : dans l'onglet Documents, chaque document liste ses mots à vérifier avec leur page ; un clic montre un zoom sur le mot, ce qui a été lu, et la page entière. Le bouton œil affiche le document avec tous ses mots-clés encadrés et nommés (vert : présent, orange : à vérifier).
+- **Clics plus fiables** : un appui au bord d'un bouton, ou pendant le rafraîchissement d'une analyse en cours, n'est plus perdu.
+
+## Version 1.1
 
 - **Mots-clés propres à chaque dossier** : à la création, partir de la liste par défaut, copier un autre dossier ou partir de zéro, puis « Modifier les mots-clés » dans le dossier. La liste par défaut (onglet Mots-clés) n'est plus imposée à tous les dossiers.
 - **Mot seulement approchant** (« these » pour « thèse », lecture manuscrite approximative) : il reste « À vérifier » même s'il est répété, et ne devient plus jamais « Présent ».

@@ -200,12 +200,57 @@ def _recognize(images: list[Image.Image]) -> list[tuple[str, float]]:
 
 
 # =========================================================================== segmentation en lignes
+def _box_sum(a: np.ndarray, r: int) -> np.ndarray:
+    """Somme sur une fenêtre carrée (2r+1)² autour de chaque pixel (image intégrale : rapide, numpy seul)."""
+    c = np.pad(a.astype(np.int32), ((r + 1, r), (r + 1, r))).cumsum(0).cumsum(1)
+    k = 2 * r + 1
+    return c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]
+
+
+def _hrun_mask(ink: np.ndarray, L: int) -> np.ndarray:
+    """Pixels appartenant à un trait horizontal continu d'au moins L pixels (bord de carte, filet, soulignement)."""
+    H, W = ink.shape
+    if W <= L:
+        return np.zeros_like(ink)
+    c = np.pad(ink.astype(np.int32), ((0, 0), (1, 0))).cumsum(1)
+    full = (c[:, L:] - c[:, :-L]) >= int(0.92 * L)           # full[:, x] : fenêtre [x, x+L) presque entièrement encrée
+    F = np.pad(full.astype(np.int32), ((0, 0), (1, 0))).cumsum(1)
+    x = np.arange(W)
+    hi = np.minimum(x, W - L) + 1
+    lo = np.maximum(0, x - L + 1)
+    return (F[:, hi] - F[:, lo]) > 0                          # pixel couvert par au moins une telle fenêtre
+
+
 def _ink(gray: Image.Image) -> np.ndarray:
-    """Masque de l'encre par seuillage local (robuste aux ombres et fonds non uniformes)."""
+    """
+    Masque de l'encre : seuillage local (robuste aux ombres, au papier jauni, aux taches), puis nettoyage :
+    grain du papier et pointillés (points isolés), bords de carte et filets (longs traits horizontaux).
+    """
     g = gray.filter(ImageFilter.MedianFilter(3))
     a = np.asarray(g, dtype=np.int16)
     local = np.asarray(g.filter(ImageFilter.BoxBlur(25)), dtype=np.int16)
-    return a < (local - 12)
+    ink = a < (local - 12)
+    r = max(3, gray.size[0] // 600)                  # un trait d'écriture remplit bien sa petite fenêtre, pas un grain
+    ink &= _box_sum(ink, r) >= 0.2 * (2 * r + 1) ** 2
+    ink &= ~_hrun_mask(ink, max(40, gray.size[0] // 6))
+    return ink
+
+
+def _line_spacing(prof: np.ndarray) -> float:
+    """Interligne (pixels) : premier pic de l'autocorrélation du profil d'encre."""
+    p = prof - prof.mean()
+    n = len(p)
+    ac = np.correlate(p, p, mode="full")[n - 1:]
+    if ac[0] <= 0:
+        return 0.0
+    lo, hi = max(8, n // 150), max(9, n // 4)
+    seg = ac[lo:hi]
+    peaks = [i for i in range(1, len(seg) - 1) if seg[i] >= seg[i - 1] and seg[i] >= seg[i + 1] and seg[i] > 0.1 * ac[0]]
+    if not peaks:
+        return 0.0
+    # le pic le plus fort (et non le premier : les jambages et les hampes créent un faux pic à mi-interligne)
+    best = max(peaks, key=lambda i: seg[i])
+    return float(lo + best)
 
 
 def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
@@ -215,31 +260,53 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return list(zip(np.where(d == 1)[0], np.where(d == -1)[0]))
 
 
+def _line_bands(rows: np.ndarray) -> list[tuple[int, int]]:
+    """
+    Bandes horizontales des lignes de texte. Chaque ligne est un pic du profil d'encre ; la frontière entre
+    deux lignes est le creux entre leurs pics. Fonctionne aussi quand les jambages d'une ligne manuscrite
+    touchent la suivante (pas d'interligne blanc).
+    """
+    H = len(rows)
+    sp = _line_spacing(rows)
+    if sp < 8:                                    # pas de régularité : découpe classique aux interlignes blancs
+        thr = max(2.0, 0.06 * float(np.percentile(rows[rows > 0], 90)))
+        return [(a, b) for a, b in _runs(rows > thr) if b - a >= 6]
+    k = max(3, int(sp / 3))
+    sm = np.convolve(rows, np.ones(k) / k, mode="same")
+    floor = 0.12 * float(sm.max())
+    cand = [i for i in range(1, H - 1) if sm[i] >= sm[i - 1] and sm[i] > sm[i + 1] and sm[i] > floor]
+    peaks = []
+    for i in sorted(cand, key=lambda i: -sm[i]):          # les plus forts d'abord, espacés d'au moins 0,6 interligne
+        if all(abs(i - j) >= 0.6 * sp for j in peaks):
+            peaks.append(i)
+    peaks.sort()
+    bands = []
+    for n, pk in enumerate(peaks):
+        top = peaks[n - 1] + int(np.argmin(sm[peaks[n - 1]:pk])) if n else max(0, int(pk - 0.6 * sp))
+        bot = pk + int(np.argmin(sm[pk:peaks[n + 1]])) if n + 1 < len(peaks) else min(H, int(pk + 0.6 * sp))
+        # resserre la bande sur l'encre réelle (lignes isolées : pas de grande marge vide)
+        ys = np.where(rows[top:bot] > 0.05 * sm[pk])[0]
+        if len(ys):
+            top, bot = top + int(ys[0]), top + int(ys[-1]) + 1
+        if bot - top >= 6:
+            bands.append((top, bot))
+    return bands
+
+
 def segment_lines(gray: Image.Image) -> list[tuple[int, int, int, int]]:
     """Découpe une page en morceaux de lignes de texte : [(x0, y0, x1, y1)] en pixels."""
     ink = _ink(gray)
     H, W = ink.shape
     rows = ink.sum(axis=1).astype(np.float32)
-    k = max(3, H // 300)
-    rows = np.convolve(rows, np.ones(k) / k, mode="same")
-    thr = max(2.0, 0.04 * float(np.percentile(rows[rows > 0], 90)) if (rows > 0).any() else 2.0)
-    bands = [(a, b) for a, b in _runs(rows > thr) if b - a >= 6]
-    if not bands:
+    if not (rows > 0).any():
         return []
-    # fusion des bandes trop proches (accents, jambages)
-    med = float(np.median([b - a for a, b in bands]))
-    merged = [list(bands[0])]
-    for a, b in bands[1:]:
-        if a - merged[-1][1] < 0.25 * med:
-            merged[-1][1] = b
-        else:
-            merged.append([a, b])
+    merged = _line_bands(rows)
     boxes = []
     for y0, y1 in merged:
         h = y1 - y0
         if h < 8 or h > 0.5 * H:
             continue
-        cols = ink[y0:y1].sum(axis=0) > 0
+        cols = ink[y0:y1].sum(axis=0) >= 2
         segs = [(a, b) for a, b in _runs(cols) if b - a >= 2]
         if not segs:
             continue
@@ -263,7 +330,7 @@ def segment_lines(gray: Image.Image) -> list[tuple[int, int, int, int]]:
             for a, b in pieces:
                 if (b - a) < 1.0 * h or ink[y0:y1, a:b].sum() < 0.02 * h * (b - a):   # trop court ou presque vide
                     continue
-                py, px = int(0.18 * h), int(0.3 * h)
+                py, px = int(0.08 * h), int(0.25 * h)
                 boxes.append((max(0, a - px), max(0, y0 - py), min(W, b + px), min(H, y1 + py)))
     return boxes
 

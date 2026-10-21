@@ -255,6 +255,24 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .chip.leaving{transform:scale(.5);opacity:0}
 @keyframes chipIn{from{transform:scale(.5);opacity:0}to{transform:none;opacity:1}}
 .count{text-align:center;color:var(--faint);font-size:13px;margin-top:22px}
+.hits{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.hit{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:999px;font-size:12.5px;font-weight:650;
+  background:var(--rev-bg);color:var(--rev);transition:transform .35s var(--spring)}
+.hit.ok{background:var(--ok-bg);color:var(--ok)}
+.hit:hover{transform:translateY(-1px)}
+.hit small{font-weight:500;opacity:.8}
+.krow.doc .t{white-space:normal}
+.legend{display:flex;justify-content:center;gap:16px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.pageview{margin-top:18px;border-radius:22px;overflow:hidden;background:var(--glass);border:1px solid var(--stroke);animation:rise .6s var(--out) both;animation-delay:calc(var(--d) * 80ms + 150ms)}
+.pageview .ph{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;font-weight:650;font-size:14px}
+.pageview img{display:block;width:100%;background:#fff;border-top:1px solid var(--stroke)}
+.pageview .hits{padding:0 16px 12px;margin:0}
+.occ .read{padding:0 18px 4px;color:var(--muted);font-size:13px}
+.occ .read b{color:var(--ink)}
+.occ .zoom{display:block;width:100%;background:#fff;border-top:1px solid var(--stroke)}
+.occ .full{display:none}
+.occ.wide .full{display:block} .occ.wide .zoom{display:none}
 .kwbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 4px 2px;color:var(--muted);font-size:13px}
 .btn.sm{height:34px;padding:0 14px;font-size:13.5px;gap:6px}
 .btn.sm .i{width:16px;height:16px}
@@ -367,6 +385,7 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
   opacity:0;visibility:hidden;transition:opacity .35s var(--out),visibility 0s .35s}
 @media (prefers-color-scheme:dark){.lock{background:var(--bg)}}
 .lock.on{opacity:1;visibility:visible;transition:opacity .35s var(--out)}
+.lock:not(.on){pointer-events:none}        /* pendant sa disparition, l'écran ne capte plus les clics */
 .lock-in{display:grid;justify-items:center;text-align:center;width:min(420px,100%);animation:enter .6s var(--out) both}
 .lock h2{margin:18px 0 4px;font-size:26px;font-weight:750;letter-spacing:-.03em}
 .lock .msub{margin:0;color:var(--muted);min-height:22px}
@@ -545,7 +564,8 @@ const ICON = {
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>', swap:'<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', lock:'<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   del:'<path d="M20 6H9l-6 6 6 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1zM12 9.5l5 5M17 9.5l-5 5"/>', edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
-  trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>', zip:'<path d="M7 3h7l5 5v13H7zM14 3v5h5M11 9h1M11 12h1M11 15h1"/>'
+  trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>',
+  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>', zip:'<path d="M7 3h7l5 5v13H7zM14 3v5h5M11 9h1M11 12h1M11 15h1"/>'
 };
 const ic = (n, cls="") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 const LABEL = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Incertain"};
@@ -611,8 +631,31 @@ async function load(animate, passive){
   if(state.dossiers.some(d => d.pending)) pollTimer = setTimeout(() => load(false, true), 1500);
 }
 
+/* Clics fiables : un bouton se rétrécit légèrement quand on appuie dessus. Si on appuie près de son bord,
+   le relâchement tombe à côté et le navigateur envoie le clic au parent : le bouton « ne répond pas ».
+   On retient donc l'élément sous le doigt au moment de l'appui, et on le reprend si besoin. */
+let pressed = null, pressT = 0, pointerDown = false, deferredRender = null;
+document.addEventListener("pointerdown", e => { pressed = e.target; pressT = performance.now(); pointerDown = true; }, {capture:true, passive:true});
+const releasePointer = () => {
+  pointerDown = false;
+  if(deferredRender){ const a = deferredRender; deferredRender = null; setTimeout(() => render(a.animate), 0); }
+};
+document.addEventListener("pointerup", releasePointer, {capture:true, passive:true});
+document.addEventListener("pointercancel", releasePointer, {capture:true, passive:true});
+function clickTarget(e, sel){
+  const t = e.target.closest(sel);
+  if(t) return t;
+  if(pressed && pressed.isConnected && performance.now() - pressT < 800){
+    const p = pressed.closest(sel);
+    if(p && p.contains(pressed) && (p.contains(e.target) || e.target.contains(p))) return p;
+  }
+  return null;
+}
+
 function render(animate){
   const r = route();
+  // rafraîchissement automatique pendant un appui : on attend le relâchement (sinon le clic se perd)
+  if(!animate && pointerDown){ deferredRender = {animate:false}; return; }
   renderChrome(r);
   // les pages de saisie ne sont pas redessinées par le rafraîchissement automatique (on ne perd pas la frappe)
   if(!animate && r.page === lastPage && (r.page === "mots-cles" || r.page === "reglages")) return;
@@ -790,13 +833,39 @@ function docList(d){
     return `<div class="krow doc glass" style="--d:${i}">
       <span class="t"><a href="/api/documents/${x.id}/file" target="_blank" style="color:inherit;text-decoration:none">${esc(x.filename)}</a>
         <small data-pg="x${x.id}i">${info}</small>
-        ${pg && pg.total ? `<span class="pbar"><i data-bar="x${x.id}" style="--p:${(pg.done / pg.total).toFixed(3)}"></i></span>` : ""}</span>
+        ${pg && pg.total ? `<span class="pbar"><i data-bar="x${x.id}" style="--p:${(pg.done / pg.total).toFixed(3)}"></i></span>` : ""}
+        ${x.status === "ok" && !x.duplicate_of && x.hits.length ? docHits(d, x) : ""}</span>
       <span class="tag ${cls}" title="${esc(x.duplicate_of ? `Identique à ${x.duplicate_of} : non compté` : x.error || "")}">${x.status==="en_cours" ? `<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ` : ""}<span data-pg="x${x.id}t">${label}</span></span>
       <span class="acts">
+        ${x.status === "ok" && x.hits.length ? `<button class="iconbtn sm flat" data-view-doc="${x.id}" aria-label="Voir les mots dans le document" title="Voir les mots dans le document">${ic("eye")}</button>` : ""}
         <button class="iconbtn sm flat" data-re-doc="${x.id}" aria-label="Relancer l'analyse" title="Relancer l'analyse">${ic("refresh")}</button>
         <button class="iconbtn sm flat del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer" title="Retirer">${ic("x")}</button>
       </span></div>`;
   }).join("") + `<button class="drop" data-drop="${d.id}" style="margin-top:6px">${ic("upload")}<b>Ajouter des documents</b><span>PDF ou images</span></button>`;
+}
+
+/* dans un document : les mots à vérifier (orange) un par un, les mots sûrs (vert) résumés */
+function docHits(d, x){
+  const rev = x.hits.filter(h => h.review), sure = x.hits.filter(h => !h.review);
+  const pg = h => `<small>p. ${h.pages.join(", ")}</small>`;
+  return `<span class="hits">${rev.map(h => `<button class="hit" data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}" title="Voir où est « ${esc(h.term)} »">${esc(h.term)} ${pg(h)}</button>`).join("")}
+    ${sure.length ? `<button class="hit ok" data-view-doc="${x.id}" title="${esc(sure.map(h => h.term).join(", "))}">${sure.length} trouvé${sure.length > 1 ? "s" : ""} ${ic("eye")}</button>` : ""}</span>`;
+}
+
+/* un document, page par page, avec tous les mots trouvés encadrés et nommés */
+function openDocViewer(docId){
+  const d = state.dossiers.find(x => x.documents.some(y => y.id === docId)); if(!d) return;
+  const x = d.documents.find(y => y.id === docId);
+  const byPage = {};
+  x.hits.forEach(h => h.pages.forEach(p => (byPage[p] = byPage[p] || []).push(h)));
+  const pages = Object.keys(byPage).map(Number).sort((a, b) => a - b);
+  openModal(`<button class="iconbtn sm flat x" data-close aria-label="Fermer">${ic("x")}</button>
+    <h3>${esc(x.filename)}</h3><p class="msub">${esc(d.name)} · ${plural(pages.length, "page")} avec des mots-clés</p>
+    <div class="legend"><span><i style="background:#168054"></i>Présent</span><span><i style="background:#D67800"></i>À vérifier</span></div>
+    ${pages.map((p, i) => `<div class="pageview" style="--d:${i}">
+      <div class="ph"><span>Page ${p}</span><span class="tag">${plural(byPage[p].length, "mot-clé")}</span></div>
+      <div class="hits">${byPage[p].map(h => `<button class="hit ${h.review ? "" : "ok"}" data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}">${esc(h.term)}</button>`).join("")}</div>
+      <img loading="lazy" src="/api/documents/${x.id}/page/${p}.png?all=1" alt="Page ${p} : mots-clés encadrés"></div>`).join("")}`, true);
 }
 
 PAGES["mots-cles"] = () => {
@@ -975,7 +1044,7 @@ function showNewFiles(){
 }
 
 /* preuve d'un mot-clé dans un dossier */
-async function showEvidence(did, kid){
+async function showEvidence(did, kid, docId){
   const d = state.dossiers.find(x => x.id === did), k = d.keywords.find(x => x.id === kid);
   const c = await api(`/api/dossiers/${did}/keyword/${kid}`);
   const s = state.settings;
@@ -987,10 +1056,13 @@ async function showEvidence(did, kid){
     <div class="facts"><span><b>${c.count}</b> ${c.count > 1 ? "occurrences" : "occurrence"}</span><span>fiabilité <b>${Math.round(c.reliability)} %</b></span>
       <button class="link" style="margin:0;display:inline-flex;align-items:center;gap:4px" data-action="info">${ic("info")}Calcul</button></div>
     <p class="explain" id="explain">Score = ressemblance avec le mot-clé × confiance de lecture. Plusieurs occurrences exactes renforcent le score ; un mot seulement approchant (« these » pour « thèse », lecture manuscrite approximative) reste « à vérifier », même répété. Un fichier déposé deux fois n'est compté qu'une fois. Présent dès ${s.present_thr} %, à vérifier dès ${s.review_thr} %.${found ? "" : " Sans occurrence, la fiabilité est la qualité de lecture des documents."}</p>
-    ${c.occurrences.map((o, i) => `<div class="occ" style="--d:${i}">
+    ${(docId ? [...c.occurrences.filter(o => o.doc_id === docId), ...c.occurrences.filter(o => o.doc_id !== docId)] : c.occurrences).map((o, i) => `<div class="occ" style="--d:${i}">
       <div class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, "<mark>$1</mark>")} …</div>
+      ${o.certain === false ? `<p class="read">Lu : <b>« ${esc(o.text)} »</b> : ressemble à « ${esc(k.term)} » sans être identique. Vérifiez sur l'image.</p>` : ""}
       <div class="meta"><span class="tag ${o.certain === false ? "run" : "ok"}">${Math.round(o.score * 100)} %${o.certain === false ? " · approchant" : ""}</span><span class="tag">${esc(o.filename)}, p. ${o.page}</span><span class="tag">${o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu par OCR" : "texte natif"}</span></div>
-      <img loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}, mot encadré"></div>`).join("")}`, true);
+      <img class="zoom" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}&crop=${o.box.map(v => v.toFixed(4)).join(",")}" alt="Zoom sur le mot, page ${o.page} de ${esc(o.filename)}">
+      <img class="full" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}, mot encadré">
+      <button class="link" style="margin:8px auto 12px" data-wide>Voir la page entière</button></div>`).join("")}`, true);
   if(found) countUp($("#evNum"), Math.round(c.score), 800, " %");
 }
 
@@ -1110,9 +1182,13 @@ async function flushSettings(){
 }
 
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-op],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw]");
+  const t = clickTarget(e, "[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-op],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-view-doc],[data-wide]");
   if(!e.target.closest("#menu") && !e.target.closest("[data-action=menu],[data-action=who]")) closeMenu();
-  if(!t) return;
+  if(!t){   // onglet (lien) appuyé mais relâché juste à côté : on suit quand même le lien
+    const link = clickTarget(e, "a[href^='#']");
+    if(link && !link.contains(e.target)) go(link.getAttribute("href"));
+    return;
+  }
   const ds = t.dataset;
   if("close" in ds){ e.preventDefault(); return closeModal(null); }
   if(ds.switch) return switchTo(ds.switch);
@@ -1127,7 +1203,9 @@ document.addEventListener("click", async e => {
     list.classList.remove("swap"); void list.offsetWidth; list.classList.add("swap");
     return;
   }
-  if(ds.kw) return showEvidence(+ds.dossier, +ds.kw);
+  if(ds.kw) return showEvidence(+ds.dossier, +ds.kw, ds.doc ? +ds.doc : null);
+  if(ds.viewDoc) return openDocViewer(+ds.viewDoc);
+  if("wide" in ds){ const o = t.closest(".occ"); o.classList.toggle("wide"); t.textContent = o.classList.contains("wide") ? "Zoomer sur le mot" : "Voir la page entière"; return; }
   if(ds.kwsrc){
     newKwSrc = ds.kwsrc;
     t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t));
@@ -1387,10 +1465,10 @@ async function lockSubmit(){
   }
 }
 document.addEventListener("click", e => {
-  const pick = e.target.closest("[data-pick]");
+  const pick = clickTarget(e, "[data-pick]");
   if(pick){ const pr = profilesCache.find(x => x.name === pick.dataset.pick);
     return showLock({step: pr.has_pin ? "pin" : "setup1", owner: pr.name, len: pr.pin_len, cancelable: false}); }
-  const key = e.target.closest("#lock [data-key]");
+  const key = clickTarget(e, "#lock [data-key]");
   if(key) lockKey(key.dataset.key);
 });
 document.addEventListener("keydown", e => {

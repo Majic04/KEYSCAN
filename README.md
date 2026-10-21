@@ -32,7 +32,7 @@ Les données sont rangées dans `~/Library/Application Support/KeyScan` (Mac) ou
 |---|---|
 | **Dossiers** | Un candidat par ligne ; l'anneau indique combien de ses mots-clés sont trouvés. |
 | **+** (nouveau dossier) | Nom du candidat, **mots-clés de départ** (liste par défaut, copie d'un autre dossier, ou aucun) + mots-clés en plus, documents à glisser. Import de plusieurs dossiers d'un coup (.zip). |
-| Page d'un dossier | Au centre, le résultat. *Mots-clés* : décision et score de chacun ; un clic montre la preuve. **Modifier les mots-clés** : la liste propre à ce dossier. *Documents* : ajouter, relancer, retirer. |
+| Page d'un dossier | Au centre, le résultat. *Mots-clés* : décision et score de chacun ; un clic montre la preuve (zoom sur le mot, ce qui a été lu, page entière). **Modifier les mots-clés** : la liste propre à ce dossier. *Documents* : pour chaque document, les mots **à vérifier** et leur page ; l'œil affiche le document avec tous les mots-clés encadrés. |
 | **Mots-clés** | La **liste par défaut**, proposée à chaque nouveau dossier. La modifier ne change pas les dossiers existants. |
 | **Réglages** | Seuils de décision, équipe, code PIN, export CSV. |
 

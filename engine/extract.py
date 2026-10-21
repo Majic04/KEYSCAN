@@ -162,15 +162,36 @@ def _adaptive(img: Image.Image, radius: int = 20, k: int = 14) -> Image.Image:
     return Image.fromarray(np.where(a < local - k, 0, 255).astype(np.uint8))
 
 
+def _upright_score(img: Image.Image) -> float:
+    """Quantité de texte imprimé lu avec assurance (sert à vérifier un sens de lecture)."""
+    small = img.copy()
+    small.thumbnail((1400, 1400))
+    d = pytesseract.image_to_data(small, lang=OCR_LANG, config="--oem 1 --psm 3", output_type=pytesseract.Output.DICT)
+    return float(sum(len(t.strip()) for t, c in zip(d["text"], d["conf"])
+                     if float(c) >= 70 and len(t.strip()) >= 3 and any(ch.isalpha() for ch in t)))
+
+
 def _detect_rotation(img: Image.Image) -> int:
-    """Angle (0/90/180/270) à appliquer pour remettre le texte droit, via l'OSD de Tesseract."""
+    """
+    Angle (0/90/180/270) à appliquer pour remettre le texte droit, via l'OSD de Tesseract.
+    L'OSD se trompe souvent sur l'écriture manuscrite (ou un document presque sans texte imprimé) :
+    un retournement n'est accepté que si l'OCR lit nettement plus de texte dans le nouveau sens.
+    """
     for candidate in (img, _clean(img)):
         try:
             osd = pytesseract.image_to_osd(candidate, output_type=pytesseract.Output.DICT)
-            if float(osd.get("orientation_conf", 0)) >= 1.5:
-                return int(osd.get("rotate", 0)) % 360
         except pytesseract.TesseractError:
             continue  # pas assez de texte pour décider
+        rot = int(osd.get("rotate", 0)) % 360
+        if float(osd.get("orientation_conf", 0)) < 1.5:
+            continue
+        if not rot:
+            return 0
+        try:
+            before, after = _upright_score(img), _upright_score(img.rotate(-rot, expand=True))
+        except pytesseract.TesseractError:
+            return 0
+        return rot if after > 1.5 * before + 10 else 0
     return 0
 
 
