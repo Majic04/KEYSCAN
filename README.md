@@ -28,6 +28,8 @@ L'application n'est pas signée par Apple ni Microsoft : à la première ouvertu
 
 Les données sont rangées dans `~/Library/Application Support/KeyScan` (Mac) ou `%APPDATA%\KeyScan` (Windows) et conservées lors des mises à jour.
 
+**Mises à jour automatiques** (à partir de la version 1.7) : il n'y a plus rien à retélécharger. KeyScan vérifie au lancement, puis toutes les 6 heures, si une nouvelle version est publiée ici ; elle se télécharge en arrière-plan, puis un bouton « Version … prête · Redémarrer » apparaît en haut. Sans clic, elle s'installe à la fermeture de KeyScan. Seul le numéro de version est demandé à GitHub : aucun document ne quitte l'ordinateur. Sur Mac, KeyScan doit être dans le dossier Applications (c'est le cas avec la commande ci-dessus).
+
 ## Utiliser
 
 L'écran est un bureau : à gauche la liste des candidats (avec recherche), à droite le dossier ouvert.
@@ -80,6 +82,7 @@ Application complète depuis le code source : `python app.py` (s'ouvre dans le n
 ```bash
 python tests/test_regles.py                                   # règles de décision (répétitions, doublons, illisibles…)
 python tests/test_serveur.py                                  # serveur : profils, import de plusieurs candidats, actions groupées
+python tests/test_mise_a_jour.py                              # mise à jour automatique (avec un faux GitHub)
 python tests/make_bench.py /tmp/banc && python tests/evaluate.py . /tmp/banc resultats.json   # précision / rappel
 ```
 À chaque envoi sur `main`, GitHub lance ces tests. Quand `APP_VERSION` (dans `desktop.py`) annonce une nouvelle version, les applications Mac et Windows sont en plus construites, testées sur de vrais Mac et Windows, puis publiées (`.github/workflows/build.yml`).
@@ -91,6 +94,7 @@ Le code est écrit pour être relu : un fichier = un rôle, des noms en clair, d
 ```
 app.py              lance KeyScan depuis le code source (python app.py)
 desktop.py          application de bureau : fenêtre native, dossier des données, auto-test
+updater.py          mise à jour automatique : vérification, téléchargement vérifié, installation à la fermeture
 
 engine/             LE MOTEUR : lire les documents et décider (Python seul, sans interface)
   text.py           format d'un mot lu (« token »), mise en forme normalisée (sans accents ni majuscules)
@@ -118,6 +122,7 @@ static/css/           l'apparence
 static/js/            l'interface, en petits fichiers : utils, state, pages, compare, dialogs, actions, lock, cursor, start
 tests/              tests des règles, du serveur, et bancs d'essai (imprimé et manuscrit)
 build/              construction des installateurs Mac et Windows
+  update/           scripts qui installent une mise à jour une fois KeyScan fermé (Mac, Windows) et leurs tests
 exemples/           documents d'exemple
 ```
 

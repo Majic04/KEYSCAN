@@ -10,6 +10,7 @@ Options (utilisées pour les tests automatiques) :
   --server-only     démarre le serveur sans fenêtre
   --port N          port du serveur (par défaut 47815)
   --selftest        vérifie Tesseract et le module manuscrit embarqués, puis quitte
+  --check-update    affiche la dernière version publiée (la mise à jour automatique est dans updater.py)
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ import time
 import urllib.request
 
 APP_NAME = "KeyScan"
-APP_VERSION = "1.6.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
+APP_VERSION = "1.7.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
 DEFAULT_PORT = 47815
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -51,13 +52,14 @@ def user_dir() -> str:
 HOME = user_dir()
 DATA = os.path.join(HOME, "data")
 LOG = os.path.join(HOME, "keyscan.log")
+UPDATES = os.path.join(HOME, "mises-a-jour")          # installateurs des nouvelles versions, téléchargés en arrière-plan
 
 
 def setup_environment():
     """Chemins utilisés par le serveur et le moteur (à faire AVANT d'importer app)."""
     os.environ["KEYSCAN_DATA"] = DATA
     os.environ["KEYSCAN_MODELS"] = os.path.join(HOME, "models")
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")          # l'application n'appelle jamais Internet
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")          # le moteur n'appelle jamais Internet (seul updater.py vérifie les versions)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     # Tesseract embarqué
     tdir = os.path.join(BUNDLE, "tesseract")
@@ -196,6 +198,24 @@ class NativeAPI:
     def version(self) -> str:
         return APP_VERSION
 
+    # --- mise à jour automatique (voir updater.py)
+    def update_status(self) -> dict:
+        import updater
+        return updater.status()
+
+    def check_update(self) -> bool:
+        import updater
+        threading.Thread(target=updater.check_now, args=(UPDATES,), daemon=True).start()
+        return True
+
+    def install_update(self) -> bool:
+        """Bouton « Redémarrer » : lance l'installation, puis ferme la fenêtre (KeyScan se rouvre tout seul)."""
+        import updater
+        if not updater.install(relaunch=True):
+            return False
+        threading.Timer(0.3, self.window.destroy).start()
+        return True
+
 
 # =========================================================================== auto-test (intégration continue)
 def selftest() -> int:
@@ -250,11 +270,15 @@ def main():
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--reset-pin", metavar="NOM", help="efface le code PIN d'un profil (code oublié)")
+    ap.add_argument("--check-update", action="store_true")
     a, _ = ap.parse_known_args()
 
     setup_environment()
     if a.selftest:
         sys.exit(selftest())
+    if a.check_update:
+        import updater
+        sys.exit(updater.print_latest(APP_VERSION))
     if a.reset_pin:
         from server.profiles import forget_pin
         n = forget_pin(a.reset_pin)
@@ -286,6 +310,9 @@ def main():
         while True:
             time.sleep(3600)
 
+    import updater
+    if updater.start(APP_VERSION, UPDATES):
+        print("Mise à jour automatique : vérification au lancement puis toutes les 6 heures")
     api = NativeAPI()
     window = webview.create_window(
         APP_NAME, url, js_api=api, width=1280, height=860, min_size=(900, 640),
@@ -297,6 +324,7 @@ def main():
     finally:
         if srv:
             srv.shutdown()
+        updater.install(relaunch=False)      # une nouvelle version est prête : elle s'installe maintenant que KeyScan se ferme
     os._exit(0)
 
 

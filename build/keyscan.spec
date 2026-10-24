@@ -22,12 +22,13 @@ datas = [
     (os.path.join(ROOT, "templates"), "templates"),
     (os.path.join(ROOT, "static"), "static"),          # polices de l'interface (Atkinson Hyperlegible Next, Literata ; licence OFL)
     (os.path.join(ROOT, "exemples", "manuscrit.png"), "exemples"),
+    (os.path.join(ROOT, "build", "update"), "update"),     # scripts d'installation des mises à jour (updater.py)
 ]
 tess = os.path.join(ROOT, "build", "tesseract")
 if os.path.isdir(tess):
     datas.append((tess, "tesseract"))
 # tous les fichiers Python de engine/ et server/ (liste écrite à partir des dossiers : rien n'est oublié)
-hidden = ["app"] + [
+hidden = ["app", "updater", "certifi"] + [
     os.path.relpath(os.path.join(folder, name), ROOT)[:-3].replace(os.sep, ".").removesuffix(".__init__")
     for package in ("engine", "server")
     for folder, _, names in os.walk(os.path.join(ROOT, package)) if "__pycache__" not in folder

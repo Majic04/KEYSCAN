@@ -17,6 +17,7 @@
     <a href="#/mots-cles" data-tab="mots-cles">Liste par défaut</a>
     <a href="#/reglages" data-tab="reglages">Réglages</a>
   </nav>
+  <button class="upd" id="updatePill" data-action="install-update" hidden></button>
   <button class="who" id="avatar" data-action="who" aria-haspopup="menu"></button>
 </header>
 <div class="desk" id="desk">
@@ -47,8 +48,9 @@
      actions    ce qui se passe quand on clique, tape, dépose un fichier
      lock       l'écran du code PIN et le verrouillage automatique
      cursor     le curseur (un cercle à l'encre bleue)
+     update     mise à jour automatique de l'application installée
      start      le démarrage -->
-{% for name in ["utils", "state", "pages", "compare", "dialogs", "actions", "lock", "cursor", "start"] %}
+{% for name in ["utils", "state", "pages", "compare", "dialogs", "actions", "lock", "cursor", "update", "start"] %}
 <script src="/static/js/{{ name }}.js?v={{ v }}" defer></script>
 {% endfor %}
 </body>

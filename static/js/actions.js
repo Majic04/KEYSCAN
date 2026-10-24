@@ -202,6 +202,8 @@ document.addEventListener("click", async e => {
       toast(`Dossier confié à ${ds.to}`); await load(false); return go("#/dossiers");
     }
     case "export": return exportCsv();
+    case "install-update": return installUpdate();
+    case "check-update": return checkUpdate();
     case "add-docs": closeMenu(); return pickFiles(f => uploadTo(+ds.id, f));
     case "rename": {
       closeMenu(); const d = state.dossiers.find(x => x.id == ds.id);

@@ -147,6 +147,8 @@ PAGES.reglages = () => {
       <div class="set"><div><h2>Écriture manuscrite</h2></div><div>${hw.ready
         ? `<p style="margin:0">Activée (${esc(hw.label || "")}). Les lignes écrites à la main sont repérées puis lues ; leurs mots proches sont toujours à vérifier.</p>`
         : `<p style="margin:0">Non installée. En mode Python, installez-la une fois avec <code>python -m engine.trocr --install fr</code> puis relancez KeyScan.</p>`}</div></div>
+      ${desktop() ? `<div class="set"><div><h2>Application</h2><p class="hint">Mises à jour automatiques. Seul le numéro de la dernière version est demandé à GitHub : aucun document ne quitte l'ordinateur.</p></div>
+        <div id="updateInfo">${updateText()}</div></div>` : ""}
       <div class="set"><div><h2>Résultats</h2></div><div><button class="btn" data-action="export">${ic("download")}Exporter en CSV</button></div></div>
     </div></div>`;
 };

@@ -86,6 +86,14 @@ a.btn{text-decoration:none}
 .nav a{display:flex;align-items:center;padding:0 10px;text-decoration:none;color:var(--ink-2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
 .nav a:hover{color:var(--ink)}
 .nav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--pen)}
+/* nouvelle version prête : un bouton discret à côté du profil */
+.upd{margin-left:auto;display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 6px 0 12px;border-radius:999px;
+  background:var(--pen-soft);color:var(--ink);font-weight:600;font-size:14px}
+.upd span{padding:3px 10px;border-radius:999px;background:var(--pen);color:#fff}
+@media (prefers-color-scheme:dark){.upd span{color:#0F1530}}
+.upd .i{width:16px;height:16px;color:var(--pen)}
+.upd[hidden]{display:none}
+.upd:not([hidden]) + .who{margin-left:10px}
 .who{margin-left:auto;display:flex;align-items:center;gap:10px;height:38px;padding:0 6px 0 12px;border-radius:var(--r);font-weight:600}
 .who:hover{background:var(--rule-2)}
 .ini{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:var(--pa,var(--pen));flex:none}

@@ -4,7 +4,7 @@
 (function cursor(){
   if(!matchMedia("(pointer:fine)").matches || calm.matches) return;
   const root = document.documentElement, ring = $("#cur-ring");
-  const MORPH = ".btn,.icon,.key,.pick,.who,.nav a,.tabs button,.choice button,.menu button,.textlink";
+  const MORPH = ".btn,.icon,.key,.pick,.who,.upd,.nav a,.tabs button,.choice button,.menu button,.textlink";
   const TEXT = "input:not([type=range]),textarea,[contenteditable]";
   const POINT = "a,button,[data-drop],label,input[type=range],select";
   const BASE = 28;

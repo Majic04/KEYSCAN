@@ -1,4 +1,11 @@
-## Nouveautés de la version 1.6
+## Nouveautés de la version 1.7
+
+- **Mises à jour automatiques** : KeyScan vérifie au lancement, puis toutes les 6 heures, si une nouvelle version est publiée. Elle se télécharge en arrière-plan (son empreinte est vérifiée), puis un bouton « Version … prête · Redémarrer » apparaît en haut de l'écran. Sans clic, elle s'installe à la fermeture de KeyScan. Plus besoin de retélécharger l'application.
+- Seul le numéro de la dernière version est demandé à GitHub : aucun document ni aucune donnée ne quitte l'ordinateur.
+- Réglages → Application : version installée, avancement du téléchargement, « Rechercher maintenant ».
+- Cette version 1.7 s'installe encore à la main une dernière fois ; les suivantes arrivent toutes seules.
+
+## Version 1.6
 
 - **Plusieurs candidats d'un coup** : « Importer plusieurs candidats » accepte le dossier qui contient un sous-dossier par candidat (déposé ou choisi), ou un `.zip`. Chaque sous-dossier devient un dossier KeyScan avec la liste par défaut, et tous les documents sont lus en parallèle.
 - **Nouvel onglet « Comparer »** : tous les dossiers dans un tableau, une ligne par candidat et une colonne par mot-clé, avec la marque du surligneur dans chaque case (un clic ouvre la preuve). On trie par mot-clé et on filtre les candidats.

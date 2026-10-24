@@ -41,6 +41,8 @@ jobs:
         run: python build/ci.py --note "Règles de décision" python tests/test_regles.py
       - name: Serveur (profils, import de plusieurs candidats, actions groupées)
         run: python build/ci.py --note "Serveur" python tests/test_serveur.py
+      - name: Mise à jour automatique (vérification, téléchargement)
+        run: python build/ci.py --note "Mise à jour automatique" python tests/test_mise_a_jour.py
       - name: Banc d'essai OCR (192 décisions)
         run: |
           python tests/make_bench.py "$RUNNER_TEMP/bench"
@@ -164,6 +166,11 @@ jobs:
         run: python build/ci.py "Mac - DMG" bash build/mac/make_dmg.sh
       - name: Test de l'application construite
         run: python build/ci.py --note "Mac - test de l'application" python build/smoke_test.py dist/KeyScan.app/Contents/MacOS/KeyScan
+      - name: Test de la mise à jour automatique (remplacement de l'application)
+        run: python build/ci.py --note "Mac - mise à jour" bash build/update/test_install_mac.sh "$DMG"
+      - name: Accès sécurisé à GitHub depuis l'application (vérification de version)
+        continue-on-error: true          # GitHub limite le nombre de demandes : ne bloque pas la publication
+        run: python build/ci.py --note "Mac - vérification de version" dist/KeyScan.app/Contents/MacOS/KeyScan --check-update
       - name: Publication
         env:
           GH_TOKEN: ${{ github.token }}
@@ -231,6 +238,13 @@ jobs:
           $V = (Select-String -Path desktop.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
           python build/ci.py "Windows - Inno Setup" "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$V" build\windows\keyscan.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test de la mise à jour automatique (installation silencieuse)
+        shell: bash
+        run: python build/ci.py --note "Windows - mise à jour" bash build/update/test_install_windows.sh dist/KeyScan-Windows-Setup.exe
+      - name: Accès sécurisé à GitHub depuis l'application (vérification de version)
+        continue-on-error: true
+        shell: bash
+        run: python build/ci.py --note "Windows - vérification de version" dist/KeyScan/KeyScan.exe --check-update
       - name: Publication
         shell: bash
         env:
