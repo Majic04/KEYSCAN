@@ -1,4 +1,9 @@
-## Nouveautés de la version 1.4
+## Nouveautés de la version 1.5
+
+- **Mots imbriqués** : un mot-clé n'est plus trouvé à l'intérieur d'un mot plus long. « pour » n'est plus « présent » à cause de « pourquoi », y compris quand ce mot arrive découpé : coupure en fin de ligne (« pour- / quoi »), trait d'union invisible du PDF, ou lettres que l'OCR a séparées alors qu'elles se touchent sur l'image.
+- Restent trouvés : l'élision (« l'apprentissage », « d'ingénieur ») et un mot-clé coupé lui-même en fin de ligne (« apprentis- / sage »). Une partie de mot composé (« Master » dans « Master-Recherche ») est proposée « à vérifier ».
+
+## Version 1.4
 
 - **Logo** : une loupe posée sur un document, avec le K de KeyScan dans la lentille. Il sert d'icône d'application (Mac et Windows) et apparaît dans l'en-tête.
 - **Police Syne** pour les titres, les noms et les chiffres : une grotesque large et originale, dessinée à Paris par Bonjour Monde pour le centre d'art Synesthésies (licence libre OFL).

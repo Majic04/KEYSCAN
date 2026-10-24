@@ -167,6 +167,80 @@ def _streams(tokens: list[dict]):
         yield k, list(grp)
 
 
+# ---------------------------------------------------------------------------- mot-clé à l'intérieur d'un mot plus long
+# « pour » ne doit pas être trouvé dans « pourquoi », même quand ce mot arrive découpé :
+#   - coupure de fin de ligne        « pour- / quoi »
+#   - trait d'union conditionnel     « pour\u00adquoi » (invisible dans le PDF)
+#   - OCR qui insère une espace      « pour quoi » (les deux morceaux se touchent sur l'image)
+# Exceptions : l'élision (« l'apprentissage » contient bien « apprentissage ») ; un mot composé avec un
+# vrai trait d'union (« Master-Recherche » pour « Master ») reste possible, mais seulement « à vérifier ».
+_ELISIONS = {"l", "d", "j", "m", "n", "s", "t", "c", "qu", "jusqu", "lorsqu", "puisqu", "quoiqu", "presqu"}
+_HYPHENS = "-\u2010\u2011"
+_APOS = "'\u2019\u02bc"
+
+
+def _separators(stream: list[dict]) -> list:
+    """sep[k] : caractères entre le token k-1 et le token k s'ils viennent du même mot brut, sinon None."""
+    sep, cursor, prev = [None] * len(stream), 0, None
+    for k, t in enumerate(stream):
+        raw = t["t"]
+        if prev is not None and t["w"] == prev["w"]:
+            pos = raw.find(t["r"], cursor)
+            if pos < 0:
+                pos = cursor
+            sep[k] = raw[cursor:pos]
+            cursor = pos + len(t["r"])
+        else:
+            pos = raw.find(t["r"])
+            cursor = (pos if pos >= 0 else 0) + len(t["r"])
+        prev = t
+    return sep
+
+
+def _touching(a: dict, b: dict) -> bool:
+    """Deux mots lus séparément mais collés sur la page (même ligne, presque pas d'espace entre eux)."""
+    ax0, ay0, ax1, ay1 = a["b"]
+    bx0, by0, bx1, by1 = b["b"]
+    if a["b"] == b["b"]:
+        return False
+    overlap = min(ay1, by1) - max(ay0, by0)
+    if overlap < 0.5 * min(ay1 - ay0, by1 - by0):
+        return False
+    char_w = (ax1 - ax0) / max(1, len(a["t"].strip()))
+    return 0 <= bx0 - ax1 < 0.25 * char_w
+
+
+def _boundary(stream: list[dict], sep: list, i: int, j: int, source: str) -> str:
+    """Ce qui entoure la fenêtre [i, j) : « libre », « composé » (trait d'union) ou « dedans » (morceau d'un mot)."""
+    verdict = "libre"
+    if i > 0:
+        before, s = stream[i - 1], sep[i]
+        if s is not None:                                    # même mot brut
+            if any(c in _APOS for c in s) and before["n"] in _ELISIONS:
+                pass                                         # « l'apprentissage », « d'ingénieur »
+            elif s and all(c in _HYPHENS for c in s):
+                verdict = "compose"
+            else:
+                return "dedans"
+        elif before["t"].rstrip().endswith(tuple(_HYPHENS)) and before["t"].strip(_HYPHENS + " ") == before["r"]:
+            return "dedans"                                  # fin de ligne « pour- » puis « quoi »
+        elif source != "manuscrit" and _touching(before, stream[i]):
+            return "dedans"
+    if j < len(stream):
+        after, s = stream[j], sep[j]
+        last = stream[j - 1]
+        if s is not None:
+            if s and all(c in _HYPHENS for c in s):
+                verdict = "compose"
+            else:
+                return "dedans"                              # « pour » + « quoi » dans le même mot brut
+        elif last["t"].rstrip().endswith(tuple(_HYPHENS)) and last["t"].strip(_HYPHENS + " ") == last["r"]:
+            return "dedans"                                  # « pour- » en fin de ligne : le mot continue
+        elif source != "manuscrit" and _touching(last, after):
+            return "dedans"
+    return verdict
+
+
 def _union(boxes):
     return [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
 
@@ -211,6 +285,7 @@ def find_keyword(tokens: list[dict], term: str) -> list[dict]:
     found = []
     for (page, source, _), stream in _streams(tokens):
         cands = []
+        sep = _separators(stream)
         for i in range(len(stream)):
             for span in spans:
                 j = i + span
@@ -220,6 +295,11 @@ def find_keyword(tokens: list[dict], term: str) -> list[dict]:
                 sim = similarity(kw, win)
                 if sim <= 0:
                     continue
+                edge = _boundary(stream, sep, i, j, source)
+                if edge == "dedans":
+                    continue                    # le mot-clé n'est qu'un morceau d'un mot plus long
+                if edge == "compose":
+                    sim = min(sim, 0.8)         # partie d'un mot composé : à vérifier, jamais présent d'office
                 exact = "".join(t["n"] for t in win) == kw.joined
                 score = sim * read_confidence(kw, win, exact)
                 cands.append((score, sim, i, j))

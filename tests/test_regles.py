@@ -85,6 +85,36 @@ check("illisible : un mot trouvé reste présent", result(res, "Master")["decisi
 res = analyse([ok_doc], ["chimie"])
 check("sans document illisible : absent", result(res, "chimie")["decision"] == "absent")
 
+# --- 4. mot-clé à l'intérieur d'un mot plus long (« pour » dans « pourquoi »)
+def words(ws, source="texte", gap=0.01):
+    out, x = [], 0.05
+    for wi, w in enumerate(ws):
+        wd = 0.012 * len(w)
+        for r, n in split_raw(w):
+            out.append({"t": w, "r": r, "n": n, "c": 95.0, "p": 1, "s": source, "k": 0, "w": wi, "b": [x, .1, x + wd, .12]})
+        x += wd + gap
+    return out
+
+
+def decision(ws, kw, source="texte", gap=0.01):
+    return evaluate(kw, find_keyword(words(ws, source, gap), kw), 95, [{"mode": "texte"}])[1]
+
+
+for ws, kw, want, label in [
+    (["pourquoi"], "pour", "absent", "« pourquoi » ne contient pas le mot « pour »"),
+    (["pour-", "quoi"], "pour", "absent", "« pour- / quoi » coupé en fin de ligne"),
+    (["pour\u00adquoi"], "pour", "absent", "trait d'union conditionnel invisible"),
+    (["merci", "pour", "tout"], "pour", "present", "« pour » seul reste présent"),
+    (["l'apprentissage"], "apprentissage", "present", "élision : « l'apprentissage »"),
+    (["d\u2019ingénieur"], "ingénieur", "present", "élision : « d'ingénieur »"),
+    (["Master-Recherche"], "Master", "a_verifier", "mot composé : à vérifier"),
+    (["apprentis-", "sage", "automatique"], "apprentissage automatique", "present", "césure dans le mot-clé lui-même"),
+]:
+    got = decision(ws, kw)
+    check(label, got == want, got)
+check("OCR : « pour » et « quoi » collés sur l'image", decision(["pour", "quoi"], "pour", "ocr", gap=0.001) == "absent")
+check("OCR : « pour quoi » bien espacés", decision(["pour", "quoi"], "pour", "ocr", gap=0.01) == "present")
+
 # --- règles existantes
 check("mot-clé de 2 lettres dans un scan : jamais absent sûr",
       evaluate("IA", [], 95, [{"mode": "ocr"}])[1] == "absent_douteux")
