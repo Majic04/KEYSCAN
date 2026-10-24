@@ -26,7 +26,13 @@ datas = [
 tess = os.path.join(ROOT, "build", "tesseract")
 if os.path.isdir(tess):
     datas.append((tess, "tesseract"))
-hidden = ["app", "engine", "engine.extract", "engine.matcher", "engine.handwriting", "engine.__main__"]
+# tous les fichiers Python de engine/ et server/ (liste écrite à partir des dossiers : rien n'est oublié)
+hidden = ["app"] + [
+    os.path.relpath(os.path.join(folder, name), ROOT)[:-3].replace(os.sep, ".").removesuffix(".__init__")
+    for package in ("engine", "server")
+    for folder, _, names in os.walk(os.path.join(ROOT, package)) if "__pycache__" not in folder
+    for name in names if name.endswith(".py")
+]
 hidden += collect_submodules("webview")
 excludes = ["tkinter", "matplotlib", "IPython", "pandas", "tensorflow", "jax", "flax", "torchvision", "torchaudio",
             "scipy", "sklearn", "notebook", "pytest"]

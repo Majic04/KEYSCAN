@@ -55,9 +55,9 @@ def main(out):
     tokenizer = AutoTokenizer.from_pretrained(MODEL)
     full = VisionEncoderDecoderModel.from_pretrained(MODEL).eval()
 
-    from engine.handwriting import segment_lines
+    from engine.handwriting import find_text_lines
     sample = Image.open(os.path.join(ROOT, "exemples", "manuscrit.png")).convert("L")
-    crops = [sample.crop(b) for b in segment_lines(sample)]
+    crops = [sample.crop(b) for b in find_text_lines(sample)]
     ref = read(full, processor, tokenizer, crops)
     print("Lecture (pleine précision) :", ref)
 

@@ -27,7 +27,7 @@ import time
 import urllib.request
 
 APP_NAME = "KeyScan"
-APP_VERSION = "1.5.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
+APP_VERSION = "1.6.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
 DEFAULT_PORT = 47815
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -212,9 +212,9 @@ def selftest() -> int:
         if sys.stdout:
             sys.stdout.write(line + "\n")
     import pytesseract
-    from engine.extract import configure_tesseract
+    from engine.ocr import find_tesseract
     ok = True
-    cmd = configure_tesseract()
+    cmd = find_tesseract()
     print("Tesseract :", cmd)
     try:
         langs = pytesseract.get_languages(config="")
@@ -223,15 +223,15 @@ def selftest() -> int:
     except Exception as e:  # noqa: BLE001
         print("Tesseract KO :", e)
         ok = False
-    from engine import handwriting
-    st = handwriting.status()
+    from engine import handwriting, trocr
+    st = trocr.status()
     print("Écriture manuscrite :", st)
     sample = os.path.join(BUNDLE, "exemples", "manuscrit.png")
     if st.get("ready") and os.path.exists(sample):
         from PIL import Image
         g = Image.open(sample).convert("L")
         t = time.time()
-        res = handwriting.recognize([g.crop(b) for b in handwriting.segment_lines(g)])
+        res = trocr.read_lines([g.crop(b) for b in handwriting.find_text_lines(g)])
         for text, conf in res:
             print(f"  [{conf:5.1f} %] {text}")
         print(f"  lecture en {time.time() - t:.1f} s")
@@ -256,10 +256,8 @@ def main():
     if a.selftest:
         sys.exit(selftest())
     if a.reset_pin:
-        import app as keyscan
-        keyscan.init_db()
-        with keyscan.db() as con:
-            n = con.execute("DELETE FROM settings WHERE key=?", (f"pin:{a.reset_pin}",)).rowcount
+        from server.profiles import forget_pin
+        n = forget_pin(a.reset_pin)
         msg = (f"Code de « {a.reset_pin} » effacé : un nouveau code sera demandé à la prochaine ouverture."
                if n else f"Aucun code trouvé pour « {a.reset_pin} ».")
         print(msg)

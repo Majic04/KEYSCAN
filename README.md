@@ -34,7 +34,9 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 
 | Endroit | Ce qu'on y fait |
 |---|---|
-| **Colonne de gauche** | Un candidat par ligne. La petite bande indique un mot-clé par case : vert trouvé, jaune à vérifier. **Nouveau** crée un dossier : nom, mots-clés de départ (liste par défaut, copie d'un autre dossier, ou aucun), mots-clés en plus, documents. Import de plusieurs dossiers d'un coup (.zip). |
+| **Colonne de gauche** | Un candidat par ligne. La petite bande indique un mot-clé par case : vert trouvé, jaune à vérifier. **Nouveau** crée un dossier : nom, mots-clés de départ (liste par défaut, copie d'un autre dossier, ou aucun), mots-clés en plus, documents. |
+| **Importer plusieurs candidats** | On dépose (ou on choisit) le dossier qui contient **un sous-dossier par candidat**, ou un `.zip` : chaque sous-dossier devient un dossier KeyScan avec la liste par défaut, et tous les documents sont lus en parallèle. |
+| **Comparer** | Tous les dossiers dans un tableau : une ligne par candidat, une colonne par mot-clé, la même marque que le surligneur dans chaque case (un clic ouvre la preuve). On **coche** des dossiers pour agir sur tous à la fois : ajouter des mots-clés, ajouter la liste par défaut, relire, exporter, supprimer. Un clic sur un mot-clé en haut d'une colonne permet de trier ou de le retirer des dossiers cochés. |
 | **Dossier ouvert** | Les mots-clés sont rangés par décision : *Présents* et *À vérifier* sont surlignés comme au feutre, *Absence incertaine* est soulignée en pointillé. Un clic ouvre la preuve dans un volet : zoom sur le mot, ce qui a été lu, page entière. **Modifier les mots-clés** change la liste de ce dossier seulement. L'onglet *Documents* montre, pour chaque document, les mots à vérifier et leur page ; l'œil affiche le document avec tous les mots-clés surlignés. |
 | **Liste par défaut** | Proposée à chaque nouveau dossier. La modifier ne change pas les dossiers existants. |
 | **Réglages** | Seuils de décision, équipe, code PIN, export CSV. |
@@ -71,31 +73,60 @@ python -m engine dossier/*.pdf --mots-fichier mots.txt --json
 ```
 
 Application complète depuis le code source : `python app.py` (s'ouvre dans le navigateur, données dans `data/`).
-Écriture manuscrite en mode Python : `pip install -r requirements-manuscrit.txt` puis `python -m engine.handwriting --install`.
+Écriture manuscrite en mode Python : `pip install -r requirements-manuscrit.txt` puis `python -m engine.trocr --install fr`.
 
 ## Tests
 
 ```bash
 python tests/test_regles.py                                   # règles de décision (répétitions, doublons, illisibles…)
+python tests/test_serveur.py                                  # serveur : profils, import de plusieurs candidats, actions groupées
 python tests/make_bench.py /tmp/banc && python tests/evaluate.py . /tmp/banc resultats.json   # précision / rappel
 ```
 À chaque envoi sur `main`, GitHub lance ces tests. Quand `APP_VERSION` (dans `desktop.py`) annonce une nouvelle version, les applications Mac et Windows sont en plus construites, testées sur de vrais Mac et Windows, puis publiées (`.github/workflows/build.yml`).
 
 ## Organisation du code
 
+Le code est écrit pour être relu : un fichier = un rôle, des noms en clair, des commentaires en français.
+
 ```
-app.py            serveur local (Flask, SQLite) : profils, dossiers, mots-clés, file d'analyse, export CSV
-desktop.py        application de bureau : fenêtre native, dossiers utilisateur
-engine/
-  extract.py      lecture des PDF et images (texte natif, Tesseract, redressement)
-  handwriting.py  écriture manuscrite (détection des lignes, lecture TrOCR)
-  matcher.py      recherche tolérante, scores, décisions
-  __main__.py     ligne de commande
-templates/        interface (une page HTML, sans dépendance externe)
-tests/            tests des règles et bancs d'essai (imprimé et manuscrit)
-build/            construction des installateurs Mac et Windows
-exemples/         documents d'exemple
+app.py              lance KeyScan depuis le code source (python app.py)
+desktop.py          application de bureau : fenêtre native, dossier des données, auto-test
+
+engine/             LE MOTEUR : lire les documents et décider (Python seul, sans interface)
+  text.py           format d'un mot lu (« token »), mise en forme normalisée (sans accents ni majuscules)
+  extract.py        lire un document : texte du PDF, ou image → OCR
+  ocr.py            Tesseract : préparation de l'image, orientation, redressement, plusieurs lectures
+  handwriting.py    repérer les lignes écrites à la main sur une page
+  trocr.py          lire ces lignes avec le modèle TrOCR (installation, chargement)
+  search.py         chercher un mot-clé : ressemblance, erreurs d'OCR tolérées, mots imbriqués (« pour » ≠ « pourquoi »)
+  decision.py       transformer les occurrences en score et en décision
+  __main__.py       ligne de commande (python -m engine …)
+
+server/             L'APPLICATION : base de données, profils, API pour l'interface
+  database.py       la base SQLite et le dossier des données
+  migrations.py     mise à jour d'une base créée par une ancienne version
+  profiles.py       l'équipe, les seuils de chacun, les codes PIN, la session
+  keywords.py       les listes de mots-clés (par dossier, et la liste par défaut)
+  uploads.py        dépôt des fichiers, import de plusieurs candidats
+  analysis.py       lecture des documents en arrière-plan (jusqu'à 4 à la fois)
+  results.py        calcul des décisions de chaque dossier
+  previews.py       image d'une page avec les mots surlignés
+  routes/           les adresses de l'API, un fichier par sujet (session, keywords, dossiers, documents, results, settings)
+
+templates/index.html  la page (sa structure seulement)
+static/css/           l'apparence
+static/js/            l'interface, en petits fichiers : utils, state, pages, compare, dialogs, actions, lock, cursor, start
+tests/              tests des règles, du serveur, et bancs d'essai (imprimé et manuscrit)
+build/              construction des installateurs Mac et Windows
+exemples/           documents d'exemple
 ```
+
+### Le trajet d'un document
+
+1. **Dépôt** — `server/uploads.py` enregistre le fichier dans `data/files/`, calcule son empreinte (un doublon est refusé) et met son numéro dans la file d'attente.
+2. **Lecture** — un « ouvrier » de `server/analysis.py` le prend et appelle `engine.extract.read_document()`. Chaque page est lue (texte du PDF, sinon OCR, et TrOCR pour l'écriture manuscrite) ; on obtient la liste des mots lus, avec leur position et leur confiance. Elle est enregistrée dans la base : **un document n'est lu qu'une fois**.
+3. **Recherche** — quand l'interface demande les résultats, `server/results.py` cherche chaque mot-clé du dossier dans ces mots (`engine.search.find_keyword()`), puis `engine.decision.evaluate()` donne le score et la décision avec les seuils du responsable. Ajouter un mot-clé ne relance donc pas la lecture.
+4. **Affichage** — l'interface (`static/js/`) reçoit tout en une fois (`/api/results`) et dessine les pages ; la preuve d'un mot est une image de la page fabriquée par `server/previews.py`, le mot encadré.
 
 ## Polices et logo
 

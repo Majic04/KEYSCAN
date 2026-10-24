@@ -17,10 +17,12 @@ sys.path.insert(0, ROOT)
 import pymupdf  # noqa: E402
 
 from engine.__main__ import analyse  # noqa: E402
-from engine.extract import configure_tesseract, split_raw  # noqa: E402
-from engine.matcher import evaluate, find_keyword  # noqa: E402
+from engine.decision import evaluate  # noqa: E402
+from engine.ocr import find_tesseract  # noqa: E402
+from engine.search import find_keyword  # noqa: E402
+from engine.text import word_parts  # noqa: E402
 
-configure_tesseract()
+find_tesseract()
 TMP = tempfile.mkdtemp(prefix="keyscan-tests-")
 failures = []
 
@@ -43,7 +45,7 @@ def pdf(name, text):
 
 def tokens(text, source="texte", conf=100.0):
     return [{"t": r, "r": r, "n": n, "c": conf, "p": 1, "s": source, "k": 0, "w": i, "b": [i * .05, 0, i * .05 + .04, .02]}
-            for i, (r, n) in enumerate(split_raw(text))]
+            for i, (r, n) in enumerate(word_parts(text))]
 
 
 def result(res, kw):
@@ -90,7 +92,7 @@ def words(ws, source="texte", gap=0.01):
     out, x = [], 0.05
     for wi, w in enumerate(ws):
         wd = 0.012 * len(w)
-        for r, n in split_raw(w):
+        for r, n in word_parts(w):
             out.append({"t": w, "r": r, "n": n, "c": 95.0, "p": 1, "s": source, "k": 0, "w": wi, "b": [x, .1, x + wd, .12]})
         x += wd + gap
     return out

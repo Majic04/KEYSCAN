@@ -1,68 +1,76 @@
 """
-Banc d'essai de l'écriture manuscrite : lettres écrites avec des polices manuscrites irrégulières.
-Compare la détection des mots-clés SANS puis AVEC le module manuscrit, et mesure le taux d'erreur
-de lecture par caractère (CER) de TrOCR sur chaque ligne.
-usage : python tests/evaluate_manuscrit.py   (module manuscrit installé requis pour la 2e partie)
+Banc d'essai de l'écriture manuscrite : des lettres écrites avec des polices manuscrites irrégulières.
+On cherche les mots-clés SANS puis AVEC le module manuscrit, et on mesure le taux d'erreur de lecture
+par caractère (CER) du modèle TrOCR.
+
+    python tests/evaluate_manuscrit.py        (la 2e partie demande le module manuscrit installé)
 """
-import json, os, sys, time
+import json
+import os
+import sys
+import time
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from rapidfuzz.distance import Levenshtein
-from engine import extract as ex, handwriting as hw
-from engine.extract import normalize
-from engine.matcher import find_keyword, evaluate
+from rapidfuzz.distance import Levenshtein  # noqa: E402
 
-D = os.path.join(ROOT, "tests", "manuscrit")
-T = json.load(open(os.path.join(D, "truth.json"), encoding="utf-8"))
-ex.configure_tesseract()
+from engine import ocr, trocr  # noqa: E402
+from engine.decision import ABSENT, PRESENT, TO_CHECK, evaluate  # noqa: E402
+from engine.extract import read_document  # noqa: E402
+from engine.search import find_keyword  # noqa: E402
+from engine.text import normalize  # noqa: E402
 
-
-READ = {}
-
-
-def run(htr):
-    ex._HW_STATE.update(checked=1e18, ok=htr)
-    res, t0 = {}, time.time()
-    for doc in T["truth"]:
-        r = ex.extract_document(os.path.join(D, doc))
-        for k in T["keywords"]:
-            occ = find_keyword(r["tokens"], k)
-            s, dec = evaluate(k, occ, r["quality"], r["pages"])
-            res[(doc, k)] = (dec, s)
-        if htr:
-            seen, words = set(), []
-            for t in r["tokens"]:
-                if t["s"] == "manuscrit" and t["w"] not in seen:
-                    seen.add(t["w"]); words.append(t["t"])
-            READ[doc] = " ".join(words)
-            print(f"  {doc} — lu par TrOCR : {READ[doc]}")
-    return res, time.time() - t0
+FOLDER = os.path.join(ROOT, "tests", "manuscrit")
+with open(os.path.join(FOLDER, "truth.json"), encoding="utf-8") as f:
+    TRUTH = json.load(f)
+ocr.find_tesseract()
+handwriting_text = {}
 
 
-def summary(name, res, dt):
-    tp = sum(1 for (d, k), v in res.items() if k in T["truth"][d]["present"] and v[0] == "present")
-    fp = sum(1 for (d, k), v in res.items() if k not in T["truth"][d]["present"] and v[0] == "present")
-    rv = sum(1 for (d, k), v in res.items() if k in T["truth"][d]["present"] and v[0] == "a_verifier")
-    sure = sum(1 for (d, k), v in res.items() if k in T["truth"][d]["present"] and v[0] == "absent")
-    P = sum(len(v["present"]) for v in T["truth"].values())
-    print(f"{name:28s} trouvés {tp}/{P} · à vérifier {rv} · faux présents {fp} · absents sûrs à tort {sure} · {dt:.1f} s")
+def run(with_handwriting: bool):
+    # on force l'état du module manuscrit (au lieu de le vérifier sur le disque)
+    ocr._handwriting_check.update(time=1e18, available=with_handwriting)
+    results, started = {}, time.time()
+    for document in TRUTH["truth"]:
+        reading = read_document(os.path.join(FOLDER, document))
+        for keyword in TRUTH["keywords"]:
+            score, decision = evaluate(keyword, find_keyword(reading["tokens"], keyword), reading["quality"], reading["pages"])
+            results[(document, keyword)] = (decision, score)
+        if with_handwriting:
+            words, seen = [], set()
+            for token in reading["tokens"]:
+                if token["s"] == "manuscrit" and token["w"] not in seen:
+                    seen.add(token["w"])
+                    words.append(token["t"])
+            handwriting_text[document] = " ".join(words)
+            print(f"  {document} — lu par TrOCR : {handwriting_text[document]}")
+    return results, time.time() - started
 
 
-off, dt0 = run(False)
-summary("SANS module manuscrit", off, dt0)
-if not hw.available():
+def summary(name, results, seconds):
+    def count(present, decision):
+        return sum(1 for (doc, kw), (dec, _) in results.items() if (kw in TRUTH["truth"][doc]["present"]) == present and dec == decision)
+    total = sum(len(v["present"]) for v in TRUTH["truth"].values())
+    print(f"{name:28s} trouvés {count(True, PRESENT)}/{total} · à vérifier {count(True, TO_CHECK)} · "
+          f"faux présents {count(False, PRESENT)} · absents sûrs à tort {count(True, ABSENT)} · {seconds:.1f} s")
+
+
+without, seconds = run(False)
+summary("SANS module manuscrit", without, seconds)
+if not trocr.available():
     sys.exit("Module manuscrit non installé : seconde partie ignorée.")
-on, dt1 = run(True)
-summary("AVEC module manuscrit", on, dt1)
-for (d, k), v in on.items():
-    if k in T["truth"][d]["present"] or v[0] == "present":
-        print(f"  {d:13s} {k:24s} {off[(d, k)][0]:14s} → {v[0]:11s} {v[1]:5.1f}")
+with_hw, seconds = run(True)
+summary("AVEC module manuscrit", with_hw, seconds)
+for (document, keyword), (decision, score) in with_hw.items():
+    if keyword in TRUTH["truth"][document]["present"] or decision == PRESENT:
+        print(f"  {document:13s} {keyword:24s} {without[(document, keyword)][0]:14s} → {decision:11s} {score:5.1f}")
 
-# taux d'erreur de lecture par caractère (CER) : texte lu par TrOCR vs texte réellement écrit (sans accents ni casse)
-errs = tot = 0
-for doc, t in T["truth"].items():
-    ref, got = normalize(" ".join(t["texte"])), normalize(READ.get(doc, ""))
-    e = Levenshtein.distance(got, ref)
-    errs += e; tot += len(ref)
-    print(f"  CER {doc:13s} {e / len(ref) * 100:5.1f} %")
-print(f"CER global : {errs / tot * 100:.1f} %  (les lignes imprimées bien lues par Tesseract ne sont pas relues)")
+# taux d'erreur par caractère : texte lu par TrOCR comparé au texte réellement écrit (sans accents ni majuscules)
+errors = letters = 0
+for document, truth in TRUTH["truth"].items():
+    expected, read = normalize(" ".join(truth["texte"])), normalize(handwriting_text.get(document, ""))
+    distance = Levenshtein.distance(read, expected)
+    errors += distance
+    letters += len(expected)
+    print(f"  CER {document:13s} {distance / len(expected) * 100:5.1f} %")
+print(f"CER global : {errors / letters * 100:.1f} %  (les lignes imprimées bien lues par Tesseract ne sont pas relues)")

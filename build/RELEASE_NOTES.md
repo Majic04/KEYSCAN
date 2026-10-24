@@ -1,4 +1,11 @@
-## Nouveautés de la version 1.5
+## Nouveautés de la version 1.6
+
+- **Plusieurs candidats d'un coup** : « Importer plusieurs candidats » accepte le dossier qui contient un sous-dossier par candidat (déposé ou choisi), ou un `.zip`. Chaque sous-dossier devient un dossier KeyScan avec la liste par défaut, et tous les documents sont lus en parallèle.
+- **Nouvel onglet « Comparer »** : tous les dossiers dans un tableau, une ligne par candidat et une colonne par mot-clé, avec la marque du surligneur dans chaque case (un clic ouvre la preuve). On trie par mot-clé et on filtre les candidats.
+- **Actions sur plusieurs dossiers** : on coche des dossiers puis on leur ajoute des mots-clés (ou la liste par défaut), on retire un mot-clé, on les relit, on les exporte (CSV des seuls dossiers cochés) ou on les supprime.
+- **Code réorganisé pour être relu facilement** : un fichier par rôle, en Python (`engine/` pour la lecture et les décisions, `server/` pour l'application) comme dans l'interface (`static/js/`). Le README explique le trajet d'un document. Les décisions sont inchangées (mêmes résultats sur les bancs d'essai).
+
+## Version 1.5
 
 - **Mots imbriqués** : un mot-clé n'est plus trouvé à l'intérieur d'un mot plus long. « pour » n'est plus « présent » à cause de « pourquoi », y compris quand ce mot arrive découpé : coupure en fin de ligne (« pour- / quoi »), trait d'union invisible du PDF, ou lettres que l'OCR a séparées alors qu'elles se touchent sur l'image.
 - Restent trouvés : l'élision (« l'apprentissage », « d'ingénieur ») et un mot-clé coupé lui-même en fin de ligne (« apprentis- / sage »). Une partie de mot composé (« Master » dans « Master-Recherche ») est proposée « à vérifier ».
