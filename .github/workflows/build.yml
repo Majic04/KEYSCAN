@@ -240,7 +240,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test de la mise à jour automatique (installation silencieuse)
         shell: bash
-        run: python build/ci.py --note "Windows - mise à jour" bash build/update/test_install_windows.sh dist/KeyScan-Windows-Setup.exe
+        run: python build/ci.py --note "Windows - mise à jour" python build/update/test_install_windows.py dist/KeyScan-Windows-Setup.exe
       - name: Accès sécurisé à GitHub depuis l'application (vérification de version)
         continue-on-error: true
         shell: bash
