@@ -170,6 +170,7 @@ jobs:
         run: python build/ci.py --note "Mac - mise à jour" bash build/update/test_install_mac.sh "$DMG"
       - name: Accès sécurisé à GitHub depuis l'application (vérification de version)
         continue-on-error: true          # GitHub limite le nombre de demandes : ne bloque pas la publication
+        timeout-minutes: 5
         run: python build/ci.py --note "Mac - vérification de version" dist/KeyScan.app/Contents/MacOS/KeyScan --check-update
       - name: Publication
         env:
@@ -243,6 +244,7 @@ jobs:
         run: python build/ci.py --note "Windows - mise à jour" python build/update/test_install_windows.py dist/KeyScan-Windows-Setup.exe
       - name: Accès sécurisé à GitHub depuis l'application (vérification de version)
         continue-on-error: true
+        timeout-minutes: 5
         shell: bash
         run: python build/ci.py --note "Windows - vérification de version" dist/KeyScan/KeyScan.exe --check-update
       - name: Publication

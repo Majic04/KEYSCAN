@@ -10,14 +10,15 @@ set "RELAUNCH=%~4"
 set "LOG=%~dp2installation.log"
 echo == %date% %time% : %SETUP% >> "%LOG%"
 
-rem 1. attendre que KeyScan soit fermé (2 minutes au plus ; « ping » sert de pause d'une seconde)
+rem 1. attendre que KeyScan soit fermé (2 minutes au plus ; « ping » sert de pause d'une seconde).
+rem    Chemins complets : un autre « find » (celui de Git, par exemple) peut se trouver avant celui de Windows.
 set /a WAITED=0
 :wait
-tasklist /FI "PID eq %PID%" /NH | find "%PID%" >nul
+"%SystemRoot%\System32\tasklist.exe" /FI "PID eq %PID%" /NH | "%SystemRoot%\System32\find.exe" "%PID%" >nul
 if errorlevel 1 goto install
 set /a WAITED+=1
 if %WAITED% GEQ 120 goto install
-ping -n 2 127.0.0.1 >nul
+"%SystemRoot%\System32\ping.exe" -n 2 127.0.0.1 >nul
 goto wait
 
 rem 2. installateur en mode silencieux (aucune fenêtre, aucune question)
@@ -32,4 +33,4 @@ if errorlevel 1 (
 
 rem 3. rouvrir KeyScan si on l'a demandé (bouton « Redémarrer »)
 if "%RELAUNCH%"=="1" start "" "%APPEXE%"
-endlocal
+endlocal

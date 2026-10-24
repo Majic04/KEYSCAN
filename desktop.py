@@ -277,6 +277,9 @@ def main():
     if a.selftest:
         sys.exit(selftest())
     if a.check_update:
+        for stream in (sys.stdout, sys.stderr):      # Windows : sans cela, « → » ferait planter l'affichage
+            if stream and hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
         import updater
         sys.exit(updater.print_latest(APP_VERSION))
     if a.reset_pin:
