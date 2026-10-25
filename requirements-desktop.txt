@@ -1,5 +1,0 @@
-# Construction de l'application de bureau (machines de construction GitHub)
-pywebview>=5.1
-pyinstaller>=6.6
-requests>=2.31
-certifi>=2024.2

@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KeyScan</title>
+<style>
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 15px; color: #1d2733; background: #f4f6f8; }
+  header { display: flex; align-items: center; gap: 18px; padding: 10px 20px; background: #fff; border-bottom: 1px solid #dde3e8; }
+  header h1 { font-size: 20px; margin: 0 12px 0 0; }
+  header nav a { color: #4a5868; text-decoration: none; padding: 6px 8px; border-radius: 6px; }
+  header nav a.actif { background: #e5ecf6; color: #1d2733; font-weight: 600; }
+  header .droite { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  main { padding: 20px; }
+  button, input, select { font: inherit; }
+  button { padding: 6px 12px; border: 1px solid #c8d1da; border-radius: 6px; background: #fff; cursor: pointer; }
+  button:hover { background: #f0f3f6; }
+  button.principal { background: #2f5bd3; border-color: #2f5bd3; color: #fff; }
+  button.danger { color: #b3261e; }
+  input[type=text], input[type=password] { padding: 6px 10px; border: 1px solid #c8d1da; border-radius: 6px; }
+  .cache { display: none !important; }
+  .carte { background: #fff; border: 1px solid #dde3e8; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .gris { color: #6b7886; font-size: 13px; }
+  .alerte { background: #fdecea; border: 1px solid #f3b7b2; padding: 8px 12px; border-radius: 6px; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eef1f4; vertical-align: top; }
+  tr.clic { cursor: pointer; }
+  tr.clic:hover { background: #f6f8fa; }
+
+  /* les quatre décisions */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 13px; white-space: nowrap; }
+  .present { background: #d6f3e2; color: #11663a; }
+  .a_verifier { background: #fff1b8; color: #7a5a00; }
+  .absent { background: #eceff2; color: #5d6b78; }
+  .absent_douteux { background: #fbe3e8; color: #9b2342; }
+
+  #page-dossiers { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
+  #liste-dossiers div { padding: 8px; border-radius: 6px; cursor: pointer; }
+  #liste-dossiers div:hover { background: #f0f3f6; }
+  #liste-dossiers div.choisi { background: #e5ecf6; }
+  .barre { height: 4px; background: #e3e8ed; border-radius: 2px; margin-top: 4px; }
+  .barre i { display: block; height: 100%; background: #2f5bd3; border-radius: 2px; }
+  .depot { border: 2px dashed #c8d1da; border-radius: 8px; padding: 18px; text-align: center; color: #6b7886; cursor: pointer; margin: 10px 0; }
+  .depot.dessus { border-color: #2f5bd3; color: #2f5bd3; }
+  .mot { display: inline-block; background: #eef2f6; border-radius: 12px; padding: 3px 4px 3px 10px; margin: 3px; }
+  .mot button { border: 0; background: none; padding: 0 6px; }
+
+  #fenetre { position: fixed; inset: 0; background: rgba(20, 30, 40, .4); display: flex; justify-content: flex-end; }
+  #fenetre > div { background: #fff; width: min(720px, 100%); height: 100%; overflow: auto; padding: 20px 24px; box-sizing: border-box; }
+  .occ { border-top: 1px solid #e3e8ed; padding: 12px 0; }
+  .occ img, .page-doc img { max-width: 100%; border: 1px solid #dde3e8; margin-top: 6px; }
+  mark { background: #ffe38a; }
+
+  #comparer td.case { text-align: center; cursor: pointer; }
+  #comparer th.mc { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: normal; height: 130px; }
+  #connexion { max-width: 380px; margin: 80px auto; }
+  #connexion button.prof { display: block; width: 100%; margin: 8px 0; padding: 12px; text-align: left; }
+  #message { position: fixed; bottom: 20px; left: 20px; background: #1d2733; color: #fff; padding: 10px 14px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div id="connexion" class="carte cache">
+  <h2>KeyScan</h2>
+  <div id="choix-prof"></div>
+  <form id="form-code" class="cache">
+    <p id="texte-code"></p>
+    <input type="password" id="code" inputmode="numeric" placeholder="Code" autocomplete="off">
+    <input type="password" id="code2" inputmode="numeric" placeholder="Encore une fois" autocomplete="off" class="cache">
+    <button class="principal">Valider</button>
+    <button type="button" onclick="afficherConnexion()">Retour</button>
+    <p class="gris">Code oublié : <code>python app.py --oubli-code "Nom du prof"</code></p>
+  </form>
+</div>
+
+<div id="appli" class="cache">
+  <header>
+    <h1>KeyScan</h1>
+    <nav>
+      <a href="#" data-vue="dossiers">Dossiers</a>
+      <a href="#" data-vue="comparer">Comparer</a>
+      <a href="#" data-vue="liste">Liste par défaut</a>
+    </nav>
+    <div class="droite">
+      <span id="nom-prof"></span>
+      <button onclick="changerCode()">Changer de code</button>
+      <button onclick="deconnexion()">Se déconnecter</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Dossiers : la liste à gauche, le dossier ouvert à droite -->
+    <div id="page-dossiers">
+      <div>
+        <form class="carte" id="form-dossier">
+          <b>Nouveau dossier</b><br>
+          <input type="text" id="nom-dossier" placeholder="Nom du candidat" style="width: 100%; margin: 8px 0; box-sizing: border-box">
+          <label><input type="checkbox" id="avec-liste" checked> avec la liste par défaut</label><br>
+          <input type="text" id="mots-dossier" placeholder="Autres mots-clés (virgules)" style="width: 100%; margin: 8px 0; box-sizing: border-box">
+          <button class="principal">Créer</button>
+        </form>
+        <div class="carte" id="liste-dossiers"></div>
+      </div>
+      <div>
+        <div class="carte" id="vide">Choisissez un dossier ou créez-en un.</div>
+        <div id="dossier" class="cache">
+          <div class="carte">
+            <h2 id="titre-dossier" style="margin-top: 0"></h2>
+            <button onclick="renommer()">Renommer</button>
+            <button class="danger" onclick="supprimerDossier()">Supprimer</button>
+            <div id="alerte-dossier"></div>
+          </div>
+          <div class="carte">
+            <b>Mots-clés recherchés</b>
+            <form id="form-mot-dossier" style="margin: 8px 0">
+              <input type="text" id="mot-dossier" placeholder="Ajouter (virgules pour plusieurs)">
+              <button>Ajouter</button>
+            </form>
+            <table><thead><tr><th>Mot-clé</th><th>Décision</th><th>Score</th><th>Où</th><th></th></tr></thead>
+              <tbody id="table-mots"></tbody></table>
+          </div>
+          <div class="carte">
+            <b>Documents</b>
+            <div class="depot" id="depot">Déposez les documents ici (PDF, images) ou cliquez pour les choisir</div>
+            <table><tbody id="table-docs"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparer : tous les dossiers dans un tableau, actions sur les dossiers cochés -->
+    <div id="page-comparer" class="cache">
+      <div class="carte">
+        <b>Importer plusieurs candidats</b>
+        <p class="gris">Choisissez un dossier qui contient un sous-dossier par candidat (ou un .zip). Chaque sous-dossier devient un dossier KeyScan, avec la liste par défaut.</p>
+        <button onclick="document.getElementById('choix-dossier').click()">Choisir un dossier</button>
+        <button onclick="document.getElementById('choix-zip').click()">Choisir un .zip</button>
+        <input type="file" id="choix-dossier" webkitdirectory multiple class="cache">
+        <input type="file" id="choix-zip" accept=".zip" class="cache">
+      </div>
+      <div class="carte">
+        <div style="margin-bottom: 10px">
+          <span id="nb-coches">Aucun dossier coché</span> :
+          <button onclick="lot('ajouter')">Ajouter des mots-clés</button>
+          <button onclick="lot('retirer')">Retirer des mots-clés</button>
+          <button onclick="lot('relire')">Relire</button>
+          <button onclick="exporter()">Exporter (CSV)</button>
+          <button class="danger" onclick="lot('supprimer')">Supprimer</button>
+        </div>
+        <div style="overflow-x: auto"><table id="comparer"></table></div>
+        <p class="gris">P = présent, ? = à vérifier, - = absent, ~ = absence incertaine, vide = pas recherché.</p>
+      </div>
+    </div>
+
+    <!-- Liste par défaut -->
+    <div id="page-liste" class="cache">
+      <div class="carte">
+        <b>Liste par défaut</b>
+        <p class="gris">Ces mots-clés sont copiés dans chaque nouveau dossier. Les modifier ne change pas les dossiers déjà créés.</p>
+        <form id="form-liste"><input type="text" id="mot-liste" placeholder="Ajouter (virgules pour plusieurs)"> <button>Ajouter</button></form>
+        <div id="mots-liste" style="margin-top: 10px"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="fenetre" class="cache" onclick="if (event.target === this) fermer()"><div id="contenu-fenetre"></div></div>
+<div id="message" class="cache"></div>
+
+<script>
+const NOMS = { present: "Présent", a_verifier: "À vérifier", absent: "Absent", absent_douteux: "Absence incertaine" };
+let donnees = { dossiers: [], liste_defaut: [] };
+let vue = "dossiers";
+let courant = null;          // dossier ouvert
+let coches = new Set();      // dossiers cochés dans « Comparer »
+let minuteur = null;
+let profChoisi = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function message(texte) {
+  $("message").textContent = texte;
+  $("message").classList.remove("cache");
+  clearTimeout(message.t);
+  message.t = setTimeout(() => $("message").classList.add("cache"), 3000);
+}
+
+async function api(url, options = {}) {
+  if (options.json) {
+    options.method = options.method || "POST";
+    options.headers = { "Content-Type": "application/json" };
+    options.body = JSON.stringify(options.json);
+  }
+  const r = await fetch(url, options);
+  if (r.status === 401) { afficherConnexion(); throw new Error("verrouillé"); }
+  if (!r.ok) {
+    const texte = (await r.text()).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    message(texte.split(/Bad Request|Forbidden|Not Found/).pop().trim() || "Erreur");
+    throw new Error(texte);
+  }
+  return r.json();
+}
+
+// ---------------------------------------------------------------- connexion
+async function afficherConnexion() {
+  const s = await (await fetch("/api/session")).json();
+  if (s.prof) return demarrer(s.prof);
+  $("appli").classList.add("cache");
+  $("connexion").classList.remove("cache");
+  $("form-code").classList.add("cache");
+  $("choix-prof").innerHTML = "<p>Qui êtes-vous ?</p>" + s.profs.map(p =>
+    `<button class="prof" data-nom="${esc(p.nom)}" data-code="${p.a_un_code}">${esc(p.nom)}<br><span class="gris">${p.a_un_code ? "" : "code à créer"}</span></button>`).join("");
+}
+
+$("choix-prof").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  profChoisi = b.dataset.nom;
+  const nouveau = b.dataset.code === "false";
+  $("texte-code").textContent = nouveau ? `${profChoisi} : choisissez un code de 4 à 8 chiffres.` : `${profChoisi} : votre code.`;
+  $("code2").classList.toggle("cache", !nouveau);
+  $("code").value = $("code2").value = "";
+  $("form-code").classList.remove("cache");
+  $("code").focus();
+};
+
+$("form-code").onsubmit = async e => {
+  e.preventDefault();
+  if (!$("code2").classList.contains("cache") && $("code").value !== $("code2").value) return message("Les deux codes sont différents");
+  try { await api("/api/connexion", { json: { prof: profChoisi, code: $("code").value } }); }
+  catch { $("code").value = ""; return; }
+  demarrer(profChoisi);
+};
+
+async function deconnexion() {
+  await fetch("/api/deconnexion", { method: "POST" });
+  courant = null;
+  afficherConnexion();
+}
+
+async function changerCode() {
+  const ancien = prompt("Code actuel");
+  if (!ancien) return;
+  const nouveau = prompt("Nouveau code (4 à 8 chiffres)");
+  if (!nouveau) return;
+  await api("/api/code", { json: { ancien, nouveau } });
+  message("Code changé");
+}
+
+// verrouillage après 30 minutes sans rien faire
+let derniereAction = Date.now();
+["click", "keydown"].forEach(ev => document.addEventListener(ev, () => derniereAction = Date.now()));
+setInterval(() => { if (Date.now() - derniereAction > 30 * 60 * 1000 && !$("appli").classList.contains("cache")) deconnexion(); }, 60000);
+
+function demarrer(prof) {
+  $("connexion").classList.add("cache");
+  $("appli").classList.remove("cache");
+  $("nom-prof").textContent = prof;
+  charger();
+}
+
+// ---------------------------------------------------------------- données
+async function charger() {
+  clearTimeout(minuteur);
+  donnees = await api("/api/resultats");
+  afficher();
+  // tant que des documents sont en lecture, on redemande les résultats toutes les 2 secondes
+  if (donnees.dossiers.some(d => d.en_cours)) minuteur = setTimeout(charger, 2000);
+}
+
+function afficher() {
+  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("actif", a.dataset.vue === vue));
+  ["dossiers", "comparer", "liste"].forEach(v => $("page-" + v).classList.toggle("cache", v !== vue));
+  if (vue === "dossiers") afficherDossiers();
+  if (vue === "comparer") afficherComparer();
+  if (vue === "liste") afficherListe();
+}
+
+document.querySelector("nav").onclick = e => {
+  if (!e.target.dataset.vue) return;
+  e.preventDefault();
+  vue = e.target.dataset.vue;
+  afficher();
+};
+
+// ---------------------------------------------------------------- page Dossiers
+function resume(d) {
+  if (d.en_cours) {
+    const fait = d.documents.reduce((s, x) => s + x.fait, 0), total = d.documents.reduce((s, x) => s + x.total, 0);
+    return `lecture : ${fait}/${total} pages<div class="barre"><i style="width:${total ? fait / total * 100 : 0}%"></i></div>`;
+  }
+  const cases = Object.values(d.cases);
+  const presents = cases.filter(c => c.decision === "present").length, verif = cases.filter(c => c.decision === "a_verifier").length;
+  if (!d.documents.length) return "aucun document";
+  return `${presents}/${cases.length} trouvés` + (verif ? `, ${verif} à vérifier` : "") + (d.non_lus.length ? ", <span style='color:#b3261e'>document illisible</span>" : "");
+}
+
+function afficherDossiers() {
+  $("liste-dossiers").innerHTML = donnees.dossiers.length ? donnees.dossiers.map(d =>
+    `<div data-id="${d.id}" class="${d.id === courant ? "choisi" : ""}"><b>${esc(d.nom)}</b><br><span class="gris">${resume(d)}</span></div>`).join("")
+    : '<span class="gris">Aucun dossier pour l\'instant.</span>';
+  const d = donnees.dossiers.find(x => x.id === courant);
+  $("vide").classList.toggle("cache", !!d);
+  $("dossier").classList.toggle("cache", !d);
+  if (!d) return;
+
+  $("titre-dossier").textContent = d.nom;
+  $("alerte-dossier").innerHTML = d.non_lus.length
+    ? `<div class="alerte">Impossible de lire : ${d.non_lus.map(esc).join(", ")}. Tant qu'il n'est pas remplacé, aucun mot n'est déclaré absent.</div>` : "";
+
+  const lu = d.documents.some(x => x.statut === "ok");
+  const ordre = { present: 0, a_verifier: 1, absent_douteux: 2, absent: 3 };
+  const mots = [...d.mots_cles].sort((a, b) => ordre[d.cases[a.id].decision] - ordre[d.cases[b.id].decision]);
+  $("table-mots").innerHTML = mots.map(m => {
+    const c = d.cases[m.id];
+    const ou = c.ou.map(([f, p]) => `${esc(f)} p.${p}`).join(", ");
+    return `<tr class="clic" data-mot="${m.id}">
+      <td>${esc(m.mot)}</td>
+      <td>${lu ? `<span class="badge ${c.decision}">${NOMS[c.decision]}</span>` : '<span class="gris">en attente</span>'}</td>
+      <td>${lu ? Math.round(c.score) + " %" : ""}</td>
+      <td class="gris">${ou}</td>
+      <td><button data-suppr-mot="${m.id}">×</button></td></tr>`;
+  }).join("") || '<tr><td class="gris">Aucun mot-clé.</td></tr>';
+
+  const etats = { attente: "en attente", lecture: "lecture en cours", ok: "lu", erreur: "illisible" };
+  $("table-docs").innerHTML = d.documents.map(x => {
+    let info = etats[x.statut];
+    if (x.statut === "lecture" && x.total) info += ` (page ${Math.min(x.fait + 1, x.total)}/${x.total})`;
+    if (x.statut === "ok") info += `, qualité ${Math.round(x.qualite)} %` + (x.pages.some(p => p.manuscrit) ? ", écriture manuscrite" : "");
+    const verif = x.trouves.filter(t => t.a_verifier).map(t =>
+      `<a href="#" data-mot="${t.mot_id}" data-doc="${x.id}"><mark>${esc(t.mot)}</mark></a> p.${t.pages.join(", ")}`).join(" · ");
+    return `<tr>
+      <td><a href="/api/documents/${x.id}/fichier" target="_blank">${esc(x.nom)}</a><br><span class="gris">${info}</span>
+        ${verif ? `<br><span class="gris">à vérifier :</span> ${verif}` : ""}</td>
+      <td style="text-align: right; white-space: nowrap">
+        ${x.trouves.length ? `<button data-voir="${x.id}">Voir les mots</button>` : ""}
+        <button data-relire="${x.id}">Relire</button>
+        <button class="danger" data-suppr-doc="${x.id}">×</button></td></tr>`;
+  }).join("");
+}
+
+$("liste-dossiers").onclick = e => {
+  const div = e.target.closest("[data-id]");
+  if (!div) return;
+  courant = +div.dataset.id;
+  afficher();
+};
+
+$("form-dossier").onsubmit = async e => {
+  e.preventDefault();
+  const nom = $("nom-dossier").value.trim();
+  if (!nom) return;
+  const r = await api("/api/dossiers", { json: { nom, liste_defaut: $("avec-liste").checked, mots: $("mots-dossier").value } });
+  $("nom-dossier").value = $("mots-dossier").value = "";
+  courant = r.id;
+  charger();
+};
+
+$("form-mot-dossier").onsubmit = async e => {
+  e.preventDefault();
+  await api("/api/mots_cles", { json: { dossier: courant, mots: $("mot-dossier").value } });
+  $("mot-dossier").value = "";
+  charger();
+};
+
+async function renommer() {
+  const nom = prompt("Nouveau nom", donnees.dossiers.find(d => d.id === courant).nom);
+  if (!nom) return;
+  await api("/api/dossiers/" + courant, { method: "PATCH", json: { nom } });
+  charger();
+}
+
+async function supprimerDossier() {
+  if (!confirm("Supprimer ce dossier et ses documents ?")) return;
+  await api("/api/dossiers/" + courant, { method: "DELETE" });
+  courant = null;
+  charger();
+}
+
+async function envoyer(fichiers) {
+  const form = new FormData();
+  for (const f of fichiers) form.append("fichiers", f);
+  const r = await api(`/api/dossiers/${courant}/fichiers`, { method: "POST", body: form });
+  message(`${r.ok} document(s) ajouté(s)` + (r.doublon ? `, ${r.doublon} doublon(s) ignoré(s)` : "") + (r.refuse ? `, ${r.refuse} refusé(s)` : ""));
+  charger();
+}
+
+$("depot").onclick = () => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.onchange = () => envoyer(input.files);
+  input.click();
+};
+$("depot").ondragover = e => { e.preventDefault(); $("depot").classList.add("dessus"); };
+$("depot").ondragleave = () => $("depot").classList.remove("dessus");
+$("depot").ondrop = e => { e.preventDefault(); $("depot").classList.remove("dessus"); envoyer(e.dataTransfer.files); };
+
+// clics dans le dossier ouvert (et dans le tableau Comparer)
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-mot],[data-suppr-mot],[data-relire],[data-suppr-doc],[data-voir]");
+  if (!t) return;
+  e.preventDefault();
+  if (t.dataset.supprMot) { await api("/api/mots_cles/" + t.dataset.supprMot, { method: "DELETE" }); return charger(); }
+  if (t.dataset.relire) { await api(`/api/documents/${t.dataset.relire}/relire`, { method: "POST" }); return charger(); }
+  if (t.dataset.supprDoc) {
+    if (confirm("Retirer ce document ?")) { await api("/api/documents/" + t.dataset.supprDoc, { method: "DELETE" }); charger(); }
+    return;
+  }
+  if (t.dataset.voir) return voirDocument(+t.dataset.voir);
+  if (t.dataset.mot) return voirMot(+(t.dataset.dossier || courant), +t.dataset.mot);
+});
+
+// ---------------------------------------------------------------- fenêtre de preuve
+function fermer() { $("fenetre").classList.add("cache"); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") fermer(); });
+
+async function voirMot(dossierId, motId) {
+  const c = await api(`/api/dossiers/${dossierId}/mot/${motId}`);
+  const d = donnees.dossiers.find(x => x.id === dossierId);
+  const sources = { texte: "texte du PDF", ocr: "lu sur l'image", manuscrit: "écriture manuscrite" };
+  $("contenu-fenetre").innerHTML = `<button onclick="fermer()" style="float: right">Fermer</button>
+    <h2>${esc(c.mot)}</h2><p>${esc(d.nom)} : <span class="badge ${c.decision}">${NOMS[c.decision]}</span> ${Math.round(c.score)} %</p>
+    ${c.occurrences.length ? "" : "<p class='gris'>Rien n'a été trouvé dans les documents.</p>"}
+    ${c.occurrences.map(o => `<div class="occ">
+      <div>… ${esc(o.contexte).replace(/\[\[(.*?)\]\]/, "<mark>$1</mark>")} …</div>
+      <div class="gris">${esc(o.fichier)}, page ${o.page}, ${sources[o.source]}, ${Math.round(o.score * 100)} %${o.certain ? "" : ` (lu « ${esc(o.texte)} », proche du mot-clé)`}</div>
+      <img src="/api/documents/${o.doc}/page/${o.page}.png?mot=${motId}&zone=${o.box.join(",")}" loading="lazy">
+      <div><a href="/api/documents/${o.doc}/page/${o.page}.png?mot=${motId}" target="_blank">Voir la page entière</a></div>
+    </div>`).join("")}`;
+  $("fenetre").classList.remove("cache");
+}
+
+function voirDocument(docId) {
+  const d = donnees.dossiers.find(x => x.documents.some(y => y.id === docId));
+  const x = d.documents.find(y => y.id === docId);
+  const pages = [...new Set(x.trouves.flatMap(t => t.pages))].sort((a, b) => a - b);
+  $("contenu-fenetre").innerHTML = `<button onclick="fermer()" style="float: right">Fermer</button><h2>${esc(x.nom)}</h2>
+    <p class="gris">Vert : présent. Jaune : à vérifier.</p>
+    ${pages.map(p => `<div class="page-doc"><b>Page ${p}</b><br><img src="/api/documents/${docId}/page/${p}.png?tous=1" loading="lazy"></div>`).join("")}`;
+  $("fenetre").classList.remove("cache");
+}
+
+// ---------------------------------------------------------------- page Comparer
+const norm = m => m.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+function afficherComparer() {
+  const ds = donnees.dossiers;
+  coches.forEach(id => { if (!ds.some(d => d.id === id)) coches.delete(id); });
+  // une colonne par mot-clé (le même mot-clé dans plusieurs dossiers = une seule colonne)
+  const colonnes = new Map();
+  ds.forEach(d => d.mots_cles.forEach(m => { if (!colonnes.has(norm(m.mot))) colonnes.set(norm(m.mot), m.mot); }));
+  const lettre = { present: "P", a_verifier: "?", absent: "-", absent_douteux: "~" };
+  let html = `<tr><th><input type="checkbox" id="tout" ${ds.length && coches.size === ds.length ? "checked" : ""}></th><th>Dossier</th>`
+    + [...colonnes.values()].map(m => `<th class="mc">${esc(m)}</th>`).join("") + "</tr>";
+  for (const d of ds) {
+    const lu = d.documents.some(x => x.statut === "ok");
+    html += `<tr><td><input type="checkbox" data-coche="${d.id}" ${coches.has(d.id) ? "checked" : ""}></td>
+      <td><b>${esc(d.nom)}</b><br><span class="gris">${resume(d)}</span></td>`;
+    for (const n of colonnes.keys()) {
+      const m = d.mots_cles.find(x => norm(x.mot) === n);
+      if (!m || !lu) { html += "<td></td>"; continue; }
+      const c = d.cases[m.id];
+      html += `<td class="case" data-mot="${m.id}" data-dossier="${d.id}" title="${esc(m.mot)} : ${NOMS[c.decision]}">
+        <span class="badge ${c.decision}">${lettre[c.decision]}</span></td>`;
+    }
+    html += "</tr>";
+  }
+  $("comparer").innerHTML = ds.length ? html : "<tr><td class='gris'>Aucun dossier.</td></tr>";
+  $("nb-coches").textContent = coches.size ? `${coches.size} dossier(s) coché(s)` : "Aucun dossier coché";
+}
+
+$("comparer").onchange = e => {
+  if (e.target.id === "tout") {
+    donnees.dossiers.forEach(d => e.target.checked ? coches.add(d.id) : coches.delete(d.id));
+  } else if (e.target.dataset.coche) {
+    const id = +e.target.dataset.coche;
+    e.target.checked ? coches.add(id) : coches.delete(id);
+  }
+  afficherComparer();
+};
+
+async function lot(action) {
+  if (!coches.size) return message("Cochez d'abord des dossiers");
+  let mots = "";
+  if (action === "ajouter" || action === "retirer") {
+    mots = prompt(action === "ajouter" ? "Mots-clés à ajouter (séparés par des virgules)" : "Mots-clés à retirer (séparés par des virgules)");
+    if (!mots) return;
+  }
+  if (action === "supprimer" && !confirm(`Supprimer ${coches.size} dossier(s) ?`)) return;
+  await api("/api/lot", { json: { ids: [...coches], action, mots } });
+  if (action === "supprimer") coches.clear();
+  message("C'est fait");
+  charger();
+}
+
+function exporter() {
+  location.href = "/export.csv" + (coches.size ? "?ids=" + [...coches].join(",") : "");
+}
+
+async function importer(form) {
+  message("Envoi en cours…");
+  const r = await api("/api/import", { method: "POST", body: form });
+  message(`${r.ids.length} dossier(s) créé(s)` + (r.ignores ? `, ${r.ignores} fichier(s) ignoré(s)` : ""));
+  coches = new Set(r.ids);
+  charger();
+}
+
+$("choix-dossier").onchange = e => {
+  const form = new FormData();
+  for (const f of e.target.files) { form.append("fichiers", f); form.append("chemins", f.webkitRelativePath || f.name); }
+  e.target.value = "";
+  importer(form);
+};
+$("choix-zip").onchange = e => {
+  const form = new FormData();
+  form.append("zip", e.target.files[0]);
+  e.target.value = "";
+  importer(form);
+};
+
+// ---------------------------------------------------------------- page Liste par défaut
+function afficherListe() {
+  $("mots-liste").innerHTML = donnees.liste_defaut.map(m =>
+    `<span class="mot">${esc(m.mot)}<button data-suppr-mot="${m.id}">×</button></span>`).join("") || '<span class="gris">Liste vide.</span>';
+}
+
+$("form-liste").onsubmit = async e => {
+  e.preventDefault();
+  await api("/api/mots_cles", { json: { dossier: 0, mots: $("mot-liste").value } });
+  $("mot-liste").value = "";
+  charger();
+};
+
+afficherConnexion();
+</script>
+</body>
+</html>

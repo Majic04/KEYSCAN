@@ -1,11 +1,3 @@
-data/
-.venv/
+donnees/
 __pycache__/
-models/
-manuscrit.json
-# fichiers produits par la construction de l application
-dist/
-build/work/
-build/models/
-build/tesseract/
-*.spec.bak
+.venv/
