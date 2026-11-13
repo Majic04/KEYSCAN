@@ -97,6 +97,8 @@
           <input type="text" id="nom-dossier" placeholder="Nom du candidat" style="width: 100%; margin: 8px 0; box-sizing: border-box">
           <label><input type="checkbox" id="avec-liste" checked> avec la liste par défaut</label><br>
           <input type="text" id="mots-dossier" placeholder="Autres mots-clés (virgules)" style="width: 100%; margin: 8px 0; box-sizing: border-box">
+          <label>Documents du candidat (PDF, images)<br>
+            <input type="file" id="docs-dossier" multiple required accept=".pdf,image/*" style="margin: 6px 0 10px"></label><br>
           <button class="principal">Créer</button>
         </form>
         <div class="carte" id="liste-dossiers"></div>
@@ -263,10 +265,16 @@ function demarrer(prof) {
 // ---------------------------------------------------------------- données
 async function charger() {
   clearTimeout(minuteur);
-  donnees = await api("/api/resultats");
+  try {
+    donnees = await api("/api/resultats");
+  } catch {
+    // une demande ratée ne doit pas arrêter le suivi de la lecture : on réessaie (sauf si le profil est verrouillé)
+    if (!$("appli").classList.contains("cache")) minuteur = setTimeout(charger, 3000);
+    return;
+  }
   afficher();
-  // tant que des documents sont en lecture, on redemande les résultats toutes les 2 secondes
-  if (donnees.dossiers.some(d => d.en_cours)) minuteur = setTimeout(charger, 2000);
+  // tant que des documents sont en lecture, on redemande les résultats toutes les secondes
+  if (donnees.dossiers.some(d => d.en_cours)) minuteur = setTimeout(charger, 1000);
 }
 
 function afficher() {
@@ -287,8 +295,15 @@ document.querySelector("nav").onclick = e => {
 // ---------------------------------------------------------------- page Dossiers
 function resume(d) {
   if (d.en_cours) {
-    const fait = d.documents.reduce((s, x) => s + x.fait, 0), total = d.documents.reduce((s, x) => s + x.total, 0);
-    return `lecture : ${fait}/${total} pages<div class="barre"><i style="width:${total ? fait / total * 100 : 0}%"></i></div>`;
+    // un document compte pour ses pages (1 au moins) ; un document terminé, même illisible, compte en entier
+    let fait = 0, total = 0, finis = 0;
+    for (const x of d.documents) {
+      const pages = Math.max(1, x.total), fini = x.statut === "ok" || x.statut === "erreur";
+      total += pages;
+      fait += fini ? pages : Math.min(x.fait, pages);
+      if (fini) finis++;
+    }
+    return `lecture : ${finis}/${d.documents.length} documents lus<div class="barre"><i style="width:${fait / total * 100}%"></i></div>`;
   }
   const cases = Object.values(d.cases);
   const presents = cases.filter(c => c.decision === "present").length, verif = cases.filter(c => c.decision === "a_verifier").length;
@@ -351,10 +366,12 @@ $("form-dossier").onsubmit = async e => {
   e.preventDefault();
   const nom = $("nom-dossier").value.trim();
   if (!nom) return;
+  const fichiers = [...$("docs-dossier").files];
+  if (!fichiers.length) return message("Ajoutez au moins un document");
   const r = await api("/api/dossiers", { json: { nom, liste_defaut: $("avec-liste").checked, mots: $("mots-dossier").value } });
-  $("nom-dossier").value = $("mots-dossier").value = "";
+  $("nom-dossier").value = $("mots-dossier").value = $("docs-dossier").value = "";
   courant = r.id;
-  charger();
+  envoyer(fichiers);
 };
 
 $("form-mot-dossier").onsubmit = async e => {

@@ -60,6 +60,7 @@ def db():
 
 def creer_tables():
     with db() as con:
+        con.execute("PRAGMA journal_mode=WAL")   # l'interface peut lire la base pendant qu'un document y est enregistré
         con.executescript("""
         CREATE TABLE IF NOT EXISTS dossiers (id INTEGER PRIMARY KEY, nom TEXT, prof TEXT, cree_le TEXT);
         CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY, dossier_id INTEGER, nom TEXT, chemin TEXT,
@@ -585,10 +586,18 @@ def demarrer():
     creer_tables()
     if not moteur.trouver_tesseract():
         print("Attention : Tesseract est introuvable, les scans et les images ne pourront pas être lus.")
-    with db() as con:   # reprendre les lectures interrompues
-        for doc in con.execute("SELECT id FROM documents WHERE statut IN ('attente', 'lecture')"):
+    with db() as con:
+        # un document qui était en cours de lecture quand KeyScan s'est arrêté n'est pas relancé tout seul
+        # (s'il a fait planter l'application, elle ne replantera pas à chaque démarrage)
+        con.execute("UPDATE documents SET statut='erreur', erreur='Lecture interrompue : cliquez sur Relire' WHERE statut='lecture'")
+        for doc in con.execute("SELECT id FROM documents WHERE statut='attente'"):
             file_attente.put(doc["id"])
-    for _ in range(max(1, min(4, (os.cpu_count() or 2) - 1))):
+    # Pour ne pas faire chauffer l'ordinateur : 2 documents à la fois au plus, sur la moitié des cœurs,
+    # un seul cœur par Tesseract, et une priorité basse pour laisser la main aux autres programmes.
+    os.environ["OMP_THREAD_LIMIT"] = "1"
+    if hasattr(os, "nice"):
+        os.nice(10)
+    for _ in range(max(1, min(2, (os.cpu_count() or 2) // 2))):
         threading.Thread(target=ouvrier, daemon=True).start()
 
 

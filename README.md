@@ -28,8 +28,6 @@ python app.py
 puis ouvrir http://127.0.0.1:5000. Chaque prof a son profil protégé par un code (créé à la première connexion).
 Code oublié : `python app.py --oubli-code "Franck Plestan"`.
 
-Sans interface : `python moteur.py cv.pdf lettre.jpg --mots "thèse, robotique"`
-
 Tests : `python tests.py`
 
 ## Fichiers

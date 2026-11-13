@@ -4,13 +4,11 @@ Moteur de KeyScan : lire un document (PDF, scan, photo, lettre manuscrite) puis 
     lire_document(chemin)          -> les mots lus, page par page, et la qualité de lecture
     chercher(mots_lus, mot_cle)    -> les endroits où le mot-clé apparaît, avec un score
     decider(mot_cle, occurrences, qualite, pages, non_lus)  -> (score, décision)
-
-Utilisation seule :  python moteur.py cv.pdf lettre.jpg --mots "thèse, robotique"
 """
 import os
 import re
 import shutil
-import sys
+import threading
 import unicodedata
 from itertools import groupby
 
@@ -312,6 +310,7 @@ def lire_image(image, page, premier_num, chercher_sens=True):
 MODELE = os.environ.get("KEYSCAN_MODELE", "agomberto/trocr-large-handwritten-fr")
 PROCESSEUR = os.environ.get("KEYSCAN_PROCESSEUR", "microsoft/trocr-large-handwritten")
 _trocr = None
+verrou_trocr = threading.Lock()   # une seule lecture manuscrite à la fois, sinon la mémoire explose
 
 
 def manuscrit_dispo():
@@ -324,101 +323,64 @@ def manuscrit_dispo():
         return False
 
 
-def masque_encre(gris):
-    lisse = gris.filter(ImageFilter.MedianFilter(3))
-    px = np.asarray(lisse, dtype=np.int16)
-    encre = px < np.asarray(lisse.filter(ImageFilter.BoxBlur(25)), dtype=np.int16) - 12
-    # enlever le grain du papier : un vrai trait remplit une partie de son voisinage
-    r = max(3, gris.width // 600)
-    c = np.pad(encre.astype(np.int32), ((r + 1, r), (r + 1, r))).cumsum(0).cumsum(1)
-    k = 2 * r + 1
-    autour = c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]
-    encre &= autour >= 0.2 * k * k
-    # enlever les longs traits horizontaux (bord de carte, soulignement)
-    L = max(40, gris.width // 6)
-    if encre.shape[1] > L:
-        c = np.pad(encre.astype(np.int32), ((0, 0), (1, 0))).cumsum(1)
-        plein = np.pad(((c[:, L:] - c[:, :-L]) >= int(0.92 * L)).astype(np.int32), ((0, 0), (1, 0))).cumsum(1)
-        x = np.arange(encre.shape[1])
-        encre &= ~((plein[:, np.minimum(x, encre.shape[1] - L) + 1] - plein[:, np.maximum(0, x - L + 1)]) > 0)
-    return encre
-
-
 def intervalles(masque):
+    """[F, T, T, F, T] -> [(1, 3), (4, 5)] : les zones où le masque est vrai."""
     bords = np.diff(np.concatenate([[False], masque, [False]]).astype(np.int8))
     return list(zip(np.where(bords == 1)[0], np.where(bords == -1)[0]))
 
 
-def interligne(profil):
-    """Mesuré par autocorrélation : le profil ressemble à lui-même décalé d'une ligne."""
-    p = profil - profil.mean()
-    n = len(p)
-    ac = np.correlate(p, p, mode="full")[n - 1:]
-    if ac[0] <= 0:
-        return 0
-    a, b = max(8, n // 150), max(9, n // 4)
-    fen = ac[a:b]
-    pics = [i for i in range(1, len(fen) - 1) if fen[i] >= fen[i - 1] and fen[i] >= fen[i + 1] and fen[i] > 0.1 * ac[0]]
-    return a + max(pics, key=lambda i: fen[i]) if pics else 0
-
-
-def bandes_de_lignes(profil):
-    H = len(profil)
-    esp = interligne(profil)
-    if esp < 8:
-        seuil = max(2.0, 0.06 * float(np.percentile(profil[profil > 0], 90)))
-        return [(h, b) for h, b in intervalles(profil > seuil) if b - h >= 6]
-    lisse = np.convolve(profil, np.ones(max(3, esp // 3)) / max(3, esp // 3), mode="same")
-    cand = [y for y in range(1, H - 1) if lisse[y] >= lisse[y - 1] and lisse[y] > lisse[y + 1] and lisse[y] > 0.12 * lisse.max()]
-    pics = []
-    for y in sorted(cand, key=lambda y: -lisse[y]):
-        if all(abs(y - p) >= 0.6 * esp for p in pics):
-            pics.append(y)
-    pics.sort()
-    bandes = []
-    for i, p in enumerate(pics):
-        haut = pics[i - 1] + int(np.argmin(lisse[pics[i - 1]:p])) if i else max(0, int(p - 0.6 * esp))
-        bas = p + int(np.argmin(lisse[p:pics[i + 1]])) if i + 1 < len(pics) else min(H, int(p + 0.6 * esp))
-        encre = np.where(profil[haut:bas] > 0.05 * lisse[p])[0]
-        if len(encre):
-            haut, bas = haut + int(encre[0]), haut + int(encre[-1]) + 1
-        if bas - haut >= 6:
-            bandes.append((haut, bas))
-    return bandes
-
-
 def lignes_de_texte(gris):
-    """Les morceaux de lignes de la page, en pixels (gauche, haut, droite, bas)."""
-    encre = masque_encre(gris)
+    """Les morceaux de lignes de texte de la page, en pixels : (gauche, haut, droite, bas)."""
+    # encre = pixel nettement plus sombre que ses voisins (marche aussi sur du papier jauni)
+    lisse = gris.filter(ImageFilter.MedianFilter(5))
+    px = np.asarray(lisse, dtype=np.int16)
+    encre = px < np.asarray(lisse.filter(ImageFilter.BoxBlur(25)), dtype=np.int16) - 15
     H, W = encre.shape
-    profil = encre.sum(axis=1).astype(np.float32)
+    # on compte l'encre sur chaque rangée de pixels : une ligne de texte = une zone où ce compte est élevé
+    profil = np.convolve(encre.sum(axis=1), np.ones(5) / 5, mode="same")
     if not profil.any():
         return []
+    bandes = [(h, b) for h, b in intervalles(profil > 0.08 * np.percentile(profil[profil > 0], 90)) if b - h >= 10]
+    # deux lignes qui se touchent forment une seule bande avec deux « cœurs » très encrés : on coupe entre les deux
+    lignes = []
+    for h, b in bandes:
+        coeurs = [c for c in intervalles(profil[h:b] > 0.5 * profil[h:b].max())]
+        coupes = [h]
+        for (_, fin1), (debut2, _) in zip(coeurs, coeurs[1:]):
+            if debut2 - fin1 >= 4:
+                coupes.append(h + fin1 + int(np.argmin(profil[h + fin1:h + debut2])))
+        coupes.append(b)
+        lignes += list(zip(coupes, coupes[1:]))
+
     boites = []
-    for haut, bas in bandes_de_lignes(profil):
+    for haut, bas in lignes:
         h = bas - haut
-        if h < 8 or h > H / 2:
+        if h < 10 or h > H / 3:
             continue
-        traits = [t for t in intervalles(encre[haut:bas].sum(axis=0) >= 2) if t[1] - t[0] >= 2]
+        # dans une ligne, un grand vide sépare deux morceaux ; un morceau trop long est coupé entre deux mots
+        traits = intervalles(encre[haut:bas].sum(axis=0) >= 2)
         if not traits:
             continue
-        # un grand vide sépare deux colonnes ; un morceau trop long est coupé entre deux mots
-        morceaux_ligne, debut, fin = [], traits[0][0], traits[0][1]
-        for a, b in traits[1:]:
-            if a - fin > 1.8 * h or (a - fin > 0.35 * h and fin - debut > 14 * h):
-                morceaux_ligne.append((debut, fin))
-                debut = a
-            fin = b
-        morceaux_ligne.append((debut, fin))
+        morceaux_ligne = [list(traits[0])]
+        for g, d in traits[1:]:
+            vide, long_ = g - morceaux_ligne[-1][1], morceaux_ligne[-1][1] - morceaux_ligne[-1][0]
+            if vide > 1.5 * h or (vide > 0.4 * h and long_ > 12 * h):
+                morceaux_ligne.append([g, d])
+            else:
+                morceaux_ligne[-1][1] = d
         for g, d in morceaux_ligne:
-            if d - g < h or encre[haut:bas, g:d].sum() < 0.02 * h * (d - g):
-                continue
-            boites.append((max(0, g - h // 4), max(0, haut - h // 12), min(W, d + h // 4), min(H, bas + h // 12)))
+            if d - g > h:
+                boites.append((max(0, g - h // 4), max(0, haut - h // 10), min(W, d + h // 4), min(H, bas + h // 10)))
     return boites
 
 
 def lire_lignes(images):
     """TrOCR lit chaque image de ligne. Retourne [(texte, confiance 0-100)]."""
+    with verrou_trocr:
+        return _lire_lignes(images)
+
+
+def _lire_lignes(images):
     global _trocr
     import torch
     from transformers import AutoTokenizer, TrOCRProcessor, VisionEncoderDecoderModel
@@ -426,6 +388,7 @@ def lire_lignes(images):
     logging.set_verbosity_error()
     if _trocr is None:
         print("chargement du modèle manuscrit (téléchargé la première fois, environ 2 Go)…")
+        torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))   # la moitié des cœurs : l'ordinateur chauffe moins
         proc = TrOCRProcessor.from_pretrained(PROCESSEUR)
         tok = AutoTokenizer.from_pretrained(MODELE)
         modele = VisionEncoderDecoderModel.from_pretrained(MODELE).eval()
@@ -436,8 +399,8 @@ def lire_lignes(images):
         _trocr = (proc, tok, modele)
     proc, tok, modele = _trocr
     res = []
-    for i in range(0, len(images), 6):
-        lot = [im.convert("RGB") for im in images[i:i + 6]]
+    for i in range(0, len(images), 4):
+        lot = [im.convert("RGB") for im in images[i:i + 4]]
         with torch.no_grad():
             out = modele.generate(proc(images=lot, return_tensors="pt").pixel_values, max_new_tokens=64, num_beams=1,
                                   output_scores=True, return_dict_in_generate=True)
@@ -464,7 +427,7 @@ def ajouter_manuscrit(gris, mots_imprimes, page, num, tokens):
                 couvert[max(0, int(x0) - g):max(0, int(x1) - g)] = True
         if couvert.mean() < 0.6:   # pas du texte imprimé bien lu -> manuscrit
             lignes.append((g, h, d, b))
-    lignes = lignes[:60]
+    lignes = lignes[:30]     # au plus 30 lignes par page : la lecture manuscrite est très coûteuse
     if not lignes:
         return 0
     lues = []
@@ -495,84 +458,52 @@ def ajouter_manuscrit(gris, mots_imprimes, page, num, tokens):
 #   score d'une occurrence = ressemblance (0 à 1) x confiance de lecture (0 à 1)
 # ---------------------------------------------------------------------------------------------
 
-CONFUSIONS_OCR = [("rn", "m"), ("vv", "w"), ("cl", "d"), ("0", "o"), ("1", "l"), ("i", "l"), ("5", "s")]
 ELISIONS = {"l", "d", "j", "m", "n", "s", "t", "c", "qu", "jusqu", "lorsqu", "puisqu", "quoiqu", "presqu"}
 TIRETS = "-‐‑"
 APOSTROPHES = "'’ʼ"
 
 
-def sans_confusions(txt, garder_chiffres):
-    for a, b in CONFUSIONS_OCR:
-        if not (garder_chiffres and a.isdigit()):
-            txt = txt.replace(a, b)
-    return txt
-
-
-def erreurs_tolerees(longueur, manuscrit):
-    paliers = [(3, 0), (6, 1), (10, 2), (99, 3.5)] if manuscrit else [(4, 0), (6, 0.5), (10, 1.5), (99, 2.5)]
-    return next(e for lmax, e in paliers if longueur <= lmax)
-
-
-def meme_mot_ou_pluriel(a, b):
+def pluriel(a, b):
     court, long_ = sorted((a, b), key=len)
     return a == b or (len(court) >= 3 and long_ in (court + "s", court + "x", court + "es"))
 
 
-def ressemblance(mc, fenetre):
-    """mc = le mot-clé découpé (voir chercher). Retourne 0 si trop différent."""
-    source = fenetre[0]["source"]
+def ressemblance(mot_cle, fenetre):
+    """
+    1 = le même mot (les accents et majuscules ne comptent pas), un peu moins si c'est proche, 0 si trop différent.
+    En dessous de 0,94 le mot est seulement « proche » : il ne pourra pas être déclaré présent.
+    """
+    bruts, parties = [b for b, _ in mot_cle], [n for _, n in mot_cle]
+    cible = "".join(parties)
     lu = "".join(t["norm"] for t in fenetre)
-    meme_decoupe = len(fenetre) == len(mc["parties"])
-    longueur = len(mc["colle"])
-
-    if lu == mc["colle"]:
-        err = 0
-    elif meme_decoupe and all(meme_mot_ou_pluriel(t["norm"], p) for t, p in zip(fenetre, mc["parties"])):
-        err = 0.25 if source == "texte" else 0.5
-    elif source == "texte":
-        # texte du PDF : seulement une faute de frappe dans un mot long
-        if longueur >= 8 and Levenshtein.distance(lu, mc["colle"]) <= 1:
-            err = 1
-        else:
-            return 0
-    else:
-        tol = erreurs_tolerees(longueur, source == "manuscrit")
-        if tol == 0 or abs(len(lu) - longueur) > tol + 1:
-            return 0
-        err = Levenshtein.distance(lu, mc["colle"])
-        avec_conf = Levenshtein.distance(sans_confusions(lu, mc["chiffres"]), sans_confusions(mc["colle"], mc["chiffres"]))
-        if avec_conf < err:
-            err = min(err, avec_conf + 0.5)
-        if err > tol:
-            return 0
-
-    if err == 0:
+    source = fenetre[0]["source"]
+    if lu == cible:
         r = 1.0
-    elif err <= 0.25:
+    elif len(fenetre) == len(parties) and all(pluriel(t["norm"], p) for t, p in zip(fenetre, parties)):
         r = 0.97
+    elif source == "texte":
+        return 0      # le texte d'un PDF n'a pas d'erreur de lecture : pas de mot approché
     else:
-        r = 1 - 0.12 * err * 8 / max(longueur, 8)
-        if source == "texte":
-            r = min(r, 0.9)
+        # OCR ou écriture manuscrite : quelques lettres mal lues sont tolérées, seulement dans les mots assez longs
+        erreurs = Levenshtein.distance(lu, cible)
+        tolerees = min(3, (len(cible) - 1) // 3) if source == "manuscrit" else min(2, max(0, (len(cible) - 4) // 3))
+        if erreurs > tolerees:
+            return 0
+        r = min(0.9, 1 - 0.1 * erreurs)
         if source == "manuscrit":
-            r = min(r, 0.8)   # écriture manuscrite approchée : jamais plus que « à vérifier »
-
-    # accent oublié sur un mot court (« these » pour « thèse »), sigle écrit en minuscules
-    if meme_decoupe:
-        for t, brut in zip(fenetre, mc["bruts"]):
-            lu_brut = t["partie"]
-            if normaliser(brut) != brut.lower() and normaliser(brut) == normaliser(lu_brut) and brut.lower() != lu_brut.lower():
-                if len(normaliser(brut)) <= 6:
-                    r *= (0.85 if lu_brut.isupper() else 0.72) if source == "texte" else 0.9
-                elif source == "texte":
-                    r *= 0.97
-            if len(brut) >= 2 and brut.isupper() and lu_brut.islower():
-                r *= 0.6 if source == "texte" else 0.75
-    return max(0.0, min(1.0, r))
+            r = min(r, 0.8)
+    # accent oublié sur un mot court (« these » pour « thèse ») ou sigle en minuscules (« ia » pour « IA ») : à vérifier
+    if len(fenetre) == len(parties):
+        for t, brut in zip(fenetre, bruts):
+            if normaliser(brut) != brut.lower() and len(brut) <= 6 and t["partie"].lower() != brut.lower():
+                r = min(r, 0.9)
+            if len(brut) >= 2 and brut.isupper() and t["partie"].islower():
+                r = min(r, 0.75)
+    return r
 
 
 def separateurs(flux):
-    """sep[k] = ce qu'il y a entre le token k-1 et k s'ils viennent du même mot lu, sinon None."""
+    """sep[k] = ce qu'il y a entre le token k-1 et le token k s'ils viennent du même mot lu (sinon None)."""
     sep, curseur = [None] * len(flux), 0
     for k, t in enumerate(flux):
         meme = k > 0 and t["num"] == flux[k - 1]["num"]
@@ -587,34 +518,32 @@ def separateurs(flux):
 
 
 def coupe_en_fin_de_ligne(t):
+    """« pour- » à la fin d'une ligne : le mot continue à la ligne suivante."""
     mot = t["texte"].rstrip()
     return mot.endswith(tuple(TIRETS)) and mot.strip(TIRETS + " ") == t["partie"]
 
 
 def colles(a, b):
-    """Deux mots lus séparément mais qui se touchent sur l'image."""
-    if a["box"] == b["box"]:
-        return False
-    if min(a["box"][3], b["box"][3]) - max(a["box"][1], b["box"][1]) < 0.5 * min(a["box"][3] - a["box"][1], b["box"][3] - b["box"][1]):
+    """Deux mots lus séparément par l'OCR mais qui se touchent sur l'image."""
+    if a["box"] == b["box"] or min(a["box"][3], b["box"][3]) - max(a["box"][1], b["box"][1]) < 0.5 * (a["box"][3] - a["box"][1]):
         return False
     largeur_lettre = (a["box"][2] - a["box"][0]) / max(1, len(a["texte"].strip()))
     return 0 <= b["box"][0] - a["box"][2] < 0.25 * largeur_lettre
 
 
 def autour(flux, sep, debut, fin):
-    """« seul », « compose » (Master-Recherche) ou « dedans » (pour dans pourquoi : pas une occurrence)."""
+    """« seul », « compose » (Master dans Master-Recherche) ou « dedans » (pour dans pourquoi : ce n'est pas le mot)."""
     res = "seul"
-    positions_fiables = flux[debut]["source"] != "manuscrit"
     if debut > 0:
-        avant, s = flux[debut - 1], sep[debut]
+        s = sep[debut]
         if s is not None:
-            if any(c in APOSTROPHES for c in s) and avant["norm"] in ELISIONS:
-                pass   # l'apprentissage, d'ingénieur
+            if any(c in APOSTROPHES for c in s) and flux[debut - 1]["norm"] in ELISIONS:
+                pass        # l'apprentissage, d'ingénieur
             elif s and all(c in TIRETS for c in s):
                 res = "compose"
             else:
                 return "dedans"
-        elif coupe_en_fin_de_ligne(avant) or (positions_fiables and colles(avant, flux[debut])):
+        elif coupe_en_fin_de_ligne(flux[debut - 1]) or (flux[debut]["source"] == "ocr" and colles(flux[debut - 1], flux[debut])):
             return "dedans"
     if fin < len(flux):
         s = sep[fin]
@@ -623,7 +552,7 @@ def autour(flux, sep, debut, fin):
                 res = "compose"
             else:
                 return "dedans"
-        elif coupe_en_fin_de_ligne(flux[fin - 1]) or (positions_fiables and colles(flux[fin - 1], flux[fin])):
+        elif coupe_en_fin_de_ligne(flux[fin - 1]) or (flux[fin]["source"] == "ocr" and colles(flux[fin - 1], flux[fin])):
             return "dedans"
     return res
 
@@ -651,14 +580,11 @@ def extrait(flux, debut, fin):
 
 def chercher(tokens, mot_cle):
     """Toutes les occurrences du mot-clé : [{"page", "source", "certain", "score" (0-1), "texte", "contexte", "box"}]."""
-    parts = morceaux(mot_cle)
-    if not parts:
+    mc = morceaux(mot_cle)
+    if not mc:
         return []
-    colle = "".join(n for _, n in parts)
-    mc = {"bruts": [b for b, _ in parts], "parties": [n for _, n in parts], "colle": colle,
-          "chiffres": any(c.isdigit() for c in colle)}
-    n = len(parts)
-    tailles = sorted({max(1, n - 1), n, n + 1})   # un mot-clé de 2 mots peut avoir été lu collé ou coupé
+    cible = "".join(n for _, n in mc)
+    tailles = (len(mc), len(mc) + 1)     # + 1 : mot coupé en fin de ligne (« apprentis- » « sage »)
 
     trouves = []
     for (page, source, _), groupe in groupby(tokens, key=lambda t: (t["page"], t["source"], t.get("lecture", 0))):
@@ -681,8 +607,8 @@ def chercher(tokens, mot_cle):
                     r = min(r, 0.8)
                 conf = sum(t["conf"] for t in fen) / len(fen) / 100
                 # retrouver exactement un mot long par hasard avec Tesseract est très improbable : on fait plus confiance
-                if source == "ocr" and "".join(t["norm"] for t in fen) == colle:
-                    conf = 1 - (1 - conf) * 0.5 ** (max(0, len(colle) - 3) / 3)
+                if source == "ocr" and "".join(t["norm"] for t in fen) == cible:
+                    conf = 1 - (1 - conf) * 0.5 ** (max(0, len(cible) - 3) / 3)
                 candidats.append((r * conf, r, debut, fin))
         candidats.sort(key=lambda c: (-c[0], c[3] - c[2]))
         pris = set()
@@ -738,26 +664,3 @@ def decider(mot_cle, occurrences, qualite_min_dossier, pages, non_lus=0):
         return score, INCERTAIN
     return score, ABSENT
 
-
-if __name__ == "__main__":
-    import argparse
-    ap = argparse.ArgumentParser(description="KeyScan sans interface : un dossier = les fichiers donnés")
-    ap.add_argument("fichiers", nargs="+")
-    ap.add_argument("--mots", required=True, help='mots-clés séparés par des virgules : "thèse, robotique"')
-    a = ap.parse_args()
-    trouver_tesseract()
-    lus, non_lus = [], 0
-    for f in a.fichiers:
-        try:
-            lus.append(lire_document(f))
-            print(f"{f} : lu ({lus[-1]['qualite']} %)")
-        except Exception as e:
-            non_lus += 1
-            print(f"{f} : illisible ({e})")
-    q = min((d["qualite"] for d in lus), default=0)
-    pages = [p for d in lus for p in d["pages"]]
-    for mot in [m.strip() for m in a.mots.split(",") if m.strip()]:
-        occ = [o for d in lus for o in chercher(d["tokens"], mot)]
-        score, dec = decider(mot, occ, q, pages, non_lus)
-        print(f"  {mot:25s} {NOMS[dec]:20s} {score:5.1f} %")
-    sys.exit(0)
