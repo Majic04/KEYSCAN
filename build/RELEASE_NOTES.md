@@ -1,4 +1,11 @@
-## Nouveautés de la version 1.9
+## Nouveautés de la version 1.10
+
+- **Nouvelle apparence, en relief doux (neumorphisme)** : une seule matière claire d'où tout est moulé. Les boutons sont en relief, les champs et zones de dépôt sont creusés, et ce qui est choisi (onglet, dossier ouvert, option) est enfoncé. Les couleurs sont plus claires ; les polices ne changent pas.
+- **Toujours en thème clair**, même si l'ordinateur est réglé en mode sombre.
+- **Plein écran** : l'application reste groupée au centre avec des marges égales, le contenu n'est plus collé à gauche, et tout est un peu plus grand sur les grands écrans.
+- **Survol des boutons du haut** : le cercle du curseur n'est plus coupé par le bord de la fenêtre.
+
+## Version 1.9
 
 - **Beaucoup moins de calcul sur les PDF avec un logo ou une photo** (CV, relevés de notes) : le texte de ces PDF est déjà lisible directement, mais la moindre image faisait relire toute la page par l'OCR, puis par le modèle manuscrit. Désormais seules les grandes images (un document photographié collé dans le PDF) sont lues, et seulement leur zone. Sur un lot de documents types, le temps de lecture passe de 64 s à 18 s et les lignes envoyées au modèle manuscrit de 36 à 6.
 - **Sens de la page vérifié seulement quand c'est utile** : une page droite et bien lue n'est plus analysée pour savoir si elle est à l'envers.

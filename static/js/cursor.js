@@ -34,7 +34,12 @@
     const dt = Math.min(64, now - last) / 16.67; last = now;
     const f = a => 1 - Math.pow(1 - a, dt);
     let tx = mx, ty = my, tw = BASE, th = BASE, tr = BASE / 2, k = .45;
-    if(mode === "morph" && rect){ tx = rect.left + rect.width / 2; ty = rect.top + rect.height / 2; tw = rect.width + 8; th = rect.height + 8; tr = radius + 4; k = .4; }
+    if(mode === "morph" && rect){
+      tx = rect.left + rect.width / 2; ty = rect.top + rect.height / 2; tw = rect.width + 8; th = rect.height + 8; tr = radius + 4; k = .4;
+      // le cercle reste entièrement dans la fenêtre (sinon il est coupé au bord, en haut notamment)
+      tw = Math.min(tw, innerWidth - 4); th = Math.min(th, innerHeight - 4);
+      tx = Math.min(Math.max(tx, tw / 2 + 2), innerWidth - tw / 2 - 2); ty = Math.min(Math.max(ty, th / 2 + 2), innerHeight - th / 2 - 2);
+    }
     else if(mode === "text"){ tw = 2; th = 20; tr = 1; k = .75; }
     else if(mode === "point"){ tw = th = 34; tr = 17; }
     const ts = down ? .9 : 1;

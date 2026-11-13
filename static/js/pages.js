@@ -78,7 +78,7 @@ function kwList(d){
 }
 
 function docList(d){
-  return d.documents.map(x => {
+  return (d.documents.length ? `<div class="docs">` : "") + d.documents.map(x => {
     const [lab, cls] = x.duplicate_of ? ["Doublon ignoré", "err"] : STATUS[x.status], pg = x.progress;
     const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)} sur ${pg.total}` : lab;
     const hwl = x.pages.reduce((a, p) => a + (p.manuscrit || 0), 0);
@@ -97,7 +97,7 @@ function docList(d){
         <button class="icon" data-re-doc="${x.id}" aria-label="Relire ce document" title="Relire">${ic("refresh")}</button>
         <button class="icon del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer ${esc(x.filename)}" title="Retirer">${ic("x")}</button>
       </span></div>`;
-  }).join("") + `<button class="drop" data-drop="${d.id}">${ic("upload")}Ajouter des documents<span>PDF ou images</span></button>`;
+  }).join("") + (d.documents.length ? "</div>" : "") + `<button class="drop" data-drop="${d.id}">${ic("upload")}Ajouter des documents<span>PDF ou images</span></button>`;
 }
 /* dans un document : les mots à vérifier un par un (avec leur page), les mots sûrs résumés */
 function docHits(d, x){
