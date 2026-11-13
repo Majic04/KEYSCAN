@@ -182,7 +182,7 @@ document.addEventListener("click", e => {
   const col = clickTarget(e, "[data-col]");
   if(col) return $("#menu").classList.contains("on") ? closeMenu() : openColumnMenu(col, col.dataset.col);
   const sort = clickTarget(e, "[data-sort]");
-  if(sort){ compareSort = compareSort === sort.dataset.sort ? null : sort.dataset.sort; closeMenu(); return render(true); }
+  if(sort){ compareSort = compareSort === sort.dataset.sort ? null : sort.dataset.sort; closeMenu(); return render(false, true); }   // trier : sans fondu, on reste où l'on était
   const remove = clickTarget(e, "[data-col-remove]");
   if(remove){ closeMenu(); return runBatch("remove_keywords", {norm:remove.dataset.colRemove}); }
   const batch = clickTarget(e, "[data-batch]");

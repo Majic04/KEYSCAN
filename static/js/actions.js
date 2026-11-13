@@ -4,7 +4,7 @@
    lit cet attribut et appelle la bonne fonction. */
 function pickFiles(cb){
   const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true;
-  inp.accept = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"; inp.onchange = () => cb([...inp.files]); inp.click();
+  inp.accept = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.zip"; inp.onchange = () => cb([...inp.files]); inp.click();
 }
 /* choisir un dossier entier (avec ses sous-dossiers), ou un .zip ; le résultat va à sendImport() */
 function pickFolder(cb){
@@ -51,13 +51,14 @@ async function sendImport(files){
   selected.clear(); r.ids.forEach(id => selected.add(id));     // les nouveaux dossiers sont cochés : prêts pour une action groupée
   await load(false); go("#/comparer");
 }
-async function uploadTo(did, files){
+/* dépose des fichiers dans un dossier (un .zip est ouvert par le serveur : ses documents sont ajoutés un par un) */
+async function uploadTo(did, files, intro){
   if(!files.length) return;
   const fd = new FormData(); files.forEach(f => fd.append("files", f));
   const r = await api(`/api/dossiers/${did}/files`, {method:"POST", body:fd});
   const dup = r.duplicates || [];
-  let msg = `${plural(r.added.length, "document")} ajouté${r.added.length > 1 ? "s" : ""}`;
-  if(r.rejected.length) msg += `, ${r.rejected.length} refusé${r.rejected.length > 1 ? "s" : ""} (format non pris en charge)`;
+  let msg = (intro ? intro + " : " : "") + `${plural(r.added.length, "document")} ajouté${r.added.length > 1 ? "s" : ""}`;
+  if(r.rejected.length) msg += `, ${r.rejected.length} refusé${r.rejected.length > 1 ? "s" : ""} (format non pris en charge ou archive illisible)`;
   if(dup.length) msg += dup.length > 1 ? `, ${dup.length} doublons ignorés` : `, doublon ignoré (identique à ${dup[0].same_as})`;
   toast(msg);
   dossierTab = "docs";
@@ -98,7 +99,7 @@ async function saveOps(ops, pin){
   try{ state.settings = await jpost("/api/settings", {operators:ops, pin}); }
   catch{ return; }
   if(!ops.includes(currentOp)){ currentOp = ops[0]; store.set("ks_op", currentOp); }
-  await load(false); lastPage = null; render(false); toast("Équipe mise à jour");
+  await load(false); render(false, true); toast("Équipe mise à jour");
 }
 let saveT = null, pending = null;
 function saveSettings(patch){
@@ -113,6 +114,7 @@ async function flushSettings(){
   const body = pending; pending = null;
   await jpost("/api/settings", body);
   toast(`Seuils de ${body.owner} enregistrés`);
+  load(false);                                     // les décisions des dossiers suivent les nouveaux seuils
 }
 
 const SEL = "[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-view-doc],[data-wide]";
@@ -203,8 +205,10 @@ document.addEventListener("click", async e => {
     }
     case "export": return exportCsv();
     case "mode-econome": case "mode-rapide": {
-      const mode = ds.action.slice(5);
-      await jpost("/api/settings", {reading_mode: mode}); state.settings.reading_mode = mode; render(false);
+      const mode = ds.action.slice(5), before = state.settings.reading_mode;
+      state.settings.reading_mode = mode; render(false, true);         // le choix s'affiche tout de suite
+      try{ await jpost("/api/settings", {reading_mode: mode}); }
+      catch(e){ state.settings.reading_mode = before; render(false, true); return toast("Réglage non enregistré, réessayez"); }
       return toast(mode === "rapide" ? "Lecture rapide : deux documents à la fois" : "Lecture économe : un document à la fois");
     }
     case "install-update": return installUpdate();
@@ -244,11 +248,8 @@ document.addEventListener("submit", async e => {
     const r = await jpost("/api/dossiers", {name, keywords_from: src, terms: $("#newTerms").value});
     const files = newFiles; closeModal();
     dossierTab = files.length ? "docs" : "kw";
-    if(files.length){
-      const fd = new FormData(); files.forEach(x => fd.append("files", x));
-      await api(`/api/dossiers/${r.id}/files`, {method:"POST", body:fd});
-    }
-    toast("Dossier créé"); await load(false); go(`#/dossier/${r.id}`);
+    await uploadTo(r.id, files, "Dossier créé");
+    go(`#/dossier/${r.id}`);
   }
 });
 document.addEventListener("input", e => {

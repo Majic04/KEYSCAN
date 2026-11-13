@@ -78,6 +78,22 @@ response = franck.post("/api/import-zip", data={"archive": (io.BytesIO(archive.g
                        content_type="multipart/form-data").get_json()
 check("import .zip", response["dossiers"] == ["Durand"] and len(response["duplicates"]) == 1, str(response))
 
+# un .zip déposé dans un dossier existant : ses documents y sont ajoutés
+durand = response["ids"][0]
+archive = io.BytesIO()
+with zipfile.ZipFile(archive, "w") as z:
+    z.writestr("pieces/releve.pdf", pdf_b)
+    z.writestr("pieces/annexes/lettre.pdf", pdf_c)
+    z.writestr("pieces/cv.pdf", pdf_a)                 # déjà dans le dossier : doublon
+    z.writestr("pieces/notes.txt", b"x")               # format refusé
+    z.writestr("__MACOSX/pieces/._releve.pdf", b"y")   # fichier caché du Mac : ignoré
+answer = franck.post(f"/api/dossiers/{durand}/files", data={"files": [(io.BytesIO(archive.getvalue()), "pieces.zip"),
+                                                                      (io.BytesIO(b"pas un zip"), "abime.zip")]},
+                     content_type="multipart/form-data").get_json()
+check(".zip dans un dossier : documents ajoutés", len(answer["added"]) == 2, str(answer))
+check(".zip dans un dossier : doublon, format refusé et archive abîmée signalés",
+      len(answer["duplicates"]) == 1 and sorted(answer["rejected"]) == ["abime.zip", "notes.txt"], str(answer))
+
 # actions sur plusieurs dossiers
 answer = franck.post("/api/dossiers/batch", json={"ids": ids, "action": "add_keywords", "terms": "Kalman, Python"}).get_json()
 check("mots-clés ajoutés à 2 dossiers", answer["changed"] == 4, str(answer))

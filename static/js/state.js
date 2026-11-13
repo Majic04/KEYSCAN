@@ -62,7 +62,9 @@ function paint(el, html, force){
   el._html = html; el.innerHTML = html; return true;
 }
 
-function render(animate){
+/* animate : changement de page (fondu, retour en haut). force : redessiner aussi les pages de saisie,
+   après un choix fait sur cette page (sans fondu ni retour en haut). */
+function render(animate, force){
   const r = route();
   if(!animate && pointerDown){ deferredRender = true; return; }
   renderChrome(r);
@@ -72,7 +74,7 @@ function render(animate){
   paint($("#rail"), railHtml(r));
   $("#railSum").textContent = railSummary();
   // les pages de saisie ne sont pas redessinées par le rafraîchissement automatique (on ne perd pas la frappe)
-  if(!animate && r.page === lastPage && (r.page === "mots-cles" || r.page === "reglages")) return;
+  if(!animate && !force && r.page === lastPage && (r.page === "mots-cles" || r.page === "reglages")) return;
   const v = $("#view");
   const opening = r.page === "dossier" && (animate || lastDossier !== r.id);
   const wide = v.querySelector("[data-keep-scroll]"), scrollLeft = wide ? wide.scrollLeft : 0;   // tableau large : on garde sa position

@@ -1,4 +1,12 @@
-## Nouveautés de la version 1.10
+## Nouveautés de la version 1.11
+
+- **Importer un .zip dans un dossier** : « Ajouter des documents » (ou un glisser-déposer) accepte maintenant les archives .zip, dans un dossier existant comme à la création d'un nouveau dossier. Chaque PDF ou image de l'archive est ajouté, y compris dans ses sous-dossiers ; les fichiers cachés du Mac sont ignorés. Le message indique les documents ajoutés, les doublons et ce qui a été refusé (format non pris en charge, archive abîmée ou protégée).
+- **Réglages → Lecture des documents** : le choix « Rapide » / « Économe » s'affiche tout de suite (il fallait changer de page pour le voir).
+- **Équipe** : l'ajout ou le retrait d'une personne s'affiche aussitôt.
+- **Seuils** : les décisions des dossiers suivent immédiatement les nouveaux seuils.
+- **Comparer** : trier une colonne ne fait plus remonter la page en haut.
+
+## Version 1.10
 
 - **Nouvelle apparence, en relief doux (neumorphisme)** : une seule matière claire d'où tout est moulé. Les boutons sont en relief, les champs et zones de dépôt sont creusés, et ce qui est choisi (onglet, dossier ouvert, option) est enfoncé. Les couleurs sont plus claires ; les polices ne changent pas.
 - **Toujours en thème clair**, même si l'ordinateur est réglé en mode sombre.

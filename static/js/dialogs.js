@@ -43,7 +43,7 @@ function openNew(){
       <div class="choice" role="group" aria-label="Mots-clés de départ">${nDef ? opt("default", `Liste par défaut (${nDef})`) : ""}${others.length ? opt("copy", "Copier un dossier") : ""}${opt("none", "Aucun")}</div>
       ${others.length ? `<select class="field mt" id="kwCopy" hidden aria-label="Dossier à copier">${others.map(d => `<option value="${d.id}">${esc(d.name)} (${kwN(d.keywords.length)})</option>`).join("")}</select>` : ""}
       <input class="field mt" id="newTerms" placeholder="${nDef || others.length ? "Mots-clés en plus" : "Mots-clés"}, séparés par des virgules" aria-label="Mots-clés en plus">
-      <button type="button" class="drop" data-drop="new">${ic("upload")}<span id="newHint">Déposez ses documents</span></button>
+      <button type="button" class="drop" data-drop="new">${ic("upload")}<span id="newHint">Déposez ses documents (PDF, images ou .zip)</span></button>
       <div class="files" id="newFiles"></div>
       <div class="actions"><button type="button" class="btn plain" data-action="import">${ic("folder")}Plusieurs candidats d'un coup</button>
         <button class="btn pen" type="submit" id="newOk" disabled>Créer le dossier</button></div>
@@ -51,7 +51,7 @@ function openNew(){
 }
 function showNewFiles(){
   $("#newFiles").textContent = newFiles.map(f => f.name).join(", ");
-  $("#newHint").textContent = newFiles.length ? `${plural(newFiles.length, "fichier")} prêt${newFiles.length > 1 ? "s" : ""}, cliquez pour en ajouter` : "Déposez ses documents";
+  $("#newHint").textContent = newFiles.length ? `${plural(newFiles.length, "fichier")} prêt${newFiles.length > 1 ? "s" : ""}, cliquez pour en ajouter` : "Déposez ses documents (PDF, images ou .zip)";
   $("#newOk").disabled = !newFiles.length || !$("#newName").value.trim();      // il faut un nom et au moins un document
 }
 

@@ -2,7 +2,7 @@
 ; Installation pour l'utilisateur courant : aucun droit administrateur nécessaire.
 ; version transmise par la construction (/DAppVersion=…), sinon :
 #ifndef AppVersion
-  #define AppVersion "1.10.0"
+  #define AppVersion "1.11.0"
 #endif
 
 [Setup]

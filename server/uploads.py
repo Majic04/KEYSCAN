@@ -3,6 +3,7 @@ Le dépôt des fichiers.
 
 Un fichier déposé est enregistré dans data/files, puis mis dans la file de lecture (voir analysis.py).
 Un fichier au contenu identique à un document déjà présent dans le dossier n'est pas ajouté (doublon).
+Un .zip déposé dans un dossier est ouvert : chacun de ses documents (PDF, images) y est ajouté.
 
 Plusieurs candidats d'un coup : on peut déposer un dossier entier (ou un .zip) qui contient un
 sous-dossier par candidat. Chaque sous-dossier devient un dossier KeyScan, et tous les documents
@@ -61,9 +62,12 @@ def save_file(dossier_id: int, filename: str, data: bytes, person: str) -> int |
 
 
 def save_files(dossier_id: int, files: list[tuple[str, bytes]], person: str) -> dict:
-    """Dépose plusieurs fichiers [(nom, contenu)] dans un dossier → {"added", "rejected", "duplicates"}."""
+    """
+    Dépose plusieurs fichiers [(nom, contenu)] dans un dossier → {"added", "rejected", "duplicates"}.
+    Les .zip sont ouverts : leurs documents sont déposés un par un.
+    """
     added, rejected, duplicates = [], [], []
-    for filename, data in files:
+    for filename, data in expand_zips(files):
         result = save_file(dossier_id, filename, data, person)
         if isinstance(result, str):
             duplicates.append({"file": filename, "same_as": result})
@@ -97,9 +101,36 @@ def group_by_candidate(files: list[tuple[str, bytes]], fallback_name: str) -> di
     return groups
 
 
+MAX_ZIP_FILES = 1000                       # garde-fous contre une archive démesurée
+MAX_ZIP_BYTES = 1024 * 1024 * 1024         # 1 Go une fois décompressée
+
+
 def zip_entries(archive: bytes) -> list[tuple[str, bytes]]:
+    """Les fichiers d'un .zip [(chemin dans l'archive, contenu)], sans les dossiers ni les fichiers cachés du Mac."""
     with zipfile.ZipFile(io.BytesIO(archive)) as z:
-        return [(info.filename, z.read(info)) for info in z.infolist() if not info.is_dir()]
+        infos = [info for info in z.infolist() if not info.is_dir()
+                 and not any(part.startswith(".") or part == "__MACOSX" for part in info.filename.split("/"))]
+        if len(infos) > MAX_ZIP_FILES or sum(info.file_size for info in infos) > MAX_ZIP_BYTES:
+            raise ValueError("archive trop volumineuse")
+        return [(info.filename, z.read(info)) for info in infos]
+
+
+def expand_zips(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
+    """
+    Remplace chaque .zip par les fichiers qu'il contient (sous-dossiers compris).
+    Une archive illisible (abîmée, protégée par un mot de passe, trop grosse) est gardée telle quelle :
+    elle sera refusée et signalée. Un .zip à l'intérieur d'un .zip n'est pas ouvert.
+    """
+    expanded = []
+    for filename, data in files:
+        if not filename.lower().endswith(".zip"):
+            expanded.append((filename, data))
+            continue
+        try:
+            expanded += [(path.split("/")[-1], content) for path, content in zip_entries(data)]
+        except (zipfile.BadZipFile, ValueError, RuntimeError, NotImplementedError):
+            expanded.append((filename, data))
+    return expanded
 
 
 def import_candidates(files: list[tuple[str, bytes]], fallback_name: str, person: str) -> dict:
