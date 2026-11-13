@@ -1,4 +1,12 @@
-## Nouveautés de la version 1.8
+## Nouveautés de la version 1.9
+
+- **Beaucoup moins de calcul sur les PDF avec un logo ou une photo** (CV, relevés de notes) : le texte de ces PDF est déjà lisible directement, mais la moindre image faisait relire toute la page par l'OCR, puis par le modèle manuscrit. Désormais seules les grandes images (un document photographié collé dans le PDF) sont lues, et seulement leur zone. Sur un lot de documents types, le temps de lecture passe de 64 s à 18 s et les lignes envoyées au modèle manuscrit de 36 à 6.
+- **Sens de la page vérifié seulement quand c'est utile** : une page droite et bien lue n'est plus analysée pour savoir si elle est à l'envers.
+- **Réglages → Lecture des documents** : « Économe » (un document à la fois, par défaut) ou « Rapide » (deux à la fois).
+- Si le module manuscrit est momentanément indisponible au démarrage, KeyScan ne relit plus tous les dossiers.
+- Les décisions sont inchangées : mêmes résultats sur les bancs d'essai imprimé et manuscrit.
+
+## Version 1.8
 
 - **Gros dossiers (30 documents et plus)** : KeyScan lit 2 documents à la fois au plus, sur la moitié des cœurs du processeur et en priorité basse. L'ordinateur chauffe moins et reste utilisable ; la lecture est en contrepartie plus lente.
 - **Écriture manuscrite** : 30 lignes par page au plus sont confiées au modèle manuscrit, la partie la plus coûteuse.

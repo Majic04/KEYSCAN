@@ -202,6 +202,11 @@ document.addEventListener("click", async e => {
       toast(`Dossier confié à ${ds.to}`); await load(false); return go("#/dossiers");
     }
     case "export": return exportCsv();
+    case "mode-econome": case "mode-rapide": {
+      const mode = ds.action.slice(5);
+      await jpost("/api/settings", {reading_mode: mode}); state.settings.reading_mode = mode; render(false);
+      return toast(mode === "rapide" ? "Lecture rapide : deux documents à la fois" : "Lecture économe : un document à la fois");
+    }
     case "install-update": return installUpdate();
     case "check-update": return checkUpdate();
     case "add-docs": closeMenu(); return pickFiles(f => uploadTo(+ds.id, f));

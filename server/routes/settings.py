@@ -4,6 +4,7 @@ from flask import Blueprint, abort, jsonify, request, session
 from engine.ocr import find_tesseract
 
 from ..analysis import handwriting_status, waiting_documents
+from ..analysis import READING_MODES
 from ..database import connect, read_setting, write_setting
 from ..migrations import DEFAULT_THRESHOLDS
 from ..profiles import (current_owner, note_failure, pin_is_correct, pin_record, refuse_if_blocked, save_thresholds,
@@ -28,6 +29,8 @@ def change_settings():
     me = current_owner()
     if "operators" in body:
         _change_team(body["operators"], body.get("pin"), me)
+    if body.get("reading_mode") in READING_MODES:          # réglage commun à toute l'équipe (c'est le même ordinateur)
+        write_setting("reading_mode", body["reading_mode"])
     values = {key: body[key] for key in DEFAULT_THRESHOLDS if key in body}
     if values and me in team():
         save_thresholds(me, values)

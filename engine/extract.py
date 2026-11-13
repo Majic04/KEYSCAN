@@ -5,8 +5,11 @@ Pour chaque page d'un PDF :
   1. on lit le texte contenu dans le PDF lui-même (rapide et sans erreur) ;
   2. on vérifie que ce texte est vraisemblable : certains PDF contiennent un texte copiable illisible
      (« DSSUHQWLVVDJH » au lieu de « apprentissage ») ; il est alors ignoré ;
-  3. si la page contient des images, ou presque pas de texte utilisable, elle est transformée en image
-     et lue par l'OCR (ocr.py). C'est le cas des scans et des photos collées dans un PDF.
+  3. si la page n'a presque pas de texte utilisable (un scan), elle est transformée en image et lue
+     entièrement par l'OCR (ocr.py) ;
+  4. si elle a du texte et contient une grande image (un document photographié collé dans le PDF),
+     seule cette image est lue par l'OCR. Les petites images (logo, photo d'identité) sont ignorées :
+     les lire coûtait beaucoup de calcul pour rien, le texte de la page étant déjà dans le PDF.
 Une image (JPEG, PNG, TIFF…) est toujours lue par l'OCR.
 
 Résultat : {"tokens": [...], "pages": [...], "quality": 0-100} (voir read_document).
@@ -31,6 +34,7 @@ PDF_EXTENSIONS = {".pdf"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | PDF_EXTENSIONS
 OCR_RESOLUTION = 300          # points par pouce pour transformer une page PDF en image
 MIN_TEXT_CHARACTERS = 30      # en dessous, la page est considérée comme scannée
+MIN_IMAGE_SHARE = 0.10        # une image plus petite que 10 % de la page (logo, photo) n'est pas lue par l'OCR
 
 
 # =========================================================================== le texte du PDF est-il lisible ?
@@ -135,21 +139,53 @@ def _read_pdf(path: str, progress) -> tuple[list[dict], list[dict]]:
             text_tokens, text_valid = _pdf_text_tokens(page, number, next_word_id(tokens))
             tokens += text_tokens
             text_characters = len(page.get_text().strip()) if text_valid else 0
-            has_images = bool(page.get_images(full=True))
             info = {"mode": "texte", "rot": 0, "skew": 0.0, "text_layer": "ok" if text_valid else "corrompue", "manuscrit": 0}
-            if has_images or text_characters < MIN_TEXT_CHARACTERS:
-                scanned = text_characters < MIN_TEXT_CHARACTERS
+            if text_characters < MIN_TEXT_CHARACTERS:
+                # page scannée : toute la page est lue par l'OCR
                 pixmap = page.get_pixmap(dpi=OCR_RESOLUTION)
                 image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
-                # l'orientation n'est cherchée que pour une page sans texte utilisable (un vrai scan)
-                result = read_image(image, number, next_word_id(tokens), find_orientation=scanned)
+                result = read_image(image, number, next_word_id(tokens))
                 tokens += result["tokens"]
-                info.update(mode="ocr" if scanned else "mixte", rot=result["rotation"], skew=result["skew"],
-                            manuscrit=result["handwritten_lines"])
+                info.update(mode="ocr", rot=result["rotation"], skew=result["skew"], manuscrit=result["handwritten_lines"])
+            else:
+                # page avec du texte : seules les grandes images sont lues (zone par zone)
+                for zone in _large_images(page):
+                    zone_tokens, handwritten = _read_zone(page, zone, number, next_word_id(tokens))
+                    tokens += zone_tokens
+                    info.update(mode="mixte", manuscrit=info["manuscrit"] + handwritten)
             pages.append(info)
             if progress:
                 progress(number, document.page_count)
     return tokens, pages
+
+
+def _large_images(page) -> list:
+    """Les zones des images qui couvrent au moins 10 % de la page (une image dans une autre n'est gardée qu'une fois)."""
+    page_area = page.rect.width * page.rect.height
+    zones = []
+    for info in sorted(page.get_image_info(), key=lambda i: -fitz.Rect(i["bbox"]).get_area()):
+        zone = fitz.Rect(info["bbox"]) & page.rect
+        if zone.is_empty or zone.get_area() < MIN_IMAGE_SHARE * page_area:
+            continue
+        if not any(zone in kept for kept in zones):
+            zones.append(zone)
+    return zones
+
+
+def _read_zone(page, zone, page_number: int, first_word_id: int) -> tuple[list[dict], int]:
+    """
+    Lit par OCR une zone de la page (une image collée). Les positions des mots, données par rapport
+    à la zone, sont ramenées à la page entière. Retourne (tokens, lignes manuscrites).
+    """
+    pixmap = page.get_pixmap(dpi=OCR_RESOLUTION, clip=zone)
+    image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+    result = read_image(image, page_number, first_word_id, find_orientation=False)
+    width, height = page.rect.width, page.rect.height
+    for token in result["tokens"]:
+        left, top, right, bottom = token["b"]
+        token["b"] = [(zone.x0 + left * zone.width) / width, (zone.y0 + top * zone.height) / height,
+                      (zone.x0 + right * zone.width) / width, (zone.y0 + bottom * zone.height) / height]
+    return result["tokens"], result["handwritten_lines"]
 
 
 def reading_quality(tokens: list[dict]) -> float:

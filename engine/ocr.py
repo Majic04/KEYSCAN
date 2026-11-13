@@ -3,8 +3,9 @@ Lecture d'une image par OCR (Tesseract), avec redressement de la page.
 
 Étapes pour une image de page :
   1. préparation : niveaux de gris, agrandissement des petites images ;
-  2. orientation : la page est-elle couchée ou à l'envers ? (0, 90, 180 ou 270°) ;
-  3. inclinaison fine : une photo légèrement penchée est redressée (jusqu'à ±12°) ;
+  2. inclinaison fine : une photo légèrement penchée est redressée (jusqu'à ±12°) ;
+  3. orientation : seulement si la première lecture est mauvaise, on vérifie si la page est couchée
+     ou à l'envers (0, 90, 180 ou 270°). Une page droite et bien lue évite ce calcul coûteux ;
   4. lecture : Tesseract lit l'image. Si la lecture est médiocre, on recommence avec une image
      nettoyée, puis avec d'autres réglages. La meilleure lecture fait foi, les autres la complètent ;
   5. écriture manuscrite : les lignes que Tesseract n'a pas su lire sont confiées à TrOCR
@@ -166,9 +167,9 @@ def _tesseract_reading(image: Image.Image, page_mode: int = 3) -> dict:
     return {"words": words, "weight": weight, "mean": mean}
 
 
-def _all_readings(gray: Image.Image) -> list[dict]:
+def _all_readings(gray: Image.Image, first: dict | None = None) -> list[dict]:
     """Lectures successives, de la plus rapide à la plus robuste, tant que la lecture reste médiocre."""
-    readings = [_tesseract_reading(gray)]                                   # image telle quelle
+    readings = [first or _tesseract_reading(gray)]                          # image telle quelle
 
     def still_poor(threshold):
         best = max(readings, key=lambda r: r["weight"])
@@ -206,16 +207,18 @@ def read_image(image: Image.Image, page: int, first_word_id: int, find_orientati
     Lit une image de page. Retourne :
       {"tokens": [...], "rotation": 0/90/180/270, "skew": degrés, "handwritten_lines": nombre}
     """
-    gray = prepare(image)
-    rotation = detect_rotation(gray) if find_orientation else 0
-    if rotation:
-        gray = gray.rotate(-rotation, expand=True)        # Pillow tourne dans le sens inverse des aiguilles d'une montre
-    skew = estimate_skew(gray)
-    if skew:
-        gray = gray.rotate(skew, expand=True, fillcolor=255, resample=Image.BICUBIC)
+    prepared = prepare(image)
+    rotation, gray, skew = 0, *_straightened(prepared)
+    first = _tesseract_reading(gray)
+    # page mal lue : elle est peut-être couchée ou à l'envers. On ne le vérifie que dans ce cas.
+    if find_orientation and (first["mean"] < 80 or len(first["words"]) < 5):
+        rotation = detect_rotation(prepared)
+        if rotation:      # Pillow tourne dans le sens inverse des aiguilles d'une montre
+            gray, skew = _straightened(prepared.rotate(-rotation, expand=True))
+            first = None
     width, height = gray.size
 
-    readings = _all_readings(gray)
+    readings = _all_readings(gray, first)
     best = max(readings, key=lambda r: r["weight"])
     tokens, word_id = [], first_word_id
     for number, reading in enumerate(readings):
@@ -233,6 +236,14 @@ def read_image(image: Image.Image, page: int, first_word_id: int, find_orientati
     if handwriting_available():
         handwritten = _add_handwriting(gray, best, page, word_id, tokens)
     return {"tokens": tokens, "rotation": rotation, "skew": skew, "handwritten_lines": handwritten}
+
+
+def _straightened(gray: Image.Image) -> tuple[Image.Image, float]:
+    """L'image redressée si elle est penchée, et l'angle de redressement."""
+    skew = estimate_skew(gray)
+    if skew:
+        gray = gray.rotate(skew, expand=True, fillcolor=255, resample=Image.BICUBIC)
+    return gray, skew
 
 
 def _add_handwriting(gray: Image.Image, best: dict, page: int, first_word_id: int, tokens: list[dict]) -> int:

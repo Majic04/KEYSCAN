@@ -27,6 +27,17 @@ from .database import connect, now, read_setting, write_setting
 
 waiting_documents: "queue.Queue[int]" = queue.Queue()
 
+# Mode de lecture (Réglages) : nombre de documents lus en même temps.
+#   « econome » : un seul à la fois, l'ordinateur chauffe peu (par défaut) ; « rapide » : deux à la fois.
+READING_MODES = {"econome": 1, "rapide": 2}
+_reading_now = 0
+_reading_gate = threading.Condition()
+
+
+def reading_mode() -> str:
+    mode = read_setting("reading_mode", "econome")
+    return mode if mode in READING_MODES else "econome"
+
 # Mémoire de travail : mots lus de chaque document, et occurrences déjà cherchées (document, mot-clé).
 _words_of_document: dict[int, list] = {}
 _found_in_document: dict[tuple[int, str], list] = {}
@@ -65,13 +76,21 @@ def _read_one(document_id: int):
 
 
 def _worker():
+    global _reading_now
     while True:
         document_id = waiting_documents.get()
+        with _reading_gate:        # en mode économe, un ouvrier attend que l'autre ait fini
+            while _reading_now >= READING_MODES[reading_mode()]:
+                _reading_gate.wait(timeout=5)
+            _reading_now += 1
         try:
             _read_one(document_id)
         except Exception:  # noqa: BLE001 — un ouvrier ne doit jamais s'arrêter
             traceback.print_exc()
         finally:
+            with _reading_gate:
+                _reading_now -= 1
+                _reading_gate.notify_all()
             waiting_documents.task_done()
 
 
@@ -161,11 +180,18 @@ def handwriting_status() -> dict:
 
 
 def reread_if_engine_changed():
-    """Nouveau moteur (ou module manuscrit installé) : tous les documents sont relus avec lui."""
+    """
+    Nouveau moteur, ou module manuscrit qui vient d'être installé : tous les documents sont relus avec lui.
+    Si le module manuscrit est seulement indisponible un moment, on ne relit rien : relire tous les dossiers
+    sans lui ferait chauffer l'ordinateur pour rien et perdrait ce qu'il avait lu.
+    """
     status = handwriting_status()
-    version = ENGINE_VERSION + (f"+manuscrit-{status.get('model')}" if status.get("ready") else "")
-    if read_setting("engine_version") == version:
+    previous = read_setting("engine_version") or ""
+    handwriting = f"+manuscrit-{status.get('model')}" if status.get("ready") else ""
+    same_engine = previous.split("+")[0] == ENGINE_VERSION
+    if same_engine and (not handwriting or previous.endswith(handwriting)):
         return
+    version = ENGINE_VERSION + handwriting
     with connect() as db:
         count = db.execute("UPDATE documents SET status='en_attente', progress_done=0 WHERE status IN ('ok', 'erreur')").rowcount
         write_setting("engine_version", version, db)
