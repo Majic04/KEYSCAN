@@ -1,0 +1,5 @@
+# Module optionnel « écriture manuscrite » (TrOCR) — installé par « Installer écriture manuscrite.command »
+# torch ≥ 2.6 : nécessaire pour charger en toute sécurité les poids au format .bin du modèle français
+torch>=2.6
+transformers>=4.44,<5
+huggingface_hub>=0.23
