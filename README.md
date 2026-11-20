@@ -42,6 +42,7 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 | **Dossier ouvert** | Les mots-clés sont rangés par décision : *Présents* et *À vérifier* sont surlignés comme au feutre, *Absence incertaine* est soulignée en pointillé. Un clic ouvre la preuve dans un volet : zoom sur le mot, ce qui a été lu, page entière. **Modifier les mots-clés** change la liste de ce dossier seulement. L'onglet *Documents* montre, pour chaque document, les mots à vérifier et leur page ; l'œil affiche le document avec tous les mots-clés surlignés. |
 | **Liste par défaut** | Proposée à chaque nouveau dossier. La modifier ne change pas les dossiers existants. |
 | **Réglages** | Seuils de décision, équipe, code PIN, export CSV. |
+| **Export CSV** | Une ligne par document, une colonne par mot-clé, et dans chaque case le nombre de fois où le mot a été lu dans ce document. Lignes rangées par profil, puis par dossier. Une case vide signifie que le mot n'est pas recherché dans ce dossier ou que le document n'a pas été lu. |
 
 - **Deux profils séparés** (un par responsable), chacun protégé par un **code PIN** : dossiers, mots-clés et seuils propres à chacun. Verrouillage automatique après 30 min. Après chaque mise à jour de l'application, chaque profil choisit un nouveau code. Code oublié : `KeyScan --reset-pin "Prénom Nom"` (voir l'écran du code).
 - **Gros documents** : avancement page par page et temps restant.

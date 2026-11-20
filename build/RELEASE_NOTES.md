@@ -1,4 +1,14 @@
-## Nouveautés de la version 1.12
+## Nouveautés de la version 1.13
+
+- **Nouvel export CSV, le tableau des fréquences** : une ligne par document, une colonne par mot-clé. Chaque case indique combien de fois le mot a été lu dans ce document. Les documents sont groupés par dossier, et les dossiers par profil (toute l'équipe, ou seulement les dossiers cochés dans « Comparer »). Une case vide signifie que le mot n'est pas recherché dans ce dossier ou que le document n'est pas encore lu.
+- **Import d'un .zip à plusieurs candidats, plus robuste** : chaque sous-dossier devient un dossier KeyScan et sa lecture démarre aussitôt.
+  - Un .zip par candidat, rangé dans le .zip du lot ou déposé à plusieurs, devient aussi un dossier.
+  - Plusieurs dossiers englobants (« Lot/Candidats 2027/… ») sont traversés automatiquement.
+  - Les sous-dossiers d'un candidat (« Dupont/diplômes/… ») restent dans son dossier.
+  - Une archive abîmée est signalée par un message.
+- **Accueil** : une zone pour déposer directement un dossier ou un .zip de candidats.
+
+## Version 1.12
 
 - **Mode sombre** : toute l'application passe en bleu nuit. Seul ce qui compte s'allume : les mots-clés trouvés (surligneur vert pour « présent », jaune pour « à vérifier ») et les pages des documents.
 - **Accueil** : une carte par dossier, avec en grand le nombre de mots-clés trouvés (« 8/10 ») et les mots eux-mêmes surlignés, ainsi que les mots à vérifier et les documents illisibles.

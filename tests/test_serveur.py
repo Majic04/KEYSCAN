@@ -19,6 +19,7 @@ import pymupdf  # noqa: E402
 
 from server import create_app  # noqa: E402
 from server.database import create_tables  # noqa: E402
+from server.analysis import waiting_documents  # noqa: E402
 from server.uploads import group_by_candidate  # noqa: E402
 
 failures = []
@@ -46,6 +47,20 @@ check("fichier à la racine : dossier au nom du lot", sorted(groups) == ["Dupont
 groups = group_by_candidate([("Dupont Marie/cv.pdf", b"1"), ("Dupont Marie/.DS_Store", b"x"), ("__MACOSX/Dupont Marie/cv.pdf", b"y")], "Lot")
 check("le dossier d'un seul candidat garde son nom ; fichiers cachés ignorés",
       list(groups) == ["Dupont Marie"] and len(groups["Dupont Marie"]) == 1, str(groups))
+
+groups = group_by_candidate([("Lot/Candidats/Dupont/cv.pdf", b"1"), ("Lot/Candidats/Martin/cv.pdf", b"2")], "Import")
+check("plusieurs dossiers englobants traversés", sorted(groups) == ["Dupont", "Martin"], str(sorted(groups)))
+groups = group_by_candidate([("Dupont/cv.pdf", b"1"), ("Dupont/diplomes/master.pdf", b"2")], "Import")
+check("un candidat avec un sous-dossier reste un seul dossier", list(groups) == ["Dupont"] and len(groups["Dupont"]) == 2, str(groups))
+
+
+def zip_of(entries: dict) -> bytes:
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return archive.getvalue()
+
 
 # --------------------------------------------------------------------------- l'API
 create_tables()
@@ -103,8 +118,56 @@ check("liste par défaut inchangée", sorted(k["term"] for k in franck.get("/api
 check("autre prof : action refusée", mohamed.post("/api/dossiers/batch", json={"ids": ids, "action": "delete"}).status_code == 404)
 check("action inconnue refusée", franck.post("/api/dossiers/batch", json={"ids": ids, "action": "rien"}).status_code == 400)
 
-lines = list(csv.reader(io.StringIO(franck.get(f"/export.csv?ids={ids[0]}").data.decode("utf-8-sig")), delimiter=";"))
-check("export d'une sélection", {line[0] for line in lines[1:]} == {"Dupont"} and len(lines) == 4, str(lines[1:]))
+# un .zip qui contient plusieurs dossiers, ou un .zip par candidat : un dossier KeyScan par candidat, lecture lancée
+before = waiting_documents.qsize()
+lot = zip_of({"Candidats/Leroy Hugo/cv.pdf": tiny_pdf("Leroy cv"), "Candidats/Leroy Hugo/notes/releve.pdf": tiny_pdf("Leroy releve"),
+              "Candidats/Petit Emma/lettre.pdf": tiny_pdf("Petit lettre"), "__MACOSX/Candidats/._x": b"y"})
+response = franck.post("/api/import-zip", data={"archive": (io.BytesIO(lot), "candidats 2027.zip")},
+                       content_type="multipart/form-data").get_json()
+check(".zip à plusieurs dossiers : un dossier par candidat", sorted(response["dossiers"]) == ["Leroy Hugo", "Petit Emma"], str(response))
+check(".zip à plusieurs dossiers : les 3 documents sont mis en lecture", waiting_documents.qsize() - before == 3)
+zips = zip_of({"Roux Lea.zip": zip_of({"cv.pdf": tiny_pdf("Roux cv")}), "Blanc Tom.zip": zip_of({"Blanc Tom/cv.pdf": tiny_pdf("Blanc cv")})})
+response = franck.post("/api/import-zip", data={"archive": (io.BytesIO(zips), "lot.zip")}, content_type="multipart/form-data").get_json()
+check(".zip de .zip : un dossier par .zip", sorted(response["dossiers"]) == ["Blanc Tom", "Roux Lea"], str(response))
+response = franck.post("/api/import-folder", data={
+    "files": [(io.BytesIO(zip_of({"cv.pdf": tiny_pdf("Noir cv")})), "Noir Max.zip"), (io.BytesIO(zip_of({"cv.pdf": tiny_pdf("Vert cv")})), "Vert Ana.zip")],
+    "paths": ["Noir Max.zip", "Vert Ana.zip"]}, content_type="multipart/form-data").get_json()
+check("plusieurs .zip déposés : un dossier par .zip", sorted(response["dossiers"]) == ["Noir Max", "Vert Ana"], str(response))
+check(".zip abîmé : refusé avec un message", franck.post("/api/import-zip", data={"archive": (io.BytesIO(b"rien"), "x.zip")},
+                                                       content_type="multipart/form-data").status_code == 400)
+imported = [d["id"] for d in franck.get("/api/results").get_json()["dossiers"] if d["name"] in ("Leroy Hugo", "Petit Emma", "Roux Lea", "Blanc Tom", "Noir Max", "Vert Ana")]
+franck.post("/api/dossiers/batch", json={"ids": imported, "action": "delete"})
+
+# export : une ligne par document, une colonne par mot-clé, la fréquence dans chaque case ; rangé par profil puis dossier
+from server.analysis import _read_one  # noqa: E402
+long_text = "Projet robotique en Python, robotique, robotique."
+mohamed.post("/api/dossiers", json={"name": "Zola Ines", "terms": "robotique, Matlab"})
+zola = next(d for d in mohamed.get("/api/results").get_json()["dossiers"] if d["name"] == "Zola Ines")["id"]
+mohamed.post(f"/api/dossiers/{zola}/files", data={"files": [(io.BytesIO(tiny_pdf(long_text)), "cv.pdf")]}, content_type="multipart/form-data")
+franck.post(f"/api/dossiers/{ids[0]}/files", data={"files": [(io.BytesIO(tiny_pdf("Kalman. " + long_text)), "projet.pdf")]},
+            content_type="multipart/form-data")
+for d in franck.get("/api/results").get_json()["dossiers"] + mohamed.get("/api/results").get_json()["dossiers"]:
+    for document in d["documents"]:
+        if document["filename"] in ("cv.pdf", "projet.pdf") and d["name"] in ("Dupont", "Zola Ines"):
+            _read_one(document["id"])                    # lecture faite ici, sans attendre les ouvriers
+lines = list(csv.reader(io.StringIO(franck.get("/export.csv").data.decode("utf-8-sig")), delimiter=";"))
+head, rows = lines[0], lines[1:]
+check("export : colonnes Profil, Dossier, Document, État puis les mots-clés", head[:4] == ["Profil", "Dossier", "Document", "État"]
+      and sorted(head[4:], key=str.lower) == head[4:] and "robotique" in head and "Matlab" in head, str(head))
+check("export : une ligne par document", len(rows) == sum(len(d["documents"]) for who in (franck, mohamed)
+                                                       for d in who.get("/api/results").get_json()["dossiers"]), str(len(rows)))
+check("export : rangé par profil puis par dossier", [r[0] for r in rows] == sorted((r[0] for r in rows), key=["Franck Plestan", "Mohamed Hamida"].index)
+      and rows[-1][:3] == ["Mohamed Hamida", "Zola Ines", "cv.pdf"], str([r[:3] for r in rows]))
+col = {name: i for i, name in enumerate(head)}
+projet = next(r for r in rows if r[2] == "projet.pdf")
+check("export : fréquence d'un mot dans un document", projet[col["robotique"]] == "3" and projet[col["Kalman"]] == "1", str(projet))
+check("export : case vide si le mot n'est pas recherché dans ce dossier", projet[col["Matlab"]] == "", str(projet))
+zola_row = rows[-1]
+check("export : dossier d'un autre profil", zola_row[col["robotique"]] == "3" and zola_row[col["Matlab"]] == "0" and zola_row[col["Kalman"]] == "", str(zola_row))
+waiting_row = next(r for r in rows if r[2] == "b.pdf")
+check("export : document pas encore lu, cases vides", waiting_row[3] == "En attente" and set(waiting_row[4:]) == {""}, str(waiting_row))
+lines = list(csv.reader(io.StringIO(franck.get(f"/export.csv?ids={ids[1]}").data.decode("utf-8-sig")), delimiter=";"))
+check("export d'une sélection", {line[1] for line in lines[1:]} == {"Martin"}, str(lines[1:]))
 
 answer = franck.post("/api/dossiers/batch", json={"ids": ids, "action": "delete"}).get_json()
 names = [d["name"] for d in franck.get("/api/results").get_json()["dossiers"]]

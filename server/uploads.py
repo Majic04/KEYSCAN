@@ -6,12 +6,13 @@ Un fichier au contenu identique à un document déjà présent dans le dossier n
 Un .zip déposé dans un dossier est ouvert : chacun de ses documents (PDF, images) y est ajouté.
 
 Plusieurs candidats d'un coup : on peut déposer un dossier entier (ou un .zip) qui contient un
-sous-dossier par candidat. Chaque sous-dossier devient un dossier KeyScan, et tous les documents
-sont lus en parallèle.
+sous-dossier par candidat. Chaque sous-dossier devient un dossier KeyScan, et ses documents sont
+mis en file de lecture aussitôt.
     Candidats/                       → dossiers « Dupont Marie » et « Martin Paul »
         Dupont Marie/cv.pdf
         Dupont Marie/releve.jpg
         Martin Paul/lettre.pdf
+Les .zip trouvés dans un import sont ouverts : « Dupont Marie.zip » compte comme le dossier « Dupont Marie ».
 """
 from __future__ import annotations
 
@@ -90,9 +91,15 @@ def group_by_candidate(files: list[tuple[str, bytes]], fallback_name: str) -> di
         parts = [part for part in path.replace("\\", "/").split("/") if part]
         if parts and not any(part.startswith(".") or part == "__MACOSX" for part in parts):
             entries.append((parts, data))
-    roots = {parts[0] for parts, _ in entries}
-    if len(roots) == 1 and all(len(parts) > 1 for parts, _ in entries):
-        fallback_name = roots.pop()                    # un seul dossier englobant : on entre dedans
+    # Tout est dans un seul dossier englobant (« Candidats/… », ou « Lot/Candidats/… ») sans document posé
+    # directement dedans : on entre dedans. S'il contient des documents, c'est le dossier d'un candidat.
+    while True:
+        roots = {parts[0] for parts, _ in entries}
+        wrapper = len(roots) == 1 and all(len(parts) > 1 for parts, _ in entries) \
+            and not any(len(parts) == 2 and is_supported(parts[1]) for parts, _ in entries)
+        if not wrapper:
+            break
+        fallback_name = roots.pop()
         entries = [(parts[1:], data) for parts, data in entries]
     groups: dict[str, list[tuple[str, bytes]]] = {}
     for parts, data in entries:
@@ -133,12 +140,32 @@ def expand_zips(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
     return expanded
 
 
+def open_zips_in_import(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
+    """
+    Dans un import, un .zip devient un dossier du même nom : « Lot/Dupont.zip » (avec cv.pdf dedans)
+    donne « Lot/Dupont/cv.pdf ». Une archive illisible est gardée telle quelle (elle sera refusée).
+    Appelée deux fois, elle ouvre aussi les .zip rangés dans un .zip (un .zip par candidat dans le lot).
+    """
+    opened = []
+    for path, data in files:
+        if not path.lower().endswith(".zip"):
+            opened.append((path, data))
+            continue
+        try:
+            opened += [(f"{path[:-4]}/{inner_path}", content) for inner_path, content in zip_entries(data)]
+        except (zipfile.BadZipFile, ValueError, RuntimeError, NotImplementedError):
+            opened.append((path, data))
+    return opened
+
+
 def import_candidates(files: list[tuple[str, bytes]], fallback_name: str, person: str) -> dict:
     """
-    Crée un dossier par candidat (avec la liste de mots-clés par défaut du prof) et y dépose ses fichiers.
+    Crée un dossier par candidat (avec la liste de mots-clés par défaut du prof), y dépose ses fichiers
+    et lance leur lecture.
     → {"dossiers": [noms], "ids": [numéros], "rejected": [fichiers refusés], "duplicates": [...]}
     """
     names, ids, rejected, duplicates = [], [], [], []
+    files = open_zips_in_import(open_zips_in_import(files))          # le lot.zip, puis les .zip qu'il contient
     for candidate, candidate_files in group_by_candidate(files, fallback_name).items():
         accepted = [(name, data) for name, data in candidate_files if is_supported(name)]
         rejected += [name for name, _ in candidate_files if not is_supported(name)]

@@ -63,7 +63,7 @@ function openImport(){
       <span class="sub">${ic("folder")}Dupont Marie<small>cv.pdf, relevé de notes.jpg</small></span>
       <span class="sub">${ic("folder")}Martin Paul<small>lettre manuscrite.pdf</small></span></div>
     <button type="button" class="drop big" data-drop="import" id="importDrop">${ic("folder")}Déposez le dossier ici<span>ou cliquez pour le choisir</span></button>
-    <p class="note" id="importNote">Vous avez un fichier .zip ? <button class="textlink" data-action="import-zip">Choisir le .zip</button></p>`);
+    <p class="note" id="importNote">Vous avez un .zip (ou un .zip par candidat) ? <button class="textlink" data-action="import-zip">Choisir le .zip</button></p>`);
 }
 
 /* mots-clés d'un dossier */

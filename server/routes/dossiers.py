@@ -3,7 +3,9 @@ Les dossiers de candidature : créer, renommer, confier à un autre prof, suppri
 Et pour travailler sur plusieurs dossiers à la fois : importer tout un dossier de candidats (ou un .zip),
 et appliquer une action à une sélection de dossiers.
 """
+import io
 import os
+import zipfile
 
 from flask import Blueprint, abort, jsonify, request
 
@@ -11,7 +13,7 @@ from ..analysis import forget, queue_document
 from ..database import connect, now, remove_file
 from ..keywords import DEFAULT_LIST, add_terms, copy_list, normalized_form, parse_terms
 from ..profiles import check_member, current_owner, require_own_dossier
-from ..uploads import import_candidates, save_files, zip_entries
+from ..uploads import import_candidates, save_files
 
 routes = Blueprint("dossiers", __name__)
 
@@ -97,12 +99,17 @@ def import_folder():
 
 @routes.post("/api/import-zip")
 def import_zip():
-    """Un .zip : chaque dossier qu'il contient devient un dossier de candidature."""
+    """Un .zip : chaque dossier qu'il contient (ou chaque .zip qu'il contient) devient un dossier de candidature."""
     archive = request.files.get("archive")
     if not archive:
         abort(400, "Archive manquante")
-    fallback_name = os.path.splitext(os.path.basename(archive.filename or "Import"))[0]
-    return jsonify(import_candidates(zip_entries(archive.read()), fallback_name, current_owner()))
+    data = archive.read()
+    if not zipfile.is_zipfile(io.BytesIO(data)):
+        abort(400, "Ce fichier .zip est abîmé ou n'est pas une archive")
+    name = os.path.basename(archive.filename or "Import.zip")
+    if not name.lower().endswith(".zip"):
+        name += ".zip"
+    return jsonify(import_candidates([(name, data)], name[:-4], current_owner()))
 
 
 @routes.post("/api/dossiers/batch")

@@ -24,7 +24,8 @@ PAGES.dossiers = () => {
         <button class="btn" data-action="import">${ic("folder")}Importer</button>
         <a class="btn" href="#/comparer">${ic("grid")}Comparer</a>
         <button class="btn plain" data-action="export">${ic("download")}Exporter</button></div></div>
-    <div class="cards">${D.map(dossierCard).join("")}</div></div>`;
+    <div class="cards">${D.map(dossierCard).join("")}</div>
+    <button class="drop" data-drop="import">${ic("folder")}Importer des candidats<span>déposez un dossier ou un .zip, un sous-dossier par candidat</span></button></div>`;
 };
 
 /* la carte d'un dossier sur l'accueil : le nombre de mots-clés trouvés, en grand, et les mots eux-mêmes surlignés */

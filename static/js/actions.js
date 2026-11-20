@@ -12,8 +12,8 @@ function pickFolder(cb){
   inp.onchange = () => cb([...inp.files].map(f => ({file:f, path:f.webkitRelativePath || f.name}))); inp.click();
 }
 function pickZip(cb){
-  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".zip";
-  inp.onchange = () => inp.files[0] && cb([{file:inp.files[0], path:inp.files[0].name}]); inp.click();
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".zip"; inp.multiple = true;
+  inp.onchange = () => cb([...inp.files].map(f => ({file:f, path:f.name}))); inp.click();
 }
 /* un dossier glissé-déposé : on parcourt ses sous-dossiers pour retrouver chaque fichier et son chemin */
 async function filesFromDrop(dataTransfer){
@@ -29,11 +29,12 @@ async function filesFromDrop(dataTransfer){
   for(const entry of entries) await walk(entry, "");
   return found;
 }
-/* envoi au serveur : un .zip seul, ou les fichiers d'un dossier avec leur chemin (« Candidats/Dupont Marie/cv.pdf ») */
+/* envoi au serveur : un .zip seul, ou des fichiers avec leur chemin (« Candidats/Dupont Marie/cv.pdf », « Martin Paul.zip »).
+   Le serveur crée un dossier par sous-dossier (ou par .zip) et lance la lecture. */
 async function sendImport(files){
   if(!files.length) return;
   const zip = files.length === 1 && /\.zip$/i.test(files[0].path);
-  if(!zip && !files.some(f => f.path.includes("/")))
+  if(!zip && !files.some(f => f.path.includes("/") || /\.zip$/i.test(f.path)))
     return toast("Déposez le dossier qui contient un sous-dossier par candidat (ou un .zip)");
   const fd = new FormData();
   if(zip) fd.append("archive", files[0].file);
