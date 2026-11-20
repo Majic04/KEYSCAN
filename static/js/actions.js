@@ -61,7 +61,6 @@ async function uploadTo(did, files, intro){
   if(r.rejected.length) msg += `, ${r.rejected.length} refusé${r.rejected.length > 1 ? "s" : ""} (format non pris en charge ou archive illisible)`;
   if(dup.length) msg += dup.length > 1 ? `, ${dup.length} doublons ignorés` : `, doublon ignoré (identique à ${dup[0].same_as})`;
   toast(msg);
-  dossierTab = "docs";
   await load(false);
 }
 async function addKeywords(text){
@@ -117,7 +116,7 @@ async function flushSettings(){
   load(false);                                     // les décisions des dossiers suivent les nouveaux seuils
 }
 
-const SEL = "[data-go],[data-action],[data-kw],[data-dtab],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-view-doc],[data-wide]";
+const SEL = "[data-go],[data-action],[data-kw],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-wide],[data-pv-doc],[data-pv-page]";
 document.addEventListener("click", async e => {
   const t = clickTarget(e, SEL);
   if(!e.target.closest("#menu") && !e.target.closest("[data-action=menu],[data-action=who],[data-col]")) closeMenu();
@@ -130,17 +129,16 @@ document.addEventListener("click", async e => {
   if("close" in ds){ e.preventDefault(); return closeModal(null); }
   if(ds.switch) return switchTo(ds.switch);
   if(ds.go){ e.preventDefault(); closeModal(); closeMenu(); return go(ds.go); }
-  if(ds.dtab){
-    if(dossierTab === ds.dtab) return;
-    dossierTab = ds.dtab;
-    t.parentElement.querySelectorAll("[data-dtab]").forEach(b => b.setAttribute("aria-pressed", b === t));
-    const d = state.dossiers.find(x => x.id === route().id), list = $("#dlist");
-    list.innerHTML = dossierTab === "kw" ? kwList(d) : docList(d);
-    $("#view")._html = PAGES.dossier(route());
+  // aperçu : changer de document ou de page (sans fondu, la page reste où elle est)
+  if(ds.pvDoc){
+    const x = state.dossiers.flatMap(d => d.documents).find(y => y.id === +ds.pvDoc);
+    preview = {doc:+ds.pvDoc, page: x ? firstHitPage(x) : 1};
+    render(false, true);
+    if(matchMedia("(max-width:1180px)").matches) $(".pv").scrollIntoView({behavior: calm.matches ? "auto" : "smooth", block:"start"});
     return;
   }
+  if(ds.pvPage){ preview.page = +ds.pvPage; return render(false, true); }
   if(ds.kw) return showEvidence(+ds.dossier, +ds.kw, ds.doc ? +ds.doc : null);
-  if(ds.viewDoc) return openDocViewer(+ds.viewDoc);
   if("wide" in ds){ const o = t.closest(".occ"); o.classList.toggle("wide"); t.textContent = o.classList.contains("wide") ? "Revenir au mot" : "Voir la page entière"; return; }
   if(ds.kwsrc){
     newKwSrc = ds.kwsrc;
@@ -247,7 +245,6 @@ document.addEventListener("submit", async e => {
     const src = newKwSrc === "copy" ? +$("#kwCopy").value : newKwSrc;
     const r = await jpost("/api/dossiers", {name, keywords_from: src, terms: $("#newTerms").value});
     const files = newFiles; closeModal();
-    dossierTab = files.length ? "docs" : "kw";
     await uploadTo(r.id, files, "Dossier créé");
     go(`#/dossier/${r.id}`);
   }

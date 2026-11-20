@@ -1,4 +1,15 @@
-## Nouveautés de la version 1.11
+## Nouveautés de la version 1.12
+
+- **Mode sombre** : toute l'application passe en bleu nuit. Seul ce qui compte s'allume : les mots-clés trouvés (surligneur vert pour « présent », jaune pour « à vérifier ») et les pages des documents.
+- **Accueil** : une carte par dossier, avec en grand le nombre de mots-clés trouvés (« 8/10 ») et les mots eux-mêmes surlignés, ainsi que les mots à vérifier et les documents illisibles.
+- **Page d'un dossier, tout sur un seul écran** :
+  - quatre compteurs en haut (présents, à vérifier, incertains, absents) ;
+  - les mots-clés en grandes tuiles surlignées, les mots à vérifier en premier ;
+  - les documents juste en dessous, avec tous leurs mots trouvés ;
+  - à droite, l'aperçu de la page du document avec les mots-clés encadrés. Les marges blanches sont retirées pour que le texte soit plus grand. On change de document ou de page sans quitter le dossier.
+- **Preuve d'un mot** : le mot en très grand, puis son image dans le document, avant le texte lu.
+
+## Version 1.11
 
 - **Importer un .zip dans un dossier** : « Ajouter des documents » (ou un glisser-déposer) accepte maintenant les archives .zip, dans un dossier existant comme à la création d'un nouveau dossier. Chaque PDF ou image de l'archive est ajouté, y compris dans ses sous-dossiers ; les fichiers cachés du Mac sont ignorés. Le message indique les documents ajoutés, les doublons et ce qui a été refusé (format non pris en charge, archive abîmée ou protégée).
 - **Réglages → Lecture des documents** : le choix « Rapide » / « Économe » s'affiche tout de suite (il fallait changer de page pour le voir).

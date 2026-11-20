@@ -42,7 +42,7 @@ const LOCK_TEXT = {
 function drawLock(){
   const el = $("#lock");
   if(L.step === "choose"){
-    el.innerHTML = `<div class="lock-in"><div class="brand big"><img src="/static/logo.svg" alt="">KeyScan</div><h2>Qui ouvre KeyScan ?</h2>
+    el.innerHTML = `<div class="lock-in"><div class="brand big"><img src="/static/logo-dark.svg" alt="">KeyScan</div><h2>Qui ouvre KeyScan ?</h2>
       ${updatedTo ? `<p class="update">KeyScan est passé à la version ${esc(updatedTo)}. Pour la sécurité, chaque profil choisit un nouveau code. Les dossiers et mots-clés sont conservés.</p>` : ""}
       <div class="people-pick">${profilesCache.map(p => `<button class="pick" data-pick="${esc(p.name)}">
         <span class="ini" style="${profStyle(p.name)}">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b>
@@ -54,7 +54,7 @@ function drawLock(){
   const n = fixed || Math.max(4, L.buf.length);
   const showOk = !fixed;
   el.innerHTML = `<div class="lock-in">
-    <div class="brand big"><img src="/static/logo.svg" alt="">KeyScan</div>
+    <div class="brand big"><img src="/static/logo-dark.svg" alt="">KeyScan</div>
     <h2>${esc(title)}</h2><p class="msub ${L.err ? "err" : ""}">${esc(L.msg || hint || L.owner)}</p>
     <div class="dots" id="dots">${Array.from({length:n}, (_, i) => `<i class="${i < L.buf.length ? "on" : ""}"></i>`).join("")}</div>
     <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button class="key" data-key="${k}">${k}</button>`).join("")}

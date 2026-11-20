@@ -32,13 +32,15 @@ _memory: dict[tuple, bytes] = {}
 _memory_lock = threading.Lock()
 
 
-def page_png(document: dict, page: int, terms: list[str], present_threshold: float, crop: list[float] | None) -> bytes:
+def page_png(document: dict, page: int, terms: list[str], present_threshold: float, crop: list[float] | None,
+             trim: bool = False) -> bytes:
     """
     document : {"id", "path", "status", "pages" (liste), "analysed_at"}
     terms    : mots-clés à surligner (avec plusieurs mots-clés, leur nom est écrit au-dessus du cadre)
     crop     : zone à agrandir [x0, y0, x1, y1] en fractions de la page (0 à 1), ou None
+    trim     : enlever les grandes marges blanches (l'aperçu montre le texte plus grand)
     """
-    key = (document["id"], page, tuple(terms), document["analysed_at"], present_threshold, tuple(crop or ()))
+    key = (document["id"], page, tuple(terms), document["analysed_at"], present_threshold, tuple(crop or ()), trim)
     with _memory_lock:
         if key in _memory:
             return _memory[key]
@@ -52,6 +54,8 @@ def page_png(document: dict, page: int, terms: list[str], present_threshold: flo
         _highlight(image, document["id"], page, terms, present_threshold)
     if crop:
         image = _zoom(image, crop)
+    elif trim:
+        image = _trimmed(image)
 
     buffer = io.BytesIO()
     image.save(buffer, "PNG", optimize=False, compress_level=3)
@@ -102,6 +106,20 @@ def _highlight(image: Image.Image, document_id: int, page: int, terms: list[str]
                 draw.rectangle([box[0], top, box[0] + draw.textlength(term, font=font) + 12, top + label_height],
                                fill=fill[:3] + (240,))
                 draw.text((box[0] + 6, top + 2), term, fill=LABEL_TEXT_COLOR, font=font)
+
+
+def _trimmed(image: Image.Image) -> Image.Image:
+    """La page sans ses marges blanches (avec une petite bordure), pour que le texte paraisse plus grand."""
+    ink = ImageOps.invert(image.convert("L")).point(lambda value: 255 if value > 40 else 0)   # ce qui n'est pas blanc
+    box = ink.getbbox()
+    if not box:
+        return image
+    margin = int(0.03 * max(image.size))
+    x0, y0 = max(0, box[0] - margin), max(0, box[1] - margin)
+    x1, y1 = min(image.width, box[2] + margin), min(image.height, box[3] + margin)
+    if (x1 - x0) * (y1 - y0) > 0.85 * image.width * image.height:       # page déjà pleine : on la garde entière
+        return image
+    return image.crop((x0, y0, x1, y1))
 
 
 def _zoom(image: Image.Image, crop: list[float]) -> Image.Image:

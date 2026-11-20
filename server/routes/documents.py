@@ -46,6 +46,7 @@ def page_image(document_id, page):
     Une page, avec des occurrences surlignées :
         ?kw=<mot-clé>          les occurrences d'un mot-clé
         ?all=1                 les occurrences de tous les mots-clés du dossier, avec leur nom
+        &trim=1                sans les grandes marges blanches (aperçu)
         &crop=x0,y0,x1,y1      zoom sur une zone (fractions de la page, de 0 à 1)
     """
     require_own_document(document_id)
@@ -61,7 +62,7 @@ def page_image(document_id, page):
             row = db.execute("SELECT term FROM keywords WHERE id=? AND owner=?", (request.args.get("kw", 0), me)).fetchone()
             terms = [row["term"]] if row else []
     document["pages"] = json.loads(document["pages"]) if document["pages"] else []
-    png = page_png(document, page, terms, thresholds(document["owner"])["present_thr"], _crop())
+    png = page_png(document, page, terms, thresholds(document["owner"])["present_thr"], _crop(), bool(request.args.get("trim")))
     response = send_file(io.BytesIO(png), mimetype="image/png")
     response.headers["Cache-Control"] = "private, max-age=600"
     return response

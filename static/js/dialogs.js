@@ -5,7 +5,6 @@
    openImport()             plusieurs candidats d'un coup (un dossier par candidat)
    openKwEditor(dossier)    les mots-clés d'un dossier
    showEvidence(...)        la preuve d'un mot-clé : extraits et images des pages
-   openDocViewer(document)  un document page par page, mots surlignés
    openWho, openMenu        les petits menus (profil, actions d'un dossier) */
 let modalResolve = null;
 function openModal(html, kind = "box"){
@@ -113,30 +112,17 @@ async function showEvidence(did, kid, docId){
     absent: `Rien n'a été trouvé, et les documents sont bien lus (qualité ${Math.round(c.reliability)} %).`,
   }[c.decision];
   const src = o => o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu sur l'image" : "texte du PDF";
-  openModal(`${closeX}<h3>${esc(k.term)}</h3><p class="msub">${esc(d.name)}</p>
-    <div class="ev-top"><span class="big">${found ? Math.round(c.score) : 0} %</span>
-      <span class="dec">${HL[c.decision] ? `<span class="hl ${HL[c.decision]}">${LONG[c.decision]}</span>` : LONG[c.decision]}</span></div>
+  // l'image du mot dans le document vient d'abord, en grand ; le texte lu et les détails ensuite
+  openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[c.decision] || ""}">${esc(k.term)}</span></h3><p class="msub">${esc(d.name)}</p>
+    <div class="ev-top"><span class="big">${found ? Math.round(c.score) : 0} %</span><span class="dec">${LONG[c.decision]}</span></div>
     ${why ? `<p class="ev-why">${why}</p>` : ""}
     ${occ.map(o => `<div class="occ">
-      <p class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, (m, w) => `<span class="hl ${o.certain === false || o.score * 100 < s.present_thr ? "rev" : "ok"}">${w}</span>`)} …</p>
-      ${o.certain === false ? `<p class="read">Lu : « ${esc(o.text)} », proche de « ${esc(k.term)} » sans être identique.</p>` : ""}
-      <p class="meta">${esc(o.filename)}, page ${o.page}, ${src(o)}, ${Math.round(o.score * 100)} %</p>
+      <p class="meta"><b>${esc(o.filename)}</b>, page ${o.page}, ${src(o)}, ${Math.round(o.score * 100)} %</p>
       <figure><img class="zoom" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}&crop=${o.box.map(v => v.toFixed(4)).join(",")}" alt="Le mot dans le document, page ${o.page}">
         <img class="full" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}"></figure>
-      <button class="textlink" data-wide>Voir la page entière</button></div>`).join("")}`, "sheet");
-}
-
-/* un document, page par page, avec tous les mots trouvés encadrés et nommés */
-function openDocViewer(docId){
-  const d = state.dossiers.find(x => x.documents.some(y => y.id === docId)); if(!d) return;
-  const x = d.documents.find(y => y.id === docId), byPage = {};
-  x.hits.forEach(h => h.pages.forEach(p => (byPage[p] = byPage[p] || []).push(h)));
-  const pages = Object.keys(byPage).map(Number).sort((a, b) => a - b);
-  openModal(`${closeX}<h3>${esc(x.filename)}</h3><p class="msub">${esc(d.name)}</p>
-    <div class="legend"><span class="hl ok">présent</span><span class="hl rev">à vérifier</span></div>
-    ${pages.map(p => `<div class="pageview"><h4>Page ${p}</h4>
-      <div class="hits">${byPage[p].map(h => `<button data-kw="${h.kid}" data-dossier="${d.id}" data-doc="${x.id}"><span class="hl ${h.review ? "rev" : "ok"}">${esc(h.term)}</span></button>`).join("")}</div>
-      <figure><img loading="lazy" src="/api/documents/${x.id}/page/${p}.png?all=1" alt="Page ${p}, mots-clés encadrés"></figure></div>`).join("")}`, "sheet");
+      <button class="textlink" data-wide>Voir la page entière</button>
+      <p class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, (m, w) => `<span class="hl ${o.certain === false || o.score * 100 < s.present_thr ? "rev" : "ok"}">${w}</span>`)} …</p>
+      ${o.certain === false ? `<p class="read">Lu : « ${esc(o.text)} », proche de « ${esc(k.term)} » sans être identique.</p>` : ""}</div>`).join("")}`, "sheet");
 }
 
 /* menus */

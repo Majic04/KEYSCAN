@@ -4,7 +4,6 @@
    Après chaque changement, load() redemande les résultats puis render() redessine ce qui a changé. */
 let state = {keywords:[], dossiers:[], settings:{}};
 let currentOp = store.get("ks_op", null);
-let dossierTab = "kw";
 let pollTimer = null, lastPage = null, lastDossier = null, railFilter = "";
 
 function route(){
@@ -69,7 +68,7 @@ function render(animate, force){
   if(!animate && pointerDown){ deferredRender = true; return; }
   renderChrome(r);
   const desk = $("#desk");
-  desk.classList.toggle("full", r.page === "mots-cles" || r.page === "reglages" || r.page === "comparer");
+  desk.classList.toggle("full", r.page !== "dossier");          // la colonne des dossiers n'accompagne que la page d'un dossier
   desk.classList.toggle("open", r.page === "dossier");
   paint($("#rail"), railHtml(r));
   $("#railSum").textContent = railSummary();
@@ -153,10 +152,10 @@ function railHtml(r){
     if(d.pending) sub = `<span data-pg="r${d.id}">Lecture : ${q2.docsDone} sur ${plural(q2.docs, "document")}</span>`;
     else if(!d.documents.length) sub = "Aucun document";
     else if(!ready) sub = "Aucun document lisible";
-    else sub = `${c.present} sur ${d.keywords.length}` + (c.a_verifier ? `, <span class="warn">${c.a_verifier} à vérifier</span>` : "");
+    else sub = c.a_verifier ? `<span class="warn">${c.a_verifier} à vérifier</span>` : `${plural(d.documents.length, "document")}`;
     if(d.unread.length) sub += `, <span class="bad">${d.unread.length} illisible${d.unread.length > 1 ? "s" : ""}</span>`;
     return `<a class="item" href="#/dossier/${d.id}" ${r.page === "dossier" && r.id === d.id ? 'aria-current="page"' : ""}>
-      <b>${esc(d.name)}</b><small>${sub}</small>
+      <span class="item-top"><b>${esc(d.name)}</b>${ready && !d.pending ? `<span class="ratio">${c.present}<small>/${d.keywords.length}</small></span>` : ""}</span><small>${sub}</small>
       ${d.pending ? `<span class="pbar"><i data-bar="r${d.id}" style="--p:${q2.p.toFixed(3)}"></i></span>` : tally(d)}</a>`;
   }).join("");
 }
