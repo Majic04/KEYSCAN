@@ -92,7 +92,14 @@ print(f"Mots-clés manuscrits retrouvés dans la lettre : {sum(1 for v in hand.v
 dup = s.post(BASE + f"api/dossiers/{did}/files", files=[("files", ("copie.pdf", open(os.path.join(ROOT, "exemples", "natif.pdf"), "rb")))]).json()
 check("fichier en double refusé", not dup["added"] and len(dup.get("duplicates", [])) == 1)
 check("mots-clés propres au dossier", len(d["keywords"]) == 7, f"{len(d['keywords'])}")
-check("export CSV", s.get(BASE + "export.csv").ok and "Documents non lus" in s.get(BASE + "export.csv").content.decode("utf-8-sig"))
+# export : une ligne par document, une colonne par mot-clé, le nombre d'occurrences dans chaque case
+export = s.get(BASE + "export.csv")
+rows = [line.split(";") for line in export.content.decode("utf-8-sig").splitlines()]
+natif = next((row for row in rows if len(row) > 2 and row[2] == "natif.pdf"), [])
+master = rows[0].index("Master") if export.ok and "Master" in rows[0] else None
+check("export CSV (fréquences par document)", export.ok and rows[0][:4] == ["Profil", "Dossier", "Document", "État"]
+      and len(rows) == 1 + len(d["documents"]) and master is not None and natif[master].isdigit() and int(natif[master]) >= 1,
+      str(rows[:2]))
 
 proc.terminate()
 try:
