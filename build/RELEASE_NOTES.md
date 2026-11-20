@@ -1,4 +1,11 @@
-## Nouveautés de la version 1.13
+## Nouveautés de la version 1.14
+
+- **Un mot non trouvé est maintenant déclaré « Absent »** : nouveau réglage « Mot non trouvé » dans Réglages → Seuils de décision.
+  - **Absent** (par défaut) : KeyScan tranche. Seul un document impossible à ouvrir laisse « Absence incertaine », pour ne pas conclure à partir d'un document jamais lu.
+  - **Prudent** (l'ancien fonctionnement) : « Absence incertaine » dès qu'un document est difficile à lire (scan de mauvaise qualité, texte manuscrit, mot très court).
+- En mode prudent, **une signature ou un paraphe ne suffit plus** à rendre toutes les absences incertaines : il faut un vrai texte manuscrit (au moins 3 lignes).
+
+## Version 1.13
 
 - **Nouvel export CSV, le tableau des fréquences** : une ligne par document, une colonne par mot-clé. Chaque case indique combien de fois le mot a été lu dans ce document. Les documents sont groupés par dossier, et les dossiers par profil (toute l'équipe, ou seulement les dossiers cochés dans « Comparer »). Une case vide signifie que le mot n'est pas recherché dans ce dossier ou que le document n'est pas encore lu.
 - **Import d'un .zip à plusieurs candidats, plus robuste** : chaque sous-dossier devient un dossier KeyScan et sa lecture démarre aussitôt.

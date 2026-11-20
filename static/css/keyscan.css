@@ -265,6 +265,7 @@ a.btn{text-decoration:none}
 .slider{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:14px;align-items:center;margin-bottom:16px}
 .slider label{grid-column:1/-1;font-weight:600;font-size:14px}
 .slider label span{font-weight:400;color:var(--ink-3)}
+.slider.off{opacity:.45}
 .slider output{font:700 15px var(--disp);font-variant-numeric:tabular-nums lining-nums;text-align:right}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;margin:0}
 input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:4px;

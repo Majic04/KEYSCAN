@@ -38,12 +38,18 @@ def check_member(name) -> str:
     abort(400, f"Prof inconnu : {name}" if members else "Aucun prof déclaré dans les réglages")
 
 
+# Mot non trouvé : « absent » (tranché, par défaut) ou « prudent » (Absence incertaine si la lecture est douteuse)
+ABSENCE_MODES = ("absent", "prudent")
+
+
 def thresholds(person: str | None) -> dict:
-    """Les seuils de décision d'une personne : {"present_thr", "review_thr", "min_quality"}."""
-    values = dict(DEFAULT_THRESHOLDS)
+    """Les réglages de décision d'une personne : {"present_thr", "review_thr", "min_quality", "absence"}."""
+    values = {**DEFAULT_THRESHOLDS, "absence": "absent"}
     if person:
         saved = read_setting(f"profile:{person}", {})
         values.update({key: value for key, value in saved.items() if key in DEFAULT_THRESHOLDS})
+        if saved.get("absence") in ABSENCE_MODES:
+            values["absence"] = saved["absence"]
     return values
 
 
@@ -61,6 +67,8 @@ def save_thresholds(person: str, values: dict, db=None):
     for key, value in values.items():
         if key in DEFAULT_THRESHOLDS:
             current[key] = max(0.0, min(100.0, float(value)))
+        elif key == "absence" and value in ABSENCE_MODES:
+            current[key] = value
     write_setting(f"profile:{person}", current, db)
 
 

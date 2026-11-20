@@ -118,6 +118,15 @@ check("liste par défaut inchangée", sorted(k["term"] for k in franck.get("/api
 check("autre prof : action refusée", mohamed.post("/api/dossiers/batch", json={"ids": ids, "action": "delete"}).status_code == 404)
 check("action inconnue refusée", franck.post("/api/dossiers/batch", json={"ids": ids, "action": "rien"}).status_code == 400)
 
+# réglage « Mot non trouvé » : absent (par défaut) ou prudent, propre à chaque profil
+check("mot non trouvé : « absent » par défaut", franck.get("/api/settings").get_json()["absence"] == "absent")
+franck.post("/api/settings", json={"absence": "prudent"})
+check("mot non trouvé : « prudent » enregistré", franck.get("/api/settings").get_json()["absence"] == "prudent"
+      and mohamed.get("/api/settings").get_json()["absence"] == "absent")
+franck.post("/api/settings", json={"absence": "n'importe quoi"})
+check("mot non trouvé : valeur inconnue ignorée", franck.get("/api/settings").get_json()["absence"] == "prudent")
+franck.post("/api/settings", json={"absence": "absent"})
+
 # un .zip qui contient plusieurs dossiers, ou un .zip par candidat : un dossier KeyScan par candidat, lecture lancée
 before = waiting_documents.qsize()
 lot = zip_of({"Candidats/Leroy Hugo/cv.pdf": tiny_pdf("Leroy cv"), "Candidats/Leroy Hugo/notes/releve.pdf": tiny_pdf("Leroy releve"),

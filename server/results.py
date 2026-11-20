@@ -118,7 +118,7 @@ def _cell(term: str, read_documents: list[dict], quality: float, pages: list[dic
     found = [{**occurrence, "doc_id": document["id"], "filename": document["filename"]}
              for document in read_documents for occurrence in occurrences(document["id"], term)]
     score, decision = evaluate(term, found, quality, pages, limits["present_thr"], limits["review_thr"],
-                               limits["min_quality"], unread=unread)
+                               limits["min_quality"], unread=unread, prudent=limits["absence"] == "prudent")
     return {
         "term": term, "score": score, "decision": decision,
         # fiabilité : le score si le mot est trouvé, la qualité de lecture s'il ne l'est pas

@@ -104,8 +104,8 @@ async function saveOps(ops, pin){
 let saveT = null, pending = null;
 function saveSettings(patch){
   Object.assign(state.settings, patch);
-  const {present_thr, review_thr, min_quality} = state.settings;
-  pending = {owner: currentOp, present_thr, review_thr, min_quality};   // le profil est fixé au moment du réglage
+  const {present_thr, review_thr, min_quality, absence} = state.settings;
+  pending = {owner: currentOp, present_thr, review_thr, min_quality, absence};   // le profil est fixé au moment du réglage
   clearTimeout(saveT); saveT = setTimeout(flushSettings, 450);
 }
 async function flushSettings(){
@@ -203,6 +203,10 @@ document.addEventListener("click", async e => {
       toast(`Dossier confié à ${ds.to}`); await load(false); return go("#/dossiers");
     }
     case "export": return exportCsv();
+    case "absence-absent": case "absence-prudent": {
+      state.settings.absence = ds.action.slice(8); render(false, true);      // le choix s'affiche tout de suite
+      saveSettings({}); return flushSettings();
+    }
     case "mode-econome": case "mode-rapide": {
       const mode = ds.action.slice(5), before = state.settings.reading_mode;
       state.settings.reading_mode = mode; render(false, true);         // le choix s'affiche tout de suite

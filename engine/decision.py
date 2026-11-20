@@ -12,9 +12,12 @@ La décision pour un mot-clé dans un dossier : Présent, À vérifier, Absent o
    Présent             score ≥ 85 et au moins une occurrence certaine
    À vérifier          score ≥ 50 (un mot proche a été lu)
    Absent              score < 50 et documents bien lus
-   Absence incertaine  score < 50 mais l'absence ne peut pas être garantie :
-                       lecture insuffisante, document illisible dans le dossier,
-                       écriture manuscrite, ou mot-clé de 2 lettres dans un scan.
+   Absence incertaine  score < 50 mais l'absence ne peut pas être garantie : document illisible dans
+                       le dossier, et en mode « prudent » seulement : lecture insuffisante, écriture
+                       manuscrite (plus qu'une signature), ou mot-clé de 2 lettres dans un scan.
+
+Mode « tranché » (par défaut) : un mot non trouvé est Absent, sauf si un document n'a pas pu être lu du tout.
+Mode « prudent » : il reste « Absence incertaine » dès que la lecture d'un document est douteuse.
 """
 from __future__ import annotations
 
@@ -43,15 +46,18 @@ def keyword_score(occurrences: list[dict]) -> tuple[float, bool]:
     return round(score * 100, 1), bool(certain)
 
 
+MIN_HANDWRITTEN_LINES = 3      # une signature ou un paraphe (1 ou 2 lignes) ne compte pas comme un texte manuscrit
+
+
 def absence_is_uncertain(term: str, pages: list[dict]) -> bool:
     """
-    Cas où, même bien lu, un dossier ne permet pas d'affirmer qu'un mot est absent :
-      - il contient de l'écriture manuscrite (environ une lettre sur huit est mal lue) ;
+    Cas où, même bien lu, un dossier ne permet pas d'affirmer qu'un mot est absent (mode prudent) :
+      - il contient un vrai texte manuscrit, pas seulement une signature (environ une lettre sur huit est mal lue) ;
       - le mot-clé fait 2 lettres ou moins (« IA », « C# ») et un document a été lu par OCR :
         une seule lettre mal lue suffit à le manquer.
     pages : la description des pages de tous les documents du dossier.
     """
-    if any(page.get("manuscrit") for page in pages):
+    if sum(page.get("manuscrit") or 0 for page in pages) >= MIN_HANDWRITTEN_LINES:
         return True
     scanned = any(page.get("mode") in ("ocr", "mixte") for page in pages)
     return scanned and Keyword(term).length <= 2
@@ -69,7 +75,7 @@ def decide(score: float, quality: float, present_threshold: float, check_thresho
 
 
 def evaluate(term: str, occurrences: list[dict], quality: float, pages: list[dict], present_thr: float = 85,
-             review_thr: float = 50, min_quality: float = 70, unread: int = 0) -> tuple[float, str]:
+             review_thr: float = 50, min_quality: float = 70, unread: int = 0, prudent: bool = True) -> tuple[float, str]:
     """
     Score (0-100) et décision pour un mot-clé dans un dossier. C'est le seul endroit où une décision est prise :
     l'application, l'export et la ligne de commande passent tous par ici.
@@ -77,9 +83,12 @@ def evaluate(term: str, occurrences: list[dict], quality: float, pages: list[dic
       quality     : qualité de lecture du document le moins bien lu (0-100)
       pages       : description des pages de ces documents
       unread      : nombre de documents du dossier impossibles à lire (corrompus, protégés…)
+      prudent     : False (mode tranché) : un mot non trouvé est absent, sauf document illisible
     """
     score, has_certain = keyword_score(occurrences)
     if not has_certain:
         score = min(score, float(max(0, int(present_thr) - 1)))   # mot seulement approchant : sous le seuil
+    if not prudent:                      # mode tranché : seul un document illisible empêche de conclure
+        return score, decide(score, 100.0, present_thr, review_thr, min_quality, unread > 0, has_certain)
     uncertain = unread > 0 or absence_is_uncertain(term, pages)
     return score, decide(score, quality, present_thr, review_thr, min_quality, uncertain, has_certain)

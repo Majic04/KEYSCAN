@@ -171,8 +171,9 @@ const tagHtml = (k, isNew, attr) => `<span class="term-tag${isNew ? " new" : ""}
 /* ---------------------------------------------------------------- réglages */
 PAGES.reglages = () => {
   const s = state.settings, ops = s.operators || [];
-  const slider = (id, label, hint, v) => `<div class="slider"><label for="${id}">${label} <span>${hint}</span></label>
-    <input type="range" min="0" max="100" step="1" id="${id}" value="${v}" style="--v:${v}"><output id="${id}V">${v} %</output></div>`;
+  const slider = (id, label, hint, v, off) => `<div class="slider${off ? " off" : ""}"><label for="${id}">${label} <span>${hint}</span></label>
+    <input type="range" min="0" max="100" step="1" id="${id}" value="${v}" style="--v:${v}"${off ? " disabled" : ""}><output id="${id}V">${v} %</output></div>`;
+  const prudent = s.absence === "prudent";
   const hw = (state.engine || {}).handwriting || {};
   return `<div class="page">
     <h1 class="ptitle">Réglages</h1>
@@ -180,7 +181,13 @@ PAGES.reglages = () => {
       <div class="set"><div><h2>Seuils de décision</h2><p class="hint">Propres à ${esc(currentOp || "")}. Enregistrés dès qu'on les déplace.</p></div><div>
         ${slider("sPresent", "Présent", "à partir de ce score", s.present_thr)}
         ${slider("sReview", "À vérifier", "entre ce score et le précédent", s.review_thr)}
-        ${slider("sQuality", "Lecture minimale", "en dessous, un mot non trouvé reste incertain", s.min_quality)}</div></div>
+        ${slider("sQuality", "Lecture minimale", prudent ? "en dessous, un mot non trouvé reste incertain" : "utilisée en mode prudent seulement", s.min_quality, !prudent)}
+        <p class="flabel">Mot non trouvé</p>
+        <div class="choice" role="group" aria-label="Mot non trouvé">
+          <button data-action="absence-absent" aria-pressed="${!prudent}">Absent</button>
+          <button data-action="absence-prudent" aria-pressed="${prudent}">Prudent</button></div>
+        <p class="hint">${prudent ? "« Absence incertaine » dès qu'un document est difficile à lire : scan de mauvaise qualité, texte manuscrit, mot très court."
+          : "Un mot non trouvé est déclaré absent. Seul un document impossible à ouvrir le laisse « Absence incertaine »."}</p></div></div>
       <div class="set"><div><h2>Équipe</h2><p class="hint">Chaque personne a ses dossiers, ses mots-clés et son code.</p></div><div class="people">
         ${ops.map(o => `<div class="person"><span class="ini" style="${profStyle(o)}">${esc(initials(o))}</span><div>${esc(o)}<small>${plural((state.owners || {})[o] || 0, "dossier")}</small></div>
           ${ops.length > 1 ? `<button class="icon del" data-del-op="${esc(o)}" aria-label="Retirer ${esc(o)} de l'équipe">${ic("x")}</button>` : ""}</div>`).join("")}

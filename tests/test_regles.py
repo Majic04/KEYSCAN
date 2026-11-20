@@ -123,6 +123,14 @@ check("mot-clé de 2 lettres dans un scan : jamais absent sûr",
 check("dossier avec écriture manuscrite : jamais absent sûr",
       evaluate("stage", [], 95, [{"mode": "ocr", "manuscrit": 3}])[1] == "absent_douteux")
 check("lecture insuffisante : absence incertaine", evaluate("stage", [], 60, [{"mode": "ocr"}])[1] == "absent_douteux")
+check("une signature (1 ligne manuscrite) ne rend pas l'absence incertaine",
+      evaluate("stage", [], 95, [{"mode": "ocr", "manuscrit": 1}])[1] == "absent")
+# mode tranché (réglage « Mot non trouvé : Absent ») : on conclut, sauf si un document n'a pas pu être ouvert
+check("tranché : manuscrit, scan médiocre, mot court → absent",
+      [evaluate(*args, prudent=False)[1] for args in (("stage", [], 95, [{"mode": "ocr", "manuscrit": 5}]),
+                                                       ("stage", [], 40, [{"mode": "ocr"}]), ("IA", [], 95, [{"mode": "ocr"}]))]
+      == ["absent", "absent", "absent"])
+check("tranché : document illisible → absence incertaine", evaluate("stage", [], 95, [{"mode": "texte"}], unread=1, prudent=False)[1] == "absent_douteux")
 
 # --------------------------------------------------------------------------- PDF avec images
 # Une page de texte avec un logo : le logo n'est pas lu par l'OCR (la page reste en mode « texte »).

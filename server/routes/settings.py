@@ -21,7 +21,7 @@ def get_settings():
 @routes.post("/api/settings")
 def change_settings():
     """
-    {"present_thr", "review_thr", "min_quality"} : les seuils du profil ouvert.
+    {"present_thr", "review_thr", "min_quality", "absence"} : les réglages de décision du profil ouvert.
     {"operators": [noms], "pin": code} : la nouvelle équipe. Retirer un AUTRE prof protégé par un code exige son code,
     et un prof qui a encore des dossiers ne peut pas être retiré.
     """
@@ -31,7 +31,7 @@ def change_settings():
         _change_team(body["operators"], body.get("pin"), me)
     if body.get("reading_mode") in READING_MODES:          # réglage commun à toute l'équipe (c'est le même ordinateur)
         write_setting("reading_mode", body["reading_mode"])
-    values = {key: body[key] for key in DEFAULT_THRESHOLDS if key in body}
+    values = {key: body[key] for key in [*DEFAULT_THRESHOLDS, "absence"] if key in body}
     if values and me in team():
         save_thresholds(me, values)
     if me not in team():                         # on vient de retirer son propre profil
