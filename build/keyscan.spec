@@ -27,13 +27,14 @@ datas = [
 datas += collect_data_files("liteparse")
 binaries = collect_dynamic_libs("liteparse")             # LiteParse (Rust) et PDFium
 # tous les fichiers Python de engine/ et server/ (liste écrite à partir des dossiers : rien n'est oublié)
-hidden = ["app", "updater", "certifi", "liteparse", "liteparse._liteparse"] + [
+hidden = ["app", "updater", "certifi"] + [
     os.path.relpath(os.path.join(folder, name), ROOT)[:-3].replace(os.sep, ".").removesuffix(".__init__")
     for package in ("engine", "server")
     for folder, _, names in os.walk(os.path.join(ROOT, package)) if "__pycache__" not in folder
     for name in names if name.endswith(".py")
 ]
 hidden += collect_submodules("webview")
+hidden += collect_submodules("liteparse")                # LiteParse charge ses modules à la demande (parser, types…)
 excludes = ["tkinter", "matplotlib", "IPython", "pandas", "tensorflow", "jax", "flax", "torch", "torchvision", "torchaudio",
             "transformers", "scipy", "sklearn", "notebook", "pytest"]
 
