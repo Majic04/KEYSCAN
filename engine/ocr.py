@@ -138,11 +138,14 @@ def ocr_reading(image: Image.Image) -> dict:
         page = _ocr().parse(path).pages[0]
     finally:
         os.remove(path)
-    words = []
+    words, seen = [], set()
     for item in page.text_items:
         confidence = item.confidence if item.confidence is not None else 1.0      # le modèle note chaque ligne
         for word in item.words or []:
-            if word.text.strip():
+            # un même mot peut être donné par plusieurs éléments de sa ligne : on ne le garde qu'une fois
+            key = (word.text, round(word.x), round(word.y))
+            if word.text.strip() and key not in seen:
+                seen.add(key)
                 words.append({"text": word.text.strip(), "confidence": confidence,
                               "box": [word.x / page.width, word.y / page.height,
                                       (word.x + word.width) / page.width, (word.y + word.height) / page.height]})
