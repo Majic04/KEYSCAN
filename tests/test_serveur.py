@@ -142,6 +142,21 @@ response = franck.post("/api/import-folder", data={
     "files": [(io.BytesIO(zip_of({"cv.pdf": tiny_pdf("Noir cv")})), "Noir Max.zip"), (io.BytesIO(zip_of({"cv.pdf": tiny_pdf("Vert cv")})), "Vert Ana.zip")],
     "paths": ["Noir Max.zip", "Vert Ana.zip"]}, content_type="multipart/form-data").get_json()
 check("plusieurs .zip déposés : un dossier par .zip", sorted(response["dossiers"]) == ["Noir Max", "Vert Ana"], str(response))
+# les trois façons de ranger un import : par sous-dossier (déjà testé), tout dans un seul dossier, un dossier par fichier
+folder = {"files": [(io.BytesIO(tiny_pdf(f"{n} cv")), f"{n}.pdf") for n in ("Gris Ada", "Bleu Rui")],
+          "paths": ["Promo/Gris Ada.pdf", "Promo/Bleu Rui.pdf"]}
+response = franck.post("/api/import-folder", data={**folder, "mode": "un"}, content_type="multipart/form-data").get_json()
+check("import « tout dans un seul dossier »", response["dossiers"] == ["Promo"], str(response))
+imported_modes = response["ids"]
+folder = {"files": [(io.BytesIO(tiny_pdf(f"{n} cv")), f"{n}.pdf") for n in ("Gris Ada", "Bleu Rui")],
+          "paths": ["Promo/Gris Ada.pdf", "Promo/Bleu Rui.pdf"]}
+response = franck.post("/api/import-folder", data={**folder, "mode": "fichiers"}, content_type="multipart/form-data").get_json()
+check("import « un dossier par fichier »", sorted(response["dossiers"]) == ["Bleu Rui", "Gris Ada"], str(response))
+zips = zip_of({"Lot/Noir Max.pdf": tiny_pdf("Noir"), "Lot/Vert Ana.pdf": tiny_pdf("Vert")})
+response2 = franck.post("/api/import-zip", data={"archive": (io.BytesIO(zips), "lot.zip"), "mode": "fichiers"},
+                        content_type="multipart/form-data").get_json()
+check(".zip « un dossier par fichier »", sorted(response2["dossiers"]) == ["Noir Max", "Vert Ana"], str(response2))
+franck.post("/api/dossiers/batch", json={"ids": imported_modes + response["ids"] + response2["ids"], "action": "delete"})
 check(".zip abîmé : refusé avec un message", franck.post("/api/import-zip", data={"archive": (io.BytesIO(b"rien"), "x.zip")},
                                                        content_type="multipart/form-data").status_code == 400)
 imported = [d["id"] for d in franck.get("/api/results").get_json()["dossiers"] if d["name"] in ("Leroy Hugo", "Petit Emma", "Roux Lea", "Blanc Tom", "Noir Max", "Vert Ana")]

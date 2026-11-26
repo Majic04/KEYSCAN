@@ -13,7 +13,7 @@ PAGES.dossiers = () => {
       <h1>Premier dossier</h1>
       <p>Créez le dossier d'un candidat, choisissez les mots-clés à y chercher et déposez ses documents : PDF, scans ou photos. KeyScan les lit et surligne ce qu'il trouve.</p>
       <div class="welcome-acts"><button class="btn pen" data-action="new">${ic("plus")}Créer un dossier</button>
-      <button class="btn" data-action="import">${ic("folder")}Importer plusieurs candidats</button></div></div>`;
+      <button class="btn" data-action="import">${ic("folder")}Importer un dossier ou des .zip</button></div></div>`;
   const pend = D.filter(d => d.pending).length;
   const check = D.reduce((n, d) => n + summary(d).c.a_verifier, 0);
   let line = plural(D.length, "dossier") + (pend ? `, dont ${pend} en cours de lecture` : ", tous lus");
@@ -25,7 +25,7 @@ PAGES.dossiers = () => {
         <a class="btn" href="#/comparer">${ic("grid")}Comparer</a>
         <button class="btn plain" data-action="export">${ic("download")}Exporter</button></div></div>
     <div class="cards">${D.map(dossierCard).join("")}</div>
-    <button class="drop" data-drop="import">${ic("folder")}Importer des candidats<span>déposez un dossier ou un .zip, un sous-dossier par candidat</span></button></div>`;
+    <button class="drop" data-drop="import">${ic("folder")}Importer<span>déposez un dossier de PDF ou des .zip : vous choisirez comment les ranger</span></button></div>`;
 };
 
 /* la carte d'un dossier sur l'accueil : le nombre de mots-clés trouvés, en grand, et les mots eux-mêmes surlignés */
@@ -120,7 +120,7 @@ function docList(d){
         <button class="icon" data-re-doc="${x.id}" aria-label="Relire ce document" title="Relire">${ic("refresh")}</button>
         <button class="icon del" data-del-doc="${x.id}" data-name="${esc(x.filename)}" aria-label="Retirer ${esc(x.filename)}" title="Retirer">${ic("x")}</button>
       </span></div>`;
-  }).join("") + `</div><button class="drop" data-drop="${d.id}">${ic("upload")}Ajouter des documents<span>PDF, images ou .zip</span></button>`;
+  }).join("") + `</div><button class="drop" data-drop="${d.id}">${ic("upload")}Ajouter des documents<span>PDF, images, .zip ou un dossier entier</span></button>`;
 }
 /* dans un document : tous les mots trouvés, surlignés (les mots à vérifier d'abord, avec leur page) */
 function docHits(d, x){

@@ -37,7 +37,7 @@ PAGES.comparer = () => {
   [...selected].forEach(id => { if(!all.some(d => d.id === id)) selected.delete(id); });   // dossiers supprimés entre-temps
   if(!all.length) return `<div class="welcome"><h1>Comparer les dossiers</h1>
       <p>Ici, tous vos dossiers seront côte à côte : une ligne par candidat, une colonne par mot-clé. Commencez par importer les dossiers de vos candidats.</p>
-      <div class="welcome-acts"><button class="btn pen" data-action="import">${ic("folder")}Importer plusieurs candidats</button>
+      <div class="welcome-acts"><button class="btn pen" data-action="import">${ic("folder")}Importer un dossier ou des .zip</button>
       <button class="btn" data-action="new">${ic("plus")}Créer un dossier</button></div></div>`;
   const q = compareFilter.trim().toLowerCase();
   let D = all.filter(d => !q || d.name.toLowerCase().includes(q));
@@ -94,7 +94,7 @@ function gridRow(d, cols){
 function batchBar(){
   const n = selected.size;
   if(!n) return `<div class="batch idle"><span>Aucun dossier coché.</span>
-    <button class="btn plain" data-action="import">${ic("folder")}Importer plusieurs candidats</button>
+    <button class="btn plain" data-action="import">${ic("folder")}Importer un dossier ou des .zip</button>
     <button class="btn plain" data-action="export">${ic("download")}Tout exporter (CSV)</button></div>`;
   return `<div class="batch" role="toolbar" aria-label="Actions sur les dossiers cochés">
     <b>${plural(n, "dossier")} coché${n > 1 ? "s" : ""}</b>

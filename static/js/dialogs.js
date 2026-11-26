@@ -44,7 +44,7 @@ function openNew(){
       <input class="field mt" id="newTerms" placeholder="${nDef || others.length ? "Mots-clés en plus" : "Mots-clés"}, séparés par des virgules" aria-label="Mots-clés en plus">
       <button type="button" class="drop" data-drop="new">${ic("upload")}<span id="newHint">Déposez ses documents (PDF, images ou .zip)</span></button>
       <div class="files" id="newFiles"></div>
-      <div class="actions"><button type="button" class="btn plain" data-action="import">${ic("folder")}Plusieurs candidats d'un coup</button>
+      <div class="actions"><button type="button" class="btn plain" data-action="import">${ic("folder")}Importer un dossier ou des .zip</button>
         <button class="btn pen" type="submit" id="newOk" disabled>Créer le dossier</button></div>
     </form>`);
 }
@@ -54,16 +54,43 @@ function showNewFiles(){
   $("#newOk").disabled = !newFiles.length || !$("#newName").value.trim();      // il faut un nom et au moins un document
 }
 
-/* plusieurs candidats d'un coup : un dossier qui contient un sous-dossier par candidat (ou un .zip) */
-function openImport(){
+/* importer un dossier (ou des .zip) : trois façons de ranger les documents en dossiers KeyScan */
+const IMPORT_MODES = {
+  dossiers: {label:"Un par sous-dossier", hint:"Chaque sous-dossier devient un dossier KeyScan.",
+    tree:[["Candidats", ""], ["Dupont Marie", "cv.pdf, relevé.jpg", "→ dossier « Dupont Marie »"], ["Martin Paul", "lettre.pdf", "→ dossier « Martin Paul »"]]},
+  un: {label:"Tout dans un seul", hint:"Tous les documents vont dans un seul dossier KeyScan, nommé comme le dossier importé.",
+    tree:[["Dupont Marie", "cv.pdf, lettre.pdf, relevé.jpg", "→ un dossier « Dupont Marie »"]]},
+  fichiers: {label:"Un par fichier", hint:"Chaque PDF ou image devient son propre dossier KeyScan, nommé comme le fichier.",
+    tree:[["Candidats", ""], ["", "dupont.pdf", "→ dossier « dupont »"], ["", "martin.pdf", "→ dossier « martin »"]]},
+};
+let importMode = "dossiers", importFiles = [];
+function openImport(files){
+  importFiles = files || [];
   const nDef = state.keywords.length;
-  openModal(`${closeX}<h3>Importer plusieurs candidats</h3>
-    <p class="msub">Choisissez le dossier qui contient un sous-dossier par candidat. Chaque sous-dossier devient un dossier KeyScan ${nDef ? `avec votre liste par défaut (${kwN(nDef)})` : "(sans mot-clé : ajoutez-les ensuite depuis « Comparer »)"}, et tous les documents sont lus en parallèle.</p>
-    <div class="tree" aria-hidden="true"><span>${ic("folder")}Candidats</span>
-      <span class="sub">${ic("folder")}Dupont Marie<small>cv.pdf, relevé de notes.jpg</small></span>
-      <span class="sub">${ic("folder")}Martin Paul<small>lettre.pdf</small></span></div>
-    <button type="button" class="drop big" data-drop="import" id="importDrop">${ic("folder")}Déposez le dossier ici<span>ou cliquez pour le choisir</span></button>
-    <p class="note" id="importNote">Vous avez un .zip (ou un .zip par candidat) ? <button class="textlink" data-action="import-zip">Choisir le .zip</button></p>`);
+  openModal(`${closeX}<h3>Importer</h3>
+    <p class="msub">Un dossier de PDF ou d'images, ou des .zip. Les dossiers KeyScan créés ${nDef ? `reçoivent votre liste par défaut (${kwN(nDef)})` : "n'ont pas encore de mot-clé"} et sont lus aussitôt.</p>
+    <span class="flabel">Ranger les documents</span>
+    <div class="choice" role="group" aria-label="Ranger les documents">${Object.entries(IMPORT_MODES).map(([m, x]) =>
+      `<button type="button" data-imode="${m}" aria-pressed="${m === importMode}">${x.label}</button>`).join("")}</div>
+    <div id="importHow">${importHow()}</div>
+    <button type="button" class="drop" data-drop="import" id="importDrop">${ic("folder")}<span id="importHint">${importHint()}</span></button>
+    <div class="actions"><button type="button" class="btn" data-action="import-zip">${ic("upload")}Choisir des .zip</button>
+      <button type="button" class="btn pen" data-action="import-go" id="importGo" ${importFiles.length ? "" : "disabled"}>Importer</button></div>`);
+}
+function importHow(){
+  const x = IMPORT_MODES[importMode];
+  return `<p class="hint">${x.hint}</p><div class="tree" aria-hidden="true">${x.tree.map(([folder, files, result], i) =>
+    `<span class="${i && folder ? "sub" : i ? "sub file" : ""}">${folder ? ic("folder") + esc(folder) : ""}${files ? `<small>${esc(files)}</small>` : ""}${result ? `<em>${esc(result)}</em>` : ""}</span>`).join("")}</div>`;
+}
+function importHint(){
+  if(!importFiles.length) return "Déposez un dossier ou des .zip ici, ou cliquez pour choisir un dossier";
+  const zips = importFiles.filter(f => /\.zip$/i.test(f.path)).length;
+  return `${plural(importFiles.length, "fichier")} prêt${importFiles.length > 1 ? "s" : ""}${zips ? ` (dont ${plural(zips, "archive")} .zip)` : ""} : cliquez sur Importer`;
+}
+function setImportFiles(files){
+  importFiles = files;
+  const hint = $("#importHint"); if(!hint) return openImport(files);
+  hint.textContent = importHint(); $("#importGo").disabled = !files.length;
 }
 
 /* mots-clés d'un dossier */
@@ -161,6 +188,7 @@ function openMenu(btn, id){
   const m = $("#menu");
   m.innerHTML = `<button data-action="rename" data-id="${id}">${ic("edit")}Renommer</button>
     <button data-action="edit-kw" data-id="${id}">${ic("tag")}Mots-clés du dossier</button>
+    <button data-action="add-folder" data-id="${id}">${ic("folder")}Ajouter un dossier de documents</button>
     ${(state.settings.operators || []).filter(o => o !== currentOp).map(o =>
       `<button data-action="give" data-id="${id}" data-to="${esc(o)}">${ic("swap")}Confier à ${esc(o)}</button>`).join("")}
     <hr><button class="del" data-action="delete" data-id="${id}">${ic("trash")}Supprimer le dossier</button>`;

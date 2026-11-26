@@ -1,4 +1,23 @@
-## Nouveautés de la version 1.16
+## Nouveautés de la version 1.17
+
+- **Interface à la façon de macOS** :
+  - police du système, barre d'outils unifiée, barre latérale translucide ;
+  - contrôles segmentés, menus et fenêtres comme ceux du système, tableau « Comparer » façon Finder.
+- **Petites animations** :
+  - les boutons s'enfoncent au clic, les cartes et les tuiles se soulèvent au survol ;
+  - les mots trouvés « sautent » comme dans la recherche de Safari ;
+  - les cases à cocher se dessinent, la zone de dépôt réagit quand on y glisse un fichier ;
+  - une barre de progression brillante pendant la lecture.
+  Tout est coupé si macOS demande de réduire les animations.
+- **Le curseur rond est retiré** : le curseur normal du système revient.
+- **Importer : trois façons de ranger les documents**, pour un dossier comme pour des .zip :
+  - **un dossier KeyScan par sous-dossier** (comme avant) ;
+  - **tout dans un seul dossier KeyScan** : un dossier de PDF devient un seul candidat ;
+  - **un dossier KeyScan par fichier** : chaque PDF devient son propre candidat.
+  On choisit avant d'importer, avec un schéma de ce qui sera créé. Déposer un dossier ou des .zip sur l'accueil ouvre ce choix.
+- **Ajouter un dossier entier à un dossier existant** : « … → Ajouter un dossier de documents », ou glisser le dossier sur la zone de dépôt.
+
+## Version 1.16
 
 - **Lecture plus rapide, sans réglage** : le choix « Économe / Rapide » disparaît des Réglages. Le moteur OCRia-nano-1 étant léger, KeyScan lit maintenant plusieurs documents en même temps : un par cœur du processeur, jusqu'à 4, en gardant toujours un cœur libre. La lecture reste en priorité basse, pour que l'ordinateur reste utilisable pendant un gros import.
 

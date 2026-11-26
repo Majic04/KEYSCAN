@@ -13,7 +13,7 @@ from ..analysis import forget, queue_document
 from ..database import connect, now, remove_file
 from ..keywords import DEFAULT_LIST, add_terms, copy_list, normalized_form, parse_terms
 from ..profiles import check_member, current_owner, require_own_dossier
-from ..uploads import import_candidates, save_files
+from ..uploads import IMPORT_MODES, import_candidates, save_files
 
 routes = Blueprint("dossiers", __name__)
 
@@ -87,14 +87,14 @@ def upload_files(dossier_id):
 def import_folder():
     """
     Un dossier entier choisi dans le navigateur : les fichiers (« files ») et leur chemin relatif (« paths »,
-    dans le même ordre). Chaque sous-dossier devient un dossier de candidature.
+    dans le même ordre). « mode » : un dossier KeyScan par sous-dossier, un seul, ou un par fichier (uploads.py).
     """
     uploaded = request.files.getlist("files")
     paths = request.form.getlist("paths")
     if not uploaded:
         abort(400, "Aucun fichier reçu")
     files = [(paths[i] if i < len(paths) and paths[i] else f.filename, f.read()) for i, f in enumerate(uploaded)]
-    return jsonify(import_candidates(files, request.form.get("name") or "Import", current_owner()))
+    return jsonify(import_candidates(files, request.form.get("name") or "Import", current_owner(), _import_mode()))
 
 
 @routes.post("/api/import-zip")
@@ -109,7 +109,12 @@ def import_zip():
     name = os.path.basename(archive.filename or "Import.zip")
     if not name.lower().endswith(".zip"):
         name += ".zip"
-    return jsonify(import_candidates([(name, data)], name[:-4], current_owner()))
+    return jsonify(import_candidates([(name, data)], name[:-4], current_owner(), _import_mode()))
+
+
+def _import_mode() -> str:
+    mode = request.form.get("mode", "dossiers")
+    return mode if mode in IMPORT_MODES else "dossiers"
 
 
 @routes.post("/api/dossiers/batch")

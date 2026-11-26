@@ -29,14 +29,13 @@ async function filesFromDrop(dataTransfer){
   for(const entry of entries) await walk(entry, "");
   return found;
 }
-/* envoi au serveur : un .zip seul, ou des fichiers avec leur chemin (« Candidats/Dupont Marie/cv.pdf », « Martin Paul.zip »).
-   Le serveur crée un dossier par sous-dossier (ou par .zip) et lance la lecture. */
+/* envoi au serveur : un .zip seul, ou des fichiers avec leur chemin (« Candidats/Dupont Marie/cv.pdf », « Martin Paul.zip »),
+   et la façon de les ranger (importMode : un dossier KeyScan par sous-dossier, un seul, ou un par fichier). */
 async function sendImport(files){
   if(!files.length) return;
   const zip = files.length === 1 && /\.zip$/i.test(files[0].path);
-  if(!zip && !files.some(f => f.path.includes("/") || /\.zip$/i.test(f.path)))
-    return toast("Déposez le dossier qui contient un sous-dossier par candidat (ou un .zip)");
   const fd = new FormData();
+  fd.append("mode", importMode);
   if(zip) fd.append("archive", files[0].file);
   else files.forEach(f => { fd.append("files", f.file); fd.append("paths", f.path); });
   const drop = $("#importDrop"); if(drop){ drop.disabled = true; drop.innerHTML = `<span class="spin"></span>Envoi de ${plural(files.length, "fichier")}…`; }
@@ -117,7 +116,7 @@ async function flushSettings(){
   load(false);                                     // les décisions des dossiers suivent les nouveaux seuils
 }
 
-const SEL = "[data-go],[data-action],[data-kw],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-wide],[data-pv-doc],[data-pv-page]";
+const SEL = "[data-go],[data-action],[data-kw],[data-del-kw],[data-del-doc],[data-re-doc],[data-drop],[data-del-op],[data-close],[data-switch],[data-kwsrc],[data-del-dkw],[data-wide],[data-pv-doc],[data-pv-page],[data-imode]";
 document.addEventListener("click", async e => {
   const t = clickTarget(e, SEL);
   if(!e.target.closest("#menu") && !e.target.closest("[data-action=menu],[data-action=who],[data-col]")) closeMenu();
@@ -138,6 +137,12 @@ document.addEventListener("click", async e => {
     if(matchMedia("(max-width:1180px)").matches) $(".pv").scrollIntoView({behavior: calm.matches ? "auto" : "smooth", block:"start"});
     return;
   }
+  if(ds.imode){                                       // import : façon de ranger les documents
+    importMode = ds.imode;
+    t.parentElement.querySelectorAll("[data-imode]").forEach(b => b.setAttribute("aria-pressed", b === t));
+    $("#importHow").innerHTML = importHow();
+    return;
+  }
   if(ds.pvPage){ preview.page = +ds.pvPage; return render(false, true); }
   if(ds.kw) return showEvidence(+ds.dossier, +ds.kw, ds.doc ? +ds.doc : null);
   if("wide" in ds){ const o = t.closest(".occ"); o.classList.toggle("wide"); t.textContent = o.classList.contains("wide") ? "Revenir au mot" : "Voir la page entière"; return; }
@@ -149,7 +154,7 @@ document.addEventListener("click", async e => {
   }
   if(ds.drop){
     if(ds.drop === "new") return pickFiles(f => { newFiles.push(...f); showNewFiles(); });
-    if(ds.drop === "import") return pickFolder(sendImport);
+    if(ds.drop === "import") return $("#importHint") ? pickFolder(setImportFiles) : openImport();
     return pickFiles(f => uploadTo(+ds.drop, f));
   }
   if(ds.delKw || ds.delDkw){
@@ -179,7 +184,9 @@ document.addEventListener("click", async e => {
     case "new": closeMenu(); return openNew();
     case "import": closeMenu(); return openImport();
     case "import-folder": return pickFolder(sendImport);
-    case "import-zip": return pickZip(sendImport);
+    case "import-zip": return pickZip(setImportFiles);
+    case "import-go": return sendImport(importFiles);
+    case "add-folder": closeMenu(); return pickFolder(f => uploadTo(+ds.id, f.map(x => x.file)));
     case "menu": return $("#menu").classList.contains("on") ? closeMenu() : openMenu(t, ds.id);
     case "who": return $("#menu").classList.contains("on") ? closeMenu() : openWho(t);
     case "copy-kw": {
@@ -273,9 +280,12 @@ document.addEventListener("keydown", e => {
   e.preventDefault();
   z.classList.toggle("over", ev === "dragover");
   if(ev === "drop"){
-    if(z.dataset.drop === "import") return filesFromDrop(e.dataTransfer).then(sendImport);
-    const files = [...e.dataTransfer.files];
-    if(z.dataset.drop === "new"){ newFiles.push(...files); showNewFiles(); }
-    else uploadTo(+z.dataset.drop, files);
+    // un dossier glissé est parcouru (sous-dossiers compris) : ses documents sont tous pris
+    filesFromDrop(e.dataTransfer).then(found => {
+      if(z.dataset.drop === "import") return $("#importHint") ? setImportFiles([...importFiles, ...found]) : openImport(found);
+      const files = found.map(f => f.file);
+      if(z.dataset.drop === "new"){ newFiles.push(...files); showNewFiles(); }
+      else uploadTo(+z.dataset.drop, files);
+    });
   }
 }));

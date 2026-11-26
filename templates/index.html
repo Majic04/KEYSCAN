@@ -37,20 +37,18 @@
 <div class="menu" id="menu" role="menu"></div>
 <div class="lock" id="lock" aria-hidden="true"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div id="cur-ring" aria-hidden="true"></div>
 
 <!-- L'interface, en petits fichiers chargés dans cet ordre (ils partagent les mêmes variables) :
      utils      outils : échappement du texte, icônes, appels au serveur
      state      l'état (résultats reçus du serveur), la navigation, le dessin de la page
      pages      les pages : accueil, dossier, liste par défaut, réglages
      compare    la page « Comparer » : tous les dossiers dans un tableau, actions sur une sélection
-     dialogs    les fenêtres : nouveau dossier, import de plusieurs candidats, mots-clés, preuve, menus
+     dialogs    les fenêtres : nouveau dossier, import (dossier ou .zip), mots-clés, preuve, menus
      actions    ce qui se passe quand on clique, tape, dépose un fichier
      lock       l'écran du code PIN et le verrouillage automatique
-     cursor     le curseur (un cercle à l'encre bleue)
      update     mise à jour automatique de l'application installée
      start      le démarrage -->
-{% for name in ["utils", "state", "pages", "compare", "dialogs", "actions", "lock", "cursor", "update", "start"] %}
+{% for name in ["utils", "state", "pages", "compare", "dialogs", "actions", "lock", "update", "start"] %}
 <script src="/static/js/{{ name }}.js?v={{ v }}" defer></script>
 {% endfor %}
 </body>

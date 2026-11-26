@@ -5,13 +5,11 @@ Un fichier déposé est enregistré dans data/files, puis mis dans la file de le
 Un fichier au contenu identique à un document déjà présent dans le dossier n'est pas ajouté (doublon).
 Un .zip déposé dans un dossier est ouvert : chacun de ses documents (PDF, images) y est ajouté.
 
-Plusieurs candidats d'un coup : on peut déposer un dossier entier (ou un .zip) qui contient un
-sous-dossier par candidat. Chaque sous-dossier devient un dossier KeyScan, et ses documents sont
-mis en file de lecture aussitôt.
-    Candidats/                       → dossiers « Dupont Marie » et « Martin Paul »
-        Dupont Marie/cv.pdf
-        Dupont Marie/releve.jpg
-        Martin Paul/lettre.pdf
+Import d'un dossier entier (ou d'un .zip), rangé de l'une de trois façons (« mode ») :
+    "dossiers"  un dossier KeyScan par sous-dossier         Candidats/Dupont Marie/cv.pdf → « Dupont Marie »
+    "un"        tout dans un seul dossier KeyScan             Candidats/*.pdf             → « Candidats »
+    "fichiers"  un dossier KeyScan par fichier                Candidats/dupont.pdf        → « dupont »
+Les documents sont mis en file de lecture aussitôt.
 Les .zip trouvés dans un import sont ouverts : « Dupont Marie.zip » compte comme le dossier « Dupont Marie ».
 """
 from __future__ import annotations
@@ -28,6 +26,8 @@ from engine.extract import SUPPORTED_EXTENSIONS, page_count
 from .analysis import queue_document
 from .database import FILES_DIR, connect, now
 from .keywords import DEFAULT_LIST, copy_list
+
+IMPORT_MODES = ("dossiers", "un", "fichiers")
 
 
 def is_supported(filename: str) -> bool:
@@ -80,11 +80,12 @@ def save_files(dossier_id: int, files: list[tuple[str, bytes]], person: str) -> 
 
 
 # =========================================================================== plusieurs candidats d'un coup
-def group_by_candidate(files: list[tuple[str, bytes]], fallback_name: str) -> dict[str, list[tuple[str, bytes]]]:
+def group_by_candidate(files: list[tuple[str, bytes]], fallback_name: str,
+                       mode: str = "dossiers") -> dict[str, list[tuple[str, bytes]]]:
     """
-    Range des fichiers [(chemin relatif, contenu)] par candidat : le premier dossier du chemin donne le nom
-    du candidat. Si tout est dans un seul dossier englobant (« Candidats/… »), on regarde à l'intérieur.
-    Les fichiers posés à la racine vont dans un dossier nommé « fallback_name ».
+    Range des fichiers [(chemin relatif, contenu)] en dossiers KeyScan, selon le mode (voir en haut du fichier).
+    Mode « dossiers » : le premier dossier du chemin donne le nom du candidat. Si tout est dans un seul dossier
+    englobant (« Candidats/… »), on regarde à l'intérieur. Les fichiers posés à la racine vont dans « fallback_name ».
     """
     entries = []
     for path, data in files:
@@ -102,6 +103,18 @@ def group_by_candidate(files: list[tuple[str, bytes]], fallback_name: str) -> di
         fallback_name = roots.pop()
         entries = [(parts[1:], data) for parts, data in entries]
     groups: dict[str, list[tuple[str, bytes]]] = {}
+    if mode == "un":                                 # tout dans un seul dossier, nommé d'après le dossier importé
+        roots = {parts[0] for parts, _ in entries}
+        name = roots.pop() if len(roots) == 1 and all(len(parts) > 1 for parts, _ in entries) else fallback_name
+        return {name: [(parts[-1], data) for parts, data in entries]} if entries else {}
+    if mode == "fichiers":                           # un dossier par document, nommé d'après le fichier
+        for parts, data in entries:
+            name = base = os.path.splitext(parts[-1])[0] or parts[-1]
+            number = 2
+            while name in groups:                    # deux fichiers du même nom : « cv », « cv (2) »
+                name, number = f"{base} ({number})", number + 1
+            groups[name] = [(parts[-1], data)]
+        return groups
     for parts, data in entries:
         candidate = parts[0] if len(parts) > 1 else fallback_name
         groups.setdefault(candidate, []).append((parts[-1], data))
@@ -158,15 +171,15 @@ def open_zips_in_import(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes
     return opened
 
 
-def import_candidates(files: list[tuple[str, bytes]], fallback_name: str, person: str) -> dict:
+def import_candidates(files: list[tuple[str, bytes]], fallback_name: str, person: str, mode: str = "dossiers") -> dict:
     """
-    Crée un dossier par candidat (avec la liste de mots-clés par défaut du prof), y dépose ses fichiers
-    et lance leur lecture.
+    Crée les dossiers KeyScan (avec la liste de mots-clés par défaut du prof) rangés selon le mode,
+    y dépose les fichiers et lance leur lecture.
     → {"dossiers": [noms], "ids": [numéros], "rejected": [fichiers refusés], "duplicates": [...]}
     """
     names, ids, rejected, duplicates = [], [], [], []
     files = open_zips_in_import(open_zips_in_import(files))          # le lot.zip, puis les .zip qu'il contient
-    for candidate, candidate_files in group_by_candidate(files, fallback_name).items():
+    for candidate, candidate_files in group_by_candidate(files, fallback_name, mode).items():
         accepted = [(name, data) for name, data in candidate_files if is_supported(name)]
         rejected += [name for name, _ in candidate_files if not is_supported(name)]
         if not accepted:
