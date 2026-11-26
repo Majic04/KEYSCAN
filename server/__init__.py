@@ -23,9 +23,9 @@ import time
 
 from flask import Flask, g, jsonify, render_template, request, session
 
-from engine.ocr import find_tesseract
+from engine.ocr import install_models, models_ready
 
-from .analysis import handwriting_status, reread_if_engine_changed, start_workers
+from .analysis import reread_if_engine_changed, start_workers
 from .database import DATA_DIR, ROOT, create_tables
 from .profiles import session_owner
 from .routes import ALL as ALL_ROUTES
@@ -82,13 +82,14 @@ def create_app() -> Flask:
 
 
 def start():
-    """Prépare la base, vérifie Tesseract et le module manuscrit, puis démarre la lecture en arrière-plan."""
+    """Prépare la base, vérifie les modèles OCR (et les télécharge une fois s'il le faut), puis démarre la lecture."""
     create_tables()
-    if not find_tesseract():
-        print("\n⚠  Tesseract introuvable : l'OCR (PDF scannés, images) ne fonctionnera pas.\n"
-              "   Installez-le (voir README) ou indiquez son chemin dans la variable TESSERACT_CMD.\n")
+    if not models_ready():
+        print("Modèles OCR (OCRia-nano) absents : téléchargement (environ 70 Mo, une seule fois)…")
+        try:
+            install_models()
+        except Exception as error:  # noqa: BLE001 — sans réseau : les PDF avec du texte restent lisibles
+            print(f"\n⚠  Téléchargement impossible ({error}).\n"
+                  "   Les scans et les images ne pourront pas être lus. Réessayez avec : python -m engine.ocr --install\n")
     reread_if_engine_changed()
-    handwriting = handwriting_status()
-    print("Écriture manuscrite : " + (f"activée ({handwriting.get('label')})" if handwriting.get("ready")
-                                      else "non installée (python -m engine.trocr --install fr)"))
     print(f"Lecture en parallèle : {start_workers()} document(s) à la fois")

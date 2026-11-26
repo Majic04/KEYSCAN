@@ -18,11 +18,9 @@ import pymupdf  # noqa: E402
 
 from engine.__main__ import analyse  # noqa: E402
 from engine.decision import evaluate  # noqa: E402
-from engine.ocr import find_tesseract  # noqa: E402
 from engine.search import find_keyword  # noqa: E402
 from engine.text import word_parts  # noqa: E402
 
-find_tesseract()
 TMP = tempfile.mkdtemp(prefix="keyscan-tests-")
 failures = []
 
@@ -59,10 +57,9 @@ for n in (1, 2, 3, 6):
     check(f"« these » ×{n} → à vérifier, score plafonné", dec == "a_verifier" and score == 72.0, f"{score} % {dec}")
 occ = find_keyword(tokens("ma thèse et ces thèses"), "thèse")
 check("« thèse » exact (×2) → présent", evaluate("thèse", occ, 100, [{"mode": "texte"}])[1] == "present")
-for src in ("ocr", "manuscrit"):
-    occ = find_keyword(tokens(" ".join(["robotiqe"] * 5), src, 95), "robotique")
-    score, dec = evaluate("robotique", occ, 95, [{"mode": "ocr"}])
-    check(f"lecture approchée répétée ({src}) → jamais présent", dec != "present", f"{score} % {dec}")
+occ = find_keyword(tokens(" ".join(["robotiqe"] * 5), "ocr", 95), "robotique")
+score, dec = evaluate("robotique", occ, 95, [{"mode": "ocr"}])
+check("lecture approchée répétée → jamais présent", dec != "present", f"{score} % {dec}")
 occ = find_keyword(tokens("Ingénierie en robotique", "ocr", 90), "robotique")
 check("lecture OCR exacte → présent", evaluate("robotique", occ, 95, [{"mode": "ocr"}])[1] == "present")
 
@@ -120,14 +117,11 @@ check("OCR : « pour quoi » bien espacés", decision(["pour", "quoi"], "pour", 
 # --- règles existantes
 check("mot-clé de 2 lettres dans un scan : jamais absent sûr",
       evaluate("IA", [], 95, [{"mode": "ocr"}])[1] == "absent_douteux")
-check("dossier avec écriture manuscrite : jamais absent sûr",
-      evaluate("stage", [], 95, [{"mode": "ocr", "manuscrit": 3}])[1] == "absent_douteux")
 check("lecture insuffisante : absence incertaine", evaluate("stage", [], 60, [{"mode": "ocr"}])[1] == "absent_douteux")
-check("une signature (1 ligne manuscrite) ne rend pas l'absence incertaine",
-      evaluate("stage", [], 95, [{"mode": "ocr", "manuscrit": 1}])[1] == "absent")
+check("scan bien lu, mot long non trouvé : absent", evaluate("stage", [], 95, [{"mode": "ocr"}])[1] == "absent")
 # mode tranché (réglage « Mot non trouvé : Absent ») : on conclut, sauf si un document n'a pas pu être ouvert
-check("tranché : manuscrit, scan médiocre, mot court → absent",
-      [evaluate(*args, prudent=False)[1] for args in (("stage", [], 95, [{"mode": "ocr", "manuscrit": 5}]),
+check("tranché : scan médiocre, mot court → absent",
+      [evaluate(*args, prudent=False)[1] for args in (("stage", [], 95, [{"mode": "ocr"}]),
                                                        ("stage", [], 40, [{"mode": "ocr"}]), ("IA", [], 95, [{"mode": "ocr"}]))]
       == ["absent", "absent", "absent"])
 check("tranché : document illisible → absence incertaine", evaluate("stage", [], 95, [{"mode": "texte"}], unread=1, prudent=False)[1] == "absent_douteux")

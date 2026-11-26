@@ -15,7 +15,7 @@ import json
 
 from engine.decision import PRESENT, TO_CHECK, evaluate
 
-from .analysis import handwriting_status, occurrences, progress
+from .analysis import occurrences, ocr_ready, progress
 from .database import connect
 from .profiles import settings_for, thresholds
 
@@ -28,7 +28,7 @@ def all_results(owner: str, dossier_ids: list[int] | None = None) -> dict:
         settings        ses seuils et l'équipe
         owners          nombre de dossiers de chaque prof
         keyword_counts  nombre de mots-clés par défaut de chaque prof
-        engine          état du module manuscrit
+        engine          état de l'OCR (modèles installés ou non)
     """
     with connect() as db:
         dossiers = _load_dossiers(db, owner, dossier_ids)
@@ -39,15 +39,13 @@ def all_results(owner: str, dossier_ids: list[int] | None = None) -> dict:
     keyword_counts: dict[str, int] = {}
     for keyword in default_keywords:
         keyword_counts[keyword["owner"]] = keyword_counts.get(keyword["owner"], 0) + 1
-    handwriting = handwriting_status()
     return {
         "keywords": [keyword for keyword in default_keywords if keyword["owner"] == owner],
         "dossiers": [dossier_result(dossier) for dossier in dossiers],
         "settings": settings_for(owner),
         "owners": dossiers_per_owner,
         "keyword_counts": keyword_counts,
-        "engine": {"handwriting": {"ready": handwriting.get("ready", False), "libraries": handwriting.get("libraries", False),
-                                   "label": handwriting.get("label")}},
+        "engine": {"ocr": ocr_ready()},
     }
 
 

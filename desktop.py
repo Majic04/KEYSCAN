@@ -2,14 +2,14 @@
 KeyScan — application de bureau (Mac et Windows).
 
 Ce fichier est le point d'entrée de l'application installée :
-  - il prépare les chemins (données de l'utilisateur, Tesseract et modèle manuscrit embarqués) ;
+  - il prépare les chemins (données de l'utilisateur, modèles OCR embarqués) ;
   - il démarre le serveur KeyScan sur l'ordinateur (127.0.0.1, jamais accessible depuis le réseau) ;
   - il ouvre une fenêtre native (WebKit sur Mac, Edge WebView2 sur Windows) qui affiche l'interface.
 
 Options (utilisées pour les tests automatiques) :
   --server-only     démarre le serveur sans fenêtre
   --port N          port du serveur (par défaut 47815)
-  --selftest        vérifie Tesseract et le module manuscrit embarqués, puis quitte
+  --selftest        vérifie que l'OCR embarqué (OCRia-nano) lit un scan, puis quitte
   --check-update    affiche la dernière version publiée (la mise à jour automatique est dans updater.py)
 """
 from __future__ import annotations
@@ -58,21 +58,11 @@ UPDATES = os.path.join(HOME, "mises-a-jour")          # installateurs des nouvel
 def setup_environment():
     """Chemins utilisés par le serveur et le moteur (à faire AVANT d'importer app)."""
     os.environ["KEYSCAN_DATA"] = DATA
-    os.environ["KEYSCAN_MODELS"] = os.path.join(HOME, "models")
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")          # le moteur n'appelle jamais Internet (seul updater.py vérifie les versions)
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    # Tesseract embarqué
-    tdir = os.path.join(BUNDLE, "tesseract")
-    exe = os.path.join(tdir, "tesseract.exe" if os.name == "nt" else "tesseract")
-    if os.path.exists(exe):
-        os.environ["TESSERACT_CMD"] = exe
-        os.environ["TESSDATA_PREFIX"] = os.path.join(tdir, "tessdata")
-        if os.name == "nt":
-            os.environ["PATH"] = tdir + os.pathsep + os.environ.get("PATH", "")
-    # modèle d'écriture manuscrite embarqué
-    mdir = os.path.join(BUNDLE, "models", "trocr-fr")
-    if os.path.isdir(mdir) and not os.environ.get("KWF_HTR_MODEL"):
-        os.environ["KWF_HTR_MODEL"] = mdir
+    # modèles OCR embarqués (OCRia-nano et ONNX Runtime) : dossier models/ocria-nano de l'application
+    models = os.path.join(BUNDLE, "models")
+    if os.path.isdir(os.path.join(models, "ocria-nano")):
+        os.environ["LITEPARSE_MODEL_DIR"] = models
+    os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
 
 
 def redirect_output():
@@ -219,7 +209,7 @@ class NativeAPI:
 
 # =========================================================================== auto-test (intégration continue)
 def selftest() -> int:
-    """Vérifie que Tesseract (avec le français) et le module manuscrit embarqués fonctionnent."""
+    """Vérifie que l'OCR embarqué (modèle OCRia-nano) est présent et lit un document scanné."""
     # sous Windows, une application sans console n'a pas de sortie : le compte rendu est aussi écrit dans un fichier
     report = open(os.path.join(HOME, "selftest.txt"), "w", encoding="utf-8")
     for stream in (sys.stdout, sys.stderr):
@@ -231,33 +221,20 @@ def selftest() -> int:
         report.write(line + "\n"); report.flush()
         if sys.stdout:
             sys.stdout.write(line + "\n")
-    import pytesseract
-    from engine.ocr import find_tesseract
-    ok = True
-    cmd = find_tesseract()
-    print("Tesseract :", cmd)
-    try:
-        langs = pytesseract.get_languages(config="")
-        print("Langues :", langs)
-        ok &= "fra" in langs and "eng" in langs
-    except Exception as e:  # noqa: BLE001
-        print("Tesseract KO :", e)
-        ok = False
-    from engine import handwriting, trocr
-    st = trocr.status()
-    print("Écriture manuscrite :", st)
-    sample = os.path.join(BUNDLE, "exemples", "manuscrit.png")
-    if st.get("ready") and os.path.exists(sample):
-        from PIL import Image
-        g = Image.open(sample).convert("L")
+    from engine.extract import read_document
+    from engine.ocr import models_ready
+    ok = models_ready()
+    print("Modèles OCRia-nano :", os.environ.get("LITEPARSE_MODEL_DIR"), "présents" if ok else "ABSENTS")
+    sample = os.path.join(BUNDLE, "exemples", "scan.pdf")
+    if ok and os.path.exists(sample):
         t = time.time()
-        res = trocr.read_lines([g.crop(b) for b in handwriting.find_text_lines(g)])
-        for text, conf in res:
-            print(f"  [{conf:5.1f} %] {text}")
-        print(f"  lecture en {time.time() - t:.1f} s")
-        ok &= bool(res) and any(text for text, _ in res)
-    else:
-        ok = False
+        try:
+            words = {token["n"] for token in read_document(sample)["tokens"]}
+            print(f"Scan lu en {time.time() - t:.1f} s : {len(words)} mots différents")
+            ok = "recommandation" in words
+        except Exception as error:  # noqa: BLE001
+            print("Lecture KO :", error)
+            ok = False
     print("AUTO-TEST", "OK" if ok else "ÉCHEC")
     return 0 if ok else 1
 

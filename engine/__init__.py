@@ -4,8 +4,7 @@ Le moteur de KeyScan : 100 % Python, utilisable sans l'interface (python -m engi
 Le parcours d'un document :
 
     fichier (PDF, image)
-        │  extract.py      lire chaque page : texte du PDF, sinon OCR (ocr.py),
-        │                  plus l'écriture manuscrite (handwriting.py → trocr.py)
+        │  extract.py      lire chaque page : texte du PDF, sinon OCR (ocr.py, modèle OCRia-nano)
         ▼
     mots lus (« tokens », format décrit dans text.py)
         │  search.py       chercher chaque mot-clé : ressemblance × confiance de lecture
@@ -16,4 +15,4 @@ Le parcours d'un document :
     Présent / À vérifier / Absent / Absence incertaine
 """
 # Quand ce numéro change, l'application relit tous les documents déjà déposés.
-ENGINE_VERSION = "2.1"
+ENGINE_VERSION = "3.0"        # 3.0 : OCRia-nano remplace Tesseract et TrOCR

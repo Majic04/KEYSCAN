@@ -1,5 +1,5 @@
 # KeyScan — intégration continue
-#   - à chaque envoi sur main : tests du moteur (règles de décision + banc d'essai OCR), sous Linux, en quelques minutes ;
+#   - à chaque envoi sur main : tests du moteur (règles de décision + banc d'essai OCR avec OCRia-nano-1), sous Linux ;
 #   - quand APP_VERSION (desktop.py) annonce une version pas encore publiée : en plus, construction, test et
 #     publication des applications Mac (Apple Silicon) et Windows dans « Releases » (étiquette v<version>).
 #     Pour publier une nouvelle version, il suffit donc de changer APP_VERSION.
@@ -33,10 +33,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Tesseract (français + anglais)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-fra fonts-dejavu-core fonts-freefont-ttf >/dev/null
-      - name: Bibliothèques Python
-        run: python -m pip install -r requirements.txt
+      - name: Polices du banc d'essai
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-dejavu-core fonts-freefont-ttf >/dev/null
+      - name: Bibliothèques Python et modèle OCR (OCRia-nano-1)
+        run: |
+          python -m pip install -r requirements.txt
+          python build/ci.py "Modèle OCR" python -m engine.ocr --install
       - name: Règles de décision
         run: python build/ci.py --note "Règles de décision" python tests/test_regles.py
       - name: Serveur (profils, import de plusieurs candidats, actions groupées)
@@ -102,64 +104,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Modèle manuscrit déjà préparé (cache)
-        id: modele
-        uses: actions/cache/restore@v4
-        with:
-          path: build/models/trocr-fr
-          key: trocr-fr-fp16-v1
-          enableCrossOsArchive: true
-      - name: Outils (Tesseract, dylibbundler)
-        run: brew install tesseract dylibbundler
-      - name: Bibliothèques Python
-        run: python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
-      - name: Tesseract autonome
-        run: python build/ci.py "Mac - Tesseract" bash build/mac/bundle_tesseract.sh
+      - name: Bibliothèques Python et modèle OCR embarqué (OCRia-nano-1 + ONNX Runtime pour Mac)
+        env:
+          LITEPARSE_MODEL_DIR: ${{ github.workspace }}/build/models
+        run: |
+          python -m pip install -r requirements.txt -r requirements-desktop.txt
+          python build/ci.py "Mac - modèle OCR" python -m engine.ocr --install
+          ls -la build/models/ocria-nano build/models/ocria-nano/* | head -40
       - name: Banc d'essai du moteur (précision OCR)
         env:
-          TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
-          TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
+          LITEPARSE_MODEL_DIR: ${{ github.workspace }}/build/models
         run: |
           python build/ci.py "Mac - création du banc OCR" python tests/make_bench.py "$RUNNER_TEMP/bench"
-          python build/ci.py --note "Banc OCR (192 décisions)" python tests/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
-      - name: Modèle manuscrit (copie GitHub, sinon téléchargement + allègement)
-        if: steps.modele.outputs.cache-hit != 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p build/models
-          if gh release download modele-manuscrit -R "$GITHUB_REPOSITORY" -p trocr-fr.tar -D build/dl --clobber; then
-            tar -xf build/dl/trocr-fr.tar -C build/models && rm -rf build/dl && echo "Modèle repris de la copie GitHub"
-          else
-            python build/ci.py "Mac - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
-          fi
-          ls -la build/models/trocr-fr
-      - name: Garder le modèle préparé (cache)
-        if: steps.modele.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: build/models/trocr-fr
-          key: trocr-fr-fp16-v1
-          enableCrossOsArchive: true
-      - name: Copie GitHub du modèle (une seule fois)
-        if: steps.modele.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if ! gh release view modele-manuscrit -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            tar -cf build/trocr-fr.tar -C build/models trocr-fr
-            gh release create modele-manuscrit build/trocr-fr.tar -R "$GITHUB_REPOSITORY" --prerelease \
-              --title "Modèle d'écriture manuscrite (usage interne à la construction)" \
-              --notes "Copie du modèle TrOCR français allégé, utilisée par la construction pour ne pas dépendre de Hugging Face. Ce n'est pas l'application : voir les autres publications."
-          fi
-          rm -f build/trocr-fr.tar
-      - name: Banc d'essai manuscrit (vraie lecture TrOCR)
-        env:
-          TESSERACT_CMD: ${{ github.workspace }}/build/tesseract/tesseract
-          TESSDATA_PREFIX: ${{ github.workspace }}/build/tesseract/tessdata
-          KWF_HTR_MODEL: ${{ github.workspace }}/build/models/trocr-fr
-        run: python build/ci.py --note "Banc manuscrit (TrOCR)" python tests/evaluate_manuscrit.py
+          python build/ci.py --note "Banc OCR Mac (192 décisions)" python tests/evaluate.py . "$RUNNER_TEMP/bench" "$RUNNER_TEMP/bench.json"
       - name: Construction de KeyScan.app
         run: python build/ci.py "Mac - PyInstaller" python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work
       - name: Image disque (.dmg)
@@ -191,41 +148,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Modèle manuscrit déjà préparé (cache)
-        id: modele
-        uses: actions/cache/restore@v4
-        with:
-          path: build/models/trocr-fr
-          key: trocr-fr-fp16-v1
-          enableCrossOsArchive: true
-      - name: Bibliothèques Python (PyTorch version processeur, plus légère)
-        shell: bash
-        run: |
-          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -r requirements.txt -r requirements-manuscrit.txt -r requirements-desktop.txt
-      - name: Tesseract autonome
-        timeout-minutes: 15
-        run: python build/ci.py "Windows - Tesseract" pwsh -NoProfile -File build/windows/get_tesseract.ps1
-      - name: Modèle manuscrit (copie GitHub, sinon téléchargement + allègement)
-        if: steps.modele.outputs.cache-hit != 'true'
+      - name: Bibliothèques Python et modèle OCR embarqué (OCRia-nano-1 + ONNX Runtime pour Windows)
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          LITEPARSE_MODEL_DIR: ${{ github.workspace }}/build/models
         run: |
-          mkdir -p build/models
-          if gh release download modele-manuscrit -R "$GITHUB_REPOSITORY" -p trocr-fr.tar -D build/dl --clobber; then
-            tar -xf build/dl/trocr-fr.tar -C build/models && rm -rf build/dl && echo "Modèle repris de la copie GitHub"
-          else
-            python build/ci.py "Windows - modèle manuscrit" python build/prepare_model.py build/models/trocr-fr
-          fi
-          ls -la build/models/trocr-fr
-      - name: Garder le modèle préparé (cache)
-        if: steps.modele.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: build/models/trocr-fr
-          key: trocr-fr-fp16-v1
-          enableCrossOsArchive: true
+          python -m pip install -r requirements.txt -r requirements-desktop.txt
+          python build/ci.py "Windows - modèle OCR" python -m engine.ocr --install
+          ls -la build/models/ocria-nano build/models/ocria-nano/* | head -40
       - name: Construction de KeyScan.exe
         shell: bash
         run: python build/ci.py "Windows - PyInstaller" python -m PyInstaller build/keyscan.spec --noconfirm --distpath dist --workpath build/work

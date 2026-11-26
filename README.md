@@ -5,7 +5,7 @@
 **Retrouver des mots-clés dans les dossiers de candidature, avec un score de confiance.**
 Projet Master 2027 · Centrale Nantes (sujet proposé par F. Plestan et M. Hamida).
 
-Chaque responsable crée un dossier par candidat, y dépose ses documents (PDF texte, PDF scannés, photos, lettres manuscrites) et choisit les mots-clés à y chercher. Pour chaque mot-clé, KeyScan répond **Présent**, **À vérifier**, **Absent** ou **Absence incertaine**, avec un score en % et la preuve (extrait de phrase, page avec le mot encadré). Tout reste sur l'ordinateur : aucun document n'est envoyé sur Internet.
+Chaque responsable crée un dossier par candidat, y dépose ses documents (PDF texte, PDF scannés, photos) et choisit les mots-clés à y chercher. Pour chaque mot-clé, KeyScan répond **Présent**, **À vérifier**, **Absent** ou **Absence incertaine**, avec un score en % et la preuve (extrait de phrase, page avec le mot encadré). Tout reste sur l'ordinateur : aucun document n'est envoyé sur Internet.
 
 ---
 
@@ -18,7 +18,7 @@ Télécharger la dernière version dans **[Releases](../../releases/latest)** :
 | Mac à puce Apple (M1 à M5) | `KeyScan-Mac-AppleSilicon.dmg` |
 | Windows 10 / 11 | `KeyScan-Windows-Setup.exe` (sans droits administrateur) |
 
-Tout est inclus : lecture des scans (Tesseract, français et anglais) et de l'écriture manuscrite (TrOCR).
+Tout est inclus : lecture des scans et des photos par le modèle OCR **OCRia-nano-1** (LlamaIndex), qui tourne sur le processeur de l'ordinateur.
 
 **Mac, le plus simple** : coller dans le Terminal (télécharge, installe et ouvre KeyScan, sans blocage de macOS) :
 ```
@@ -51,32 +51,33 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 
 ## Comment la décision est prise
 
-1. **Lecture** de chaque page : texte du PDF (contrôlé : une couche texte corrompue est relue par OCR), sinon **Tesseract** (redressement, orientation, plusieurs passes de nettoyage), et **TrOCR** pour les lignes écrites à la main.
+1. **Lecture** de chaque page : texte du PDF (contrôlé : une couche texte corrompue est relue par OCR), sinon le modèle OCR **OCRia-nano-1** (redressement, orientation, seconde lecture sur image nettoyée si la première est médiocre).
 2. **Recherche** du mot-clé, sans tenir compte des majuscules ni des accents, tolérante aux erreurs typiques de l'OCR et aux césures.
 3. **Score d'une occurrence** = ressemblance avec le mot-clé × confiance de lecture.
-4. **Score du dossier** : les occurrences **exactes** se renforcent entre elles ; une occurrence seulement **approchante** (« these » pour « thèse », lecture manuscrite approximative) compte pour sa seule valeur, **même répétée**, et ne peut jamais donner « Présent ».
+4. **Score du dossier** : les occurrences **exactes** se renforcent entre elles ; une occurrence seulement **approchante** (« these » pour « thèse », mot mal lu sur un scan) compte pour sa seule valeur, **même répétée**, et ne peut jamais donner « Présent ».
 
 | Décision | Condition (seuils réglables) |
 |---|---|
 | **Présent** | score ≥ 85 % avec au moins une occurrence exacte |
 | **À vérifier** | 50 % ≤ score < 85 %, ou occurrence seulement approchante |
 | **Absent** | score < 50 % et documents bien lus |
-| **Absence incertaine** | score < 50 %, mais l'absence ne peut pas être garantie : lecture insuffisante, document illisible dans le dossier, écriture manuscrite, ou mot-clé de 2 caractères dans un scan |
+| **Absence incertaine** | score < 50 %, mais l'absence ne peut pas être garantie : document illisible dans le dossier ; en mode « Prudent » aussi : lecture insuffisante ou mot-clé de 2 caractères dans un scan |
 
-**Mesures** (banc de 16 documents piégés × 12 mots-clés = 192 décisions, `tests/`) : précision **100 %** (aucun faux « Présent »), rappel **95,7 %**, aucun « Absent » affirmé à tort. Écriture manuscrite : ≈ 1 caractère sur 8 mal lu, d'où des décisions prudentes (« À vérifier », « Absence incertaine »).
+**Mesures** (banc de 16 documents piégés × 12 mots-clés = 192 décisions, `tests/`) : précision **100 %** (aucun faux « Présent »), rappel **95,7 %**, aucun « Absent » affirmé à tort. Ces mesures datent de Tesseract ; le banc est relancé avec OCRia-nano-1 à chaque construction (résultats dans GitHub Actions). L'écriture manuscrite n'est pas lue de façon fiable.
 
 ## Le moteur, en Python seul
 
 Toute l'analyse (lecture, recherche, scores, décisions) est en Python, dans `engine/`. L'interface ne fait qu'afficher les résultats calculés par le serveur. Le moteur s'utilise aussi sans interface :
 
 ```bash
-pip install -r requirements.txt          # + Tesseract : brew install tesseract tesseract-lang / apt install tesseract-ocr-fra
+pip install -r requirements.txt
+python -m engine.ocr --install           # modèle OCR OCRia-nano-1 (≈ 70 Mo, une seule fois)
 python -m engine CV.pdf lettre.jpg --mots "thèse, robotique, TOEIC"
 python -m engine dossier/*.pdf --mots-fichier mots.txt --json
 ```
 
 Application complète depuis le code source : `python app.py` (s'ouvre dans le navigateur, données dans `data/`).
-Écriture manuscrite en mode Python : `pip install -r requirements-manuscrit.txt` puis `python -m engine.trocr --install fr`.
+Le modèle OCRia-nano-1 est publié par LlamaIndex sous sa propre licence (Open RAIL-M modifiée, gratuite pour l'enseignement, la recherche et les petites structures) ; LiteParse, qui le lance, est sous licence Apache 2.0.
 
 ## Tests
 
@@ -100,9 +101,7 @@ updater.py          mise à jour automatique : vérification, téléchargement v
 engine/             LE MOTEUR : lire les documents et décider (Python seul, sans interface)
   text.py           format d'un mot lu (« token »), mise en forme normalisée (sans accents ni majuscules)
   extract.py        lire un document : texte du PDF, ou image → OCR
-  ocr.py            Tesseract : préparation de l'image, orientation, redressement, plusieurs lectures
-  handwriting.py    repérer les lignes écrites à la main sur une page
-  trocr.py          lire ces lignes avec le modèle TrOCR (installation, chargement)
+  ocr.py            OCR par OCRia-nano-1 (via LiteParse) : préparation de l'image, orientation, redressement
   search.py         chercher un mot-clé : ressemblance, erreurs d'OCR tolérées, mots imbriqués (« pour » ≠ « pourquoi »)
   decision.py       transformer les occurrences en score et en décision
   __main__.py       ligne de commande (python -m engine …)
@@ -121,7 +120,7 @@ server/             L'APPLICATION : base de données, profils, API pour l'interf
 templates/index.html  la page (sa structure seulement)
 static/css/           l'apparence
 static/js/            l'interface, en petits fichiers : utils, state, pages, compare, dialogs, actions, lock, cursor, start
-tests/              tests des règles, du serveur, et bancs d'essai (imprimé et manuscrit)
+tests/              tests des règles, du serveur, et banc d'essai OCR
 build/              construction des installateurs Mac et Windows
   update/           scripts qui installent une mise à jour une fois KeyScan fermé (Mac, Windows) et leurs tests
 exemples/           documents d'exemple
@@ -130,7 +129,7 @@ exemples/           documents d'exemple
 ### Le trajet d'un document
 
 1. **Dépôt** — `server/uploads.py` enregistre le fichier dans `data/files/`, calcule son empreinte (un doublon est refusé) et met son numéro dans la file d'attente.
-2. **Lecture** — un « ouvrier » de `server/analysis.py` le prend et appelle `engine.extract.read_document()`. Chaque page est lue (texte du PDF, sinon OCR, et TrOCR pour l'écriture manuscrite) ; on obtient la liste des mots lus, avec leur position et leur confiance. Elle est enregistrée dans la base : **un document n'est lu qu'une fois**.
+2. **Lecture** — un « ouvrier » de `server/analysis.py` le prend et appelle `engine.extract.read_document()`. Chaque page est lue (texte du PDF, sinon OCR par OCRia-nano-1) ; on obtient la liste des mots lus, avec leur position et leur confiance. Elle est enregistrée dans la base : **un document n'est lu qu'une fois**.
 3. **Recherche** — quand l'interface demande les résultats, `server/results.py` cherche chaque mot-clé du dossier dans ces mots (`engine.search.find_keyword()`), puis `engine.decision.evaluate()` donne le score et la décision avec les seuils du responsable. Ajouter un mot-clé ne relance donc pas la lecture.
 4. **Affichage** — l'interface (`static/js/`) reçoit tout en une fois (`/api/results`) et dessine les pages ; la preuve d'un mot est une image de la page fabriquée par `server/previews.py`, le mot encadré.
 

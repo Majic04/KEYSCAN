@@ -61,7 +61,7 @@ function openImport(){
     <p class="msub">Choisissez le dossier qui contient un sous-dossier par candidat. Chaque sous-dossier devient un dossier KeyScan ${nDef ? `avec votre liste par défaut (${kwN(nDef)})` : "(sans mot-clé : ajoutez-les ensuite depuis « Comparer »)"}, et tous les documents sont lus en parallèle.</p>
     <div class="tree" aria-hidden="true"><span>${ic("folder")}Candidats</span>
       <span class="sub">${ic("folder")}Dupont Marie<small>cv.pdf, relevé de notes.jpg</small></span>
-      <span class="sub">${ic("folder")}Martin Paul<small>lettre manuscrite.pdf</small></span></div>
+      <span class="sub">${ic("folder")}Martin Paul<small>lettre.pdf</small></span></div>
     <button type="button" class="drop big" data-drop="import" id="importDrop">${ic("folder")}Déposez le dossier ici<span>ou cliquez pour le choisir</span></button>
     <p class="note" id="importNote">Vous avez un .zip (ou un .zip par candidat) ? <button class="textlink" data-action="import-zip">Choisir le .zip</button></p>`);
 }
@@ -108,10 +108,10 @@ async function showEvidence(did, kid, docId){
   const why = {
     present: `Lu tel quel dans les documents. Présent à partir de ${s.present_thr} %.`,
     a_verifier: "Un mot proche a été lu, ou la lecture est incertaine. Regardez l'image pour trancher.",
-    absent_douteux: c.count ? "" : "Rien n'a été trouvé, mais la lecture d'un document est incertaine (scan difficile, écriture manuscrite, document illisible ou mot très court).",
+    absent_douteux: c.count ? "" : "Rien n'a été trouvé, mais la lecture d'un document est incertaine (scan difficile, document illisible ou mot très court).",
     absent: `Rien n'a été trouvé, et les documents sont bien lus (qualité ${Math.round(c.reliability)} %).`,
   }[c.decision];
-  const src = o => o.source === "manuscrit" ? "écriture manuscrite" : o.source === "ocr" ? "lu sur l'image" : "texte du PDF";
+  const src = o => o.source === "ocr" ? "lu sur l'image" : "texte du PDF";
   // l'image du mot dans le document vient d'abord, en grand ; le texte lu et les détails ensuite
   openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[c.decision] || ""}">${esc(k.term)}</span></h3><p class="msub">${esc(d.name)}</p>
     <div class="ev-top"><span class="big">${found ? Math.round(c.score) : 0} %</span><span class="dec">${LONG[c.decision]}</span></div>

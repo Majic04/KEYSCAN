@@ -11,7 +11,7 @@ Chaque mot lu devient un « token » : un petit dictionnaire. Les clés sont vol
     "n"   la même partie, normalisée : minuscules, sans accents            "reseaux"
     "c"   confiance de lecture, de 0 à 100 (100 = texte du PDF)            87.0
     "p"   numéro de page (la première page est 1)                          1
-    "s"   source : "texte" (PDF), "ocr" (Tesseract), "manuscrit" (TrOCR)  "ocr"
+    "s"   source : "texte" (texte du PDF), "ocr" (lu sur l'image)          "ocr"
     "w"   numéro du mot lu (un mot comme « Sous-Traitance » donne          12
           deux tokens qui partagent ce numéro)
     "b"   position sur la page [gauche, haut, droite, bas], de 0 à 1        [0.1, 0.2, 0.3, 0.22]

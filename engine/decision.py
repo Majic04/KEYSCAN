@@ -4,7 +4,7 @@ La décision pour un mot-clé dans un dossier : Présent, À vérifier, Absent o
 1. Score du mot-clé (0 à 100), à partir de ses occurrences dans tous les documents du dossier :
    - les occurrences « certaines » (le mot lu EST le mot-clé) se renforcent entre elles :
          S = 1 - (1 - meilleur score) × Π (1 - autre score / 2)
-   - une occurrence seulement « approchante » (« these » pour « thèse », lecture manuscrite à peu près)
+   - une occurrence seulement « approchante » (« these » pour « thèse », mot mal lu sur un scan)
      ne se cumule jamais : trois « these » ne valent pas un « thèse ». Elle compte pour sa meilleure
      valeur, et le score reste sous le seuil « Présent ».
 
@@ -13,8 +13,8 @@ La décision pour un mot-clé dans un dossier : Présent, À vérifier, Absent o
    À vérifier          score ≥ 50 (un mot proche a été lu)
    Absent              score < 50 et documents bien lus
    Absence incertaine  score < 50 mais l'absence ne peut pas être garantie : document illisible dans
-                       le dossier, et en mode « prudent » seulement : lecture insuffisante, écriture
-                       manuscrite (plus qu'une signature), ou mot-clé de 2 lettres dans un scan.
+                       le dossier, et en mode « prudent » seulement : lecture insuffisante,
+                       ou mot-clé de 2 lettres dans un scan.
 
 Mode « tranché » (par défaut) : un mot non trouvé est Absent, sauf si un document n'a pas pu être lu du tout.
 Mode « prudent » : il reste « Absence incertaine » dès que la lecture d'un document est douteuse.
@@ -46,19 +46,13 @@ def keyword_score(occurrences: list[dict]) -> tuple[float, bool]:
     return round(score * 100, 1), bool(certain)
 
 
-MIN_HANDWRITTEN_LINES = 3      # une signature ou un paraphe (1 ou 2 lignes) ne compte pas comme un texte manuscrit
-
-
 def absence_is_uncertain(term: str, pages: list[dict]) -> bool:
     """
     Cas où, même bien lu, un dossier ne permet pas d'affirmer qu'un mot est absent (mode prudent) :
-      - il contient un vrai texte manuscrit, pas seulement une signature (environ une lettre sur huit est mal lue) ;
       - le mot-clé fait 2 lettres ou moins (« IA », « C# ») et un document a été lu par OCR :
         une seule lettre mal lue suffit à le manquer.
     pages : la description des pages de tous les documents du dossier.
     """
-    if sum(page.get("manuscrit") or 0 for page in pages) >= MIN_HANDWRITTEN_LINES:
-        return True
     scanned = any(page.get("mode") in ("ocr", "mixte") for page in pages)
     return scanned and Keyword(term).length <= 2
 

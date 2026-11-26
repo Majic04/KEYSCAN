@@ -1,6 +1,6 @@
 flask>=3.0
 pymupdf>=1.24.3,<2   # testé jusqu'à 1.28 ; la 2.0 ajoute un module de mise en page inutile ici
-pytesseract>=0.3.10
+liteparse>=2.21   # lance le modèle OCR OCRia-nano-1 (python -m engine.ocr --install)
 rapidfuzz>=3.0
 pillow>=10.0
 numpy>=1.24

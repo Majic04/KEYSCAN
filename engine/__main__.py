@@ -18,7 +18,7 @@ import time
 
 from .decision import LABELS, evaluate
 from .extract import read_document
-from .ocr import find_tesseract
+from .ocr import models_ready
 from .search import find_keyword
 
 
@@ -87,8 +87,9 @@ def main(argv=None) -> int:
             keywords += [line.strip() for line in f if line.strip()]
     if not keywords:
         parser.error("aucun mot-clé : utilisez --mots ou --mots-fichier")
-    if not find_tesseract():
-        print("Attention : Tesseract introuvable, les scans et les images ne pourront pas être lus.", file=sys.stderr)
+    if not models_ready():
+        print("Attention : modèles OCR absents (python -m engine.ocr --install), les scans et les images ne pourront pas être lus.",
+              file=sys.stderr)
 
     log = (lambda message: None) if args.json else (lambda message: print(message, flush=True))
     log(f"Lecture de {len(args.files)} document(s)…")

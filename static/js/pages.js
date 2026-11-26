@@ -11,7 +11,7 @@ PAGES.dossiers = () => {
   const D = state.dossiers;
   if(!D.length) return `<div class="welcome">
       <h1>Premier dossier</h1>
-      <p>Créez le dossier d'un candidat, choisissez les mots-clés à y chercher et déposez ses documents : PDF, scans, photos ou lettres manuscrites. KeyScan les lit et surligne ce qu'il trouve.</p>
+      <p>Créez le dossier d'un candidat, choisissez les mots-clés à y chercher et déposez ses documents : PDF, scans ou photos. KeyScan les lit et surligne ce qu'il trouve.</p>
       <div class="welcome-acts"><button class="btn pen" data-action="new">${ic("plus")}Créer un dossier</button>
       <button class="btn" data-action="import">${ic("folder")}Importer plusieurs candidats</button></div></div>`;
   const pend = D.filter(d => d.pending).length;
@@ -104,10 +104,9 @@ function docList(d){
   return `<div class="docs">` + d.documents.map(x => {
     const [lab, cls] = x.duplicate_of ? ["Doublon ignoré", "err"] : STATUS[x.status], pg = x.progress;
     const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)} sur ${pg.total}` : lab;
-    const hwl = x.pages.reduce((a, p) => a + (p.manuscrit || 0), 0);
     const info = x.duplicate_of ? `Identique à ${esc(x.duplicate_of)}, compté une seule fois`
       : x.status === "erreur" ? `<span title="${esc(x.error || "")}">Fichier corrompu ou protégé par un mot de passe : KeyScan ne peut pas l'ouvrir. Remplacez-le par une autre copie.</span>`
-      : x.status === "ok" ? `${plural(x.pages.length, "page")}, lecture ${Math.round(x.quality)} %${hwl ? `, ${plural(hwl, "ligne")} manuscrite${hwl > 1 ? "s" : ""}` : ""}`
+      : x.status === "ok" ? `${plural(x.pages.length, "page")}, lecture ${Math.round(x.quality)} %`
       : pg && pg.total ? `${plural(pg.total, "page")}${pg.eta != null ? `, ${fmtEta(pg.eta)}` : ""}` : "";
     const showing = x.id === preview.doc;
     return `<div class="doc${showing ? " on" : ""}">
@@ -174,7 +173,7 @@ PAGES.reglages = () => {
   const slider = (id, label, hint, v, off) => `<div class="slider${off ? " off" : ""}"><label for="${id}">${label} <span>${hint}</span></label>
     <input type="range" min="0" max="100" step="1" id="${id}" value="${v}" style="--v:${v}"${off ? " disabled" : ""}><output id="${id}V">${v} %</output></div>`;
   const prudent = s.absence === "prudent";
-  const hw = (state.engine || {}).handwriting || {};
+  const ocrReady = (state.engine || {}).ocr !== false;
   return `<div class="page">
     <h1 class="ptitle">Réglages</h1>
     <div class="settings">
@@ -186,7 +185,7 @@ PAGES.reglages = () => {
         <div class="choice" role="group" aria-label="Mot non trouvé">
           <button data-action="absence-absent" aria-pressed="${!prudent}">Absent</button>
           <button data-action="absence-prudent" aria-pressed="${prudent}">Prudent</button></div>
-        <p class="hint">${prudent ? "« Absence incertaine » dès qu'un document est difficile à lire : scan de mauvaise qualité, texte manuscrit, mot très court."
+        <p class="hint">${prudent ? "« Absence incertaine » dès qu'un document est difficile à lire : scan de mauvaise qualité, mot très court lu sur une image."
           : "Un mot non trouvé est déclaré absent. Seul un document impossible à ouvrir le laisse « Absence incertaine »."}</p></div></div>
       <div class="set"><div><h2>Équipe</h2><p class="hint">Chaque personne a ses dossiers, ses mots-clés et son code.</p></div><div class="people">
         ${ops.map(o => `<div class="person"><span class="ini" style="${profStyle(o)}">${esc(initials(o))}</span><div>${esc(o)}<small>${plural((state.owners || {})[o] || 0, "dossier")}</small></div>
@@ -202,9 +201,9 @@ PAGES.reglages = () => {
         <p class="hint" style="margin-top:8px">${state.settings.reading_mode === "rapide"
           ? "Deux documents lus en même temps : plus rapide, mais l'ordinateur chauffe davantage."
           : "Un document lu à la fois : l'ordinateur chauffe peu et reste utilisable pendant la lecture."}</p></div></div>
-      <div class="set"><div><h2>Écriture manuscrite</h2></div><div>${hw.ready
-        ? `<p style="margin:0">Activée (${esc(hw.label || "")}). Les lignes écrites à la main sont repérées puis lues ; leurs mots proches sont toujours à vérifier.</p>`
-        : `<p style="margin:0">Non installée. En mode Python, installez-la une fois avec <code>python -m engine.trocr --install fr</code> puis relancez KeyScan.</p>`}</div></div>
+      <div class="set"><div><h2>Lecture des images</h2></div><div>${ocrReady
+        ? `<p style="margin:0">Modèle OCRia-nano-1 (LlamaIndex), sur le processeur de l'ordinateur. Les écritures à la main ne sont pas lues de façon fiable : vérifiez-les dans l'aperçu.</p>`
+        : `<p style="margin:0">Modèle OCR absent : les scans et les images ne peuvent pas être lus. En mode Python, installez-le une fois avec <code>python -m engine.ocr --install</code> puis relancez KeyScan.</p>`}</div></div>
       ${desktop() ? `<div class="set"><div><h2>Application</h2><p class="hint">Mises à jour automatiques. Seul le numéro de la dernière version est demandé à GitHub : aucun document ne quitte l'ordinateur.</p></div>
         <div id="updateInfo">${updateText()}</div></div>` : ""}
       <div class="set"><div><h2>Résultats</h2></div><div><button class="btn" data-action="export">${ic("download")}Exporter en CSV</button></div></div>

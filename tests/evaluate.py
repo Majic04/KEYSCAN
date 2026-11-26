@@ -18,10 +18,8 @@ engine_root, bench_dir, output_file = sys.argv[1:4]
 sys.path.insert(0, engine_root)
 from engine.decision import ABSENT, PRESENT, TO_CHECK, UNCERTAIN, evaluate  # noqa: E402
 from engine.extract import read_document  # noqa: E402
-from engine.ocr import find_tesseract  # noqa: E402
 from engine.search import find_keyword  # noqa: E402
 
-find_tesseract()
 with open(os.path.join(bench_dir, "truth.json"), encoding="utf-8") as f:
     truth = json.load(f)
 

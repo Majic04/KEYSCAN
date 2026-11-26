@@ -2,68 +2,45 @@
 # Configuration PyInstaller de l'application KeyScan (Mac : KeyScan.app ; Windows : dossier KeyScan\KeyScan.exe).
 # Lancer depuis la racine du projet :  pyinstaller build/keyscan.spec --noconfirm
 #
-# Avant la construction :
-#   build/models/trocr-fr/   modèle manuscrit préparé par build/prepare_model.py
-#   build/tesseract/          Tesseract + tessdata (build/mac/bundle_tesseract.sh ou build/windows/get_tesseract.ps1)
-# Variable KEYSCAN_NO_HTR=1 : construction sans le module manuscrit (essais rapides).
+# Avant la construction : les modèles OCR dans build/models/ocria-nano/ (avec ONNX Runtime) :
+#   LITEPARSE_MODEL_DIR=build/models python -m engine.ocr --install
 import os
 import sys
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
-WITH_HTR = os.environ.get("KEYSCAN_NO_HTR") != "1"
 MAC = sys.platform == "darwin"
 import re  # noqa: E402
 VERSION = re.search(r'APP_VERSION = "([^"]+)"', open(os.path.join(ROOT, "desktop.py"), encoding="utf-8").read()).group(1)
-WIN = sys.platform == "win32"
 
+models = os.path.join(ROOT, "build", "models", "ocria-nano")
+if not os.path.isdir(models):
+    raise SystemExit("Modèles OCR absents : lancez d'abord  LITEPARSE_MODEL_DIR=build/models python -m engine.ocr --install")
 datas = [
     (os.path.join(ROOT, "templates"), "templates"),
     (os.path.join(ROOT, "static"), "static"),          # polices de l'interface (Atkinson Hyperlegible Next, Literata ; licence OFL)
-    (os.path.join(ROOT, "exemples", "manuscrit.png"), "exemples"),
+    (os.path.join(ROOT, "exemples", "scan.pdf"), "exemples"),   # document lu par l'auto-test (--selftest)
     (os.path.join(ROOT, "build", "update"), "update"),     # scripts d'installation des mises à jour (updater.py)
+    (models, os.path.join("models", "ocria-nano")),        # modèle OCR OCRia-nano-1 + ONNX Runtime
 ]
-tess = os.path.join(ROOT, "build", "tesseract")
-if os.path.isdir(tess):
-    datas.append((tess, "tesseract"))
+datas += collect_data_files("liteparse")
+binaries = collect_dynamic_libs("liteparse")             # LiteParse (Rust) et PDFium
 # tous les fichiers Python de engine/ et server/ (liste écrite à partir des dossiers : rien n'est oublié)
-hidden = ["app", "updater", "certifi"] + [
+hidden = ["app", "updater", "certifi", "liteparse", "liteparse._liteparse"] + [
     os.path.relpath(os.path.join(folder, name), ROOT)[:-3].replace(os.sep, ".").removesuffix(".__init__")
     for package in ("engine", "server")
     for folder, _, names in os.walk(os.path.join(ROOT, package)) if "__pycache__" not in folder
     for name in names if name.endswith(".py")
 ]
 hidden += collect_submodules("webview")
-excludes = ["tkinter", "matplotlib", "IPython", "pandas", "tensorflow", "jax", "flax", "torchvision", "torchaudio",
-            "scipy", "sklearn", "notebook", "pytest"]
-
-if WITH_HTR:
-    model = os.path.join(ROOT, "build", "models", "trocr-fr")
-    if not os.path.isdir(model):
-        raise SystemExit("Modèle manuscrit absent : lancez d'abord build/prepare_model.py")
-    datas.append((model, os.path.join("models", "trocr-fr")))
-    keep = ("trocr", "vision_encoder_decoder", "vit", "roberta", "auto", "deit", "beit", "xlm_roberta")
-
-    def wanted(name):
-        if "modeling_tf" in name or "modeling_flax" in name or ".tf_" in name or "_tf_" in name:
-            return False
-        if name.startswith("transformers.models."):
-            return name.split(".")[2] in keep
-        return True
-
-    hidden += collect_submodules("transformers", filter=wanted)
-    datas += collect_data_files("transformers", include_py_files=False)
-    for pkg in ("transformers", "tokenizers", "huggingface-hub", "safetensors", "regex", "requests", "tqdm",
-                "numpy", "packaging", "filelock", "pyyaml", "torch"):
-        datas += copy_metadata(pkg)
-else:
-    excludes += ["torch", "transformers", "tokenizers", "safetensors", "huggingface_hub"]
+excludes = ["tkinter", "matplotlib", "IPython", "pandas", "tensorflow", "jax", "flax", "torch", "torchvision", "torchaudio",
+            "transformers", "scipy", "sklearn", "notebook", "pytest"]
 
 a = Analysis(
     [os.path.join(ROOT, "desktop.py")],
     pathex=[ROOT],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hidden,
     excludes=excludes,

@@ -6,7 +6,7 @@ Pour chaque page d'un PDF :
   2. on vérifie que ce texte est vraisemblable : certains PDF contiennent un texte copiable illisible
      (« DSSUHQWLVVDJH » au lieu de « apprentissage ») ; il est alors ignoré ;
   3. si la page n'a presque pas de texte utilisable (un scan), elle est transformée en image et lue
-     entièrement par l'OCR (ocr.py) ;
+     entièrement par l'OCR (ocr.py, modèle OCRia-nano) ;
   4. si elle a du texte et contient une grande image (un document photographié collé dans le PDF),
      seule cette image est lue par l'OCR. Les petites images (logo, photo d'identité) sont ignorées :
      les lire coûtait beaucoup de calcul pour rien, le texte de la page étant déjà dans le PDF.
@@ -99,7 +99,7 @@ def read_document(path: str, progress=None) -> dict:
     progress(pages_lues, pages_totales) est appelé après chaque page (suivi des gros documents).
     Retourne :
       {"tokens": [...],                       (voir text.py)
-       "pages":  [{"mode": "texte" | "ocr" | "mixte", "rot": 0, "skew": 0.0, "manuscrit": 0}, …],
+       "pages":  [{"mode": "texte" | "ocr" | "mixte", "rot": 0, "skew": 0.0}, …],
        "quality": 0-100}                      (voir reading_quality)
     """
     extension = os.path.splitext(path)[1].lower()
@@ -122,8 +122,7 @@ def _read_image_file(path: str, progress) -> tuple[list[dict], list[dict]]:
             image.seek(frame)
             result = read_image(image.copy(), frame + 1, next_word_id(tokens))
             tokens += result["tokens"]
-            pages.append({"mode": "ocr", "rot": result["rotation"], "skew": result["skew"],
-                          "manuscrit": result["handwritten_lines"]})
+            pages.append({"mode": "ocr", "rot": result["rotation"], "skew": result["skew"]})
             if progress:
                 progress(frame + 1, frames)
     return tokens, pages
@@ -139,20 +138,19 @@ def _read_pdf(path: str, progress) -> tuple[list[dict], list[dict]]:
             text_tokens, text_valid = _pdf_text_tokens(page, number, next_word_id(tokens))
             tokens += text_tokens
             text_characters = len(page.get_text().strip()) if text_valid else 0
-            info = {"mode": "texte", "rot": 0, "skew": 0.0, "text_layer": "ok" if text_valid else "corrompue", "manuscrit": 0}
+            info = {"mode": "texte", "rot": 0, "skew": 0.0, "text_layer": "ok" if text_valid else "corrompue"}
             if text_characters < MIN_TEXT_CHARACTERS:
                 # page scannée : toute la page est lue par l'OCR
                 pixmap = page.get_pixmap(dpi=OCR_RESOLUTION)
                 image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
                 result = read_image(image, number, next_word_id(tokens))
                 tokens += result["tokens"]
-                info.update(mode="ocr", rot=result["rotation"], skew=result["skew"], manuscrit=result["handwritten_lines"])
+                info.update(mode="ocr", rot=result["rotation"], skew=result["skew"])
             else:
                 # page avec du texte : seules les grandes images sont lues (zone par zone)
                 for zone in _large_images(page):
-                    zone_tokens, handwritten = _read_zone(page, zone, number, next_word_id(tokens))
-                    tokens += zone_tokens
-                    info.update(mode="mixte", manuscrit=info["manuscrit"] + handwritten)
+                    tokens += _read_zone(page, zone, number, next_word_id(tokens))
+                    info["mode"] = "mixte"
             pages.append(info)
             if progress:
                 progress(number, document.page_count)
@@ -172,10 +170,10 @@ def _large_images(page) -> list:
     return zones
 
 
-def _read_zone(page, zone, page_number: int, first_word_id: int) -> tuple[list[dict], int]:
+def _read_zone(page, zone, page_number: int, first_word_id: int) -> list[dict]:
     """
     Lit par OCR une zone de la page (une image collée). Les positions des mots, données par rapport
-    à la zone, sont ramenées à la page entière. Retourne (tokens, lignes manuscrites).
+    à la zone, sont ramenées à la page entière.
     """
     pixmap = page.get_pixmap(dpi=OCR_RESOLUTION, clip=zone)
     image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
@@ -185,7 +183,7 @@ def _read_zone(page, zone, page_number: int, first_word_id: int) -> tuple[list[d
         left, top, right, bottom = token["b"]
         token["b"] = [(zone.x0 + left * zone.width) / width, (zone.y0 + top * zone.height) / height,
                       (zone.x0 + right * zone.width) / width, (zone.y0 + bottom * zone.height) / height]
-    return result["tokens"], result["handwritten_lines"]
+    return result["tokens"]
 
 
 def reading_quality(tokens: list[dict]) -> float:

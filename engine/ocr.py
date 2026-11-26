@@ -1,49 +1,64 @@
 """
-Lecture d'une image par OCR (Tesseract), avec redressement de la page.
+Lecture d'une image par OCR, avec le modèle OCRia-nano-1 (LlamaIndex), lancé par la bibliothèque LiteParse.
+
+OCRia-nano-1 : 8 millions de paramètres, tourne sur le processeur (ONNX Runtime), sans carte graphique.
+Il trouve les lignes de texte de l'image, puis lit chaque ligne et donne la position de chaque mot.
 
 Étapes pour une image de page :
-  1. préparation : niveaux de gris, agrandissement des petites images ;
+  1. préparation : niveaux de gris, orientation de l'appareil photo, agrandissement des petites images ;
   2. inclinaison fine : une photo légèrement penchée est redressée (jusqu'à ±12°) ;
-  3. orientation : seulement si la première lecture est mauvaise, on vérifie si la page est couchée
-     ou à l'envers (0, 90, 180 ou 270°). Une page droite et bien lue évite ce calcul coûteux ;
-  4. lecture : Tesseract lit l'image. Si la lecture est médiocre, on recommence avec une image
-     nettoyée, puis avec d'autres réglages. La meilleure lecture fait foi, les autres la complètent ;
-  5. écriture manuscrite : les lignes que Tesseract n'a pas su lire sont confiées à TrOCR
-     (seulement si le module est installé).
+  3. lecture par OCRia-nano ;
+  4. orientation : seulement si la lecture est mauvaise, on essaie la page tournée (90, 180, 270°)
+     et on garde le sens où le modèle lit le mieux ;
+  5. secours : si la lecture reste médiocre, une seconde lecture sur l'image nettoyée (noir et blanc)
+     complète la première.
+
+Les modèles (environ 70 Mo, avec ONNX Runtime) s'installent une fois : python -m engine.ocr --install
+L'application de bureau les embarque (variable LITEPARSE_MODEL_DIR).
 """
 from __future__ import annotations
 
 import os
-import shutil
-import time
+import sys
+import tempfile
 
 import numpy as np
-import pytesseract
 from PIL import Image, ImageFilter, ImageOps
 
 from .text import make_tokens
 
-LANGUAGES = os.environ.get("KWF_OCR_LANG", "fra+eng")   # français + anglais
-MIN_WIDTH = 1800              # une image plus étroite est agrandie (au plus ×3) : Tesseract lit mieux
-GOOD_ENOUGH = 88              # confiance moyenne à partir de laquelle une seule lecture suffit
-SECONDARY_MIN_CONFIDENCE = 40 # mots des lectures de secours gardés à partir de cette confiance
+MODEL = "ocria-nano"
+MIN_WIDTH = 1800              # une image plus étroite est agrandie (au plus ×3) : le modèle lit mieux
+GOOD_ENOUGH = 0.85            # confiance moyenne (0 à 1) à partir de laquelle une seule lecture suffit
+SECONDARY_MIN_CONFIDENCE = 0.4  # mots de la lecture de secours gardés à partir de cette confiance
+
+_parser = None
 
 
-def find_tesseract() -> str | None:
-    """Trouve le programme Tesseract : variable TESSERACT_CMD, sinon PATH, sinon emplacements habituels."""
-    candidates = [
-        os.environ.get("TESSERACT_CMD"),
-        shutil.which("tesseract"),
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-        "/opt/homebrew/bin/tesseract",
-        "/usr/local/bin/tesseract",
-    ]
-    for path in candidates:
-        if path and os.path.exists(path):
-            pytesseract.pytesseract.tesseract_cmd = path
-            return path
-    return None
+# =========================================================================== le modèle
+def models_ready() -> bool:
+    """Les modèles OCRia-nano sont-ils installés (complets) ?"""
+    try:
+        from liteparse import models
+        return any(m.name == MODEL and m.complete for m in models.list())
+    except Exception:  # noqa: BLE001 — LiteParse absent ou dossier des modèles illisible
+        return False
+
+
+def install_models() -> str:
+    """Télécharge les modèles (une seule fois) et retourne leur dossier."""
+    from liteparse import models
+    return models.pull(MODEL)
+
+
+def _ocr():
+    """Le lecteur LiteParse, créé une seule fois. Un seul ouvrier : KeyScan lit déjà un document à la fois."""
+    global _parser
+    if _parser is None:
+        from liteparse import LiteParse
+        backend = os.environ.get("KEYSCAN_OCR_BACKEND", MODEL)   # « tesseract » : seulement pour développer sans les modèles
+        _parser = LiteParse(ocr_backend=backend, emit_word_boxes=True, num_workers=1, quiet=True)
+    return _parser
 
 
 # =========================================================================== 1. préparation de l'image
@@ -71,59 +86,14 @@ def otsu_threshold(pixels: np.ndarray) -> int:
     return int(np.argmax(separation))
 
 
-def cleaned(gray: Image.Image, median: int = 3) -> Image.Image:
+def cleaned(gray: Image.Image) -> Image.Image:
     """Image nettoyée : contraste étiré, bruit atténué (filtre médian), puis noir et blanc (seuil d'Otsu)."""
-    image = ImageOps.autocontrast(gray, cutoff=0.5).filter(ImageFilter.MedianFilter(median))
+    image = ImageOps.autocontrast(gray, cutoff=0.5).filter(ImageFilter.MedianFilter(3))
     threshold = otsu_threshold(np.asarray(image))
     return image.point(lambda v: 255 if v > threshold else 0)
 
 
-def local_threshold(gray: Image.Image, radius: int = 20, margin: int = 14) -> Image.Image:
-    """
-    Noir et blanc par seuil local : chaque pixel est comparé à la moyenne de son voisinage.
-    Indispensable quand le fond n'est pas uniforme (ombre d'une photo, texte gris collé sur une page blanche).
-    """
-    smooth = gray.filter(ImageFilter.MedianFilter(3))
-    pixels = np.asarray(smooth, dtype=np.int16)
-    neighbourhood = np.asarray(smooth.filter(ImageFilter.BoxBlur(radius)), dtype=np.int16)
-    return Image.fromarray(np.where(pixels < neighbourhood - margin, 0, 255).astype(np.uint8))
-
-
-# =========================================================================== 2-3. orientation et inclinaison
-def _confident_text_amount(gray: Image.Image) -> float:
-    """Nombre de lettres lues avec assurance : sert à comparer deux sens de lecture."""
-    small = gray.copy()
-    small.thumbnail((1400, 1400))
-    data = pytesseract.image_to_data(small, lang=LANGUAGES, config="--oem 1 --psm 3", output_type=pytesseract.Output.DICT)
-    return float(sum(len(word.strip()) for word, confidence in zip(data["text"], data["conf"])
-                     if float(confidence) >= 70 and len(word.strip()) >= 3 and any(ch.isalpha() for ch in word)))
-
-
-def detect_rotation(gray: Image.Image) -> int:
-    """
-    Angle (0, 90, 180 ou 270) à appliquer pour remettre le texte droit.
-    Tesseract propose un angle ; comme il se trompe souvent sur l'écriture manuscrite, on n'accepte de
-    tourner la page que si l'OCR y lit nettement plus de texte une fois tournée.
-    """
-    for candidate in (gray, cleaned(gray)):
-        try:
-            guess = pytesseract.image_to_osd(candidate, output_type=pytesseract.Output.DICT)
-        except pytesseract.TesseractError:
-            continue                               # pas assez de texte pour se prononcer
-        angle = int(guess.get("rotate", 0)) % 360
-        if float(guess.get("orientation_conf", 0)) < 1.5:
-            continue
-        if angle == 0:
-            return 0
-        try:
-            before = _confident_text_amount(gray)
-            after = _confident_text_amount(gray.rotate(-angle, expand=True))
-        except pytesseract.TesseractError:
-            return 0
-        return angle if after > 1.5 * before + 10 else 0
-    return 0
-
-
+# =========================================================================== 2. inclinaison
 def estimate_skew(gray: Image.Image, max_angle: float = 12.0) -> float:
     """
     Inclinaison du texte en degrés. On fait tourner l'image et, pour chaque angle, on regarde le profil
@@ -147,97 +117,6 @@ def estimate_skew(gray: Image.Image, max_angle: float = 12.0) -> float:
     return round(float(fine), 1) if abs(fine) >= 0.3 else 0.0
 
 
-# =========================================================================== 4. lecture par Tesseract
-def _tesseract_reading(image: Image.Image, page_mode: int = 3) -> dict:
-    """
-    Une lecture de l'image. page_mode 3 = mise en page automatique, 6 = un seul bloc de texte.
-    Retourne les mots lus, leur confiance moyenne et un « poids » (confiance × longueur) pour comparer les lectures.
-    """
-    data = pytesseract.image_to_data(image, lang=LANGUAGES, config=f"--oem 1 --psm {page_mode}",
-                                     output_type=pytesseract.Output.DICT)
-    words = []
-    for i, text in enumerate(data["text"]):
-        text = (text or "").strip()
-        confidence = float(data["conf"][i])
-        if text and confidence >= 0:
-            left, top, width, height = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
-            words.append({"text": text, "confidence": confidence, "box": [left, top, left + width, top + height]})
-    weight = sum(w["confidence"] * len(w["text"]) for w in words)
-    mean = sum(w["confidence"] for w in words) / len(words) if words else 0.0
-    return {"words": words, "weight": weight, "mean": mean}
-
-
-def _all_readings(gray: Image.Image, first: dict | None = None) -> list[dict]:
-    """Lectures successives, de la plus rapide à la plus robuste, tant que la lecture reste médiocre."""
-    readings = [first or _tesseract_reading(gray)]                          # image telle quelle
-
-    def still_poor(threshold):
-        best = max(readings, key=lambda r: r["weight"])
-        return best["mean"] < threshold or len(best["words"]) < 3
-
-    if still_poor(GOOD_ENOUGH):
-        clean = cleaned(gray)
-        readings.append(_tesseract_reading(clean))                          # contraste, bruit, noir et blanc
-        if still_poor(80):
-            readings.append(_tesseract_reading(local_threshold(gray)))      # fond non uniforme
-        if still_poor(80):
-            readings.append(_tesseract_reading(clean, page_mode=6))         # un seul bloc de texte
-            readings.append(_tesseract_reading(cleaned(gray, median=5), page_mode=6))   # bruit fort
-    return readings
-
-
-# =========================================================================== lecture complète d'une image de page
-_handwriting_check = {"time": 0.0, "available": False}
-
-
-def handwriting_available() -> bool:
-    """Le module d'écriture manuscrite est-il installé ? (vérifié au plus une fois par minute)"""
-    if time.time() - _handwriting_check["time"] > 60:
-        try:
-            from . import trocr
-            _handwriting_check["available"] = trocr.available()
-        except Exception:  # noqa: BLE001
-            _handwriting_check["available"] = False
-        _handwriting_check["time"] = time.time()
-    return _handwriting_check["available"]
-
-
-def read_image(image: Image.Image, page: int, first_word_id: int, find_orientation: bool = True) -> dict:
-    """
-    Lit une image de page. Retourne :
-      {"tokens": [...], "rotation": 0/90/180/270, "skew": degrés, "handwritten_lines": nombre}
-    """
-    prepared = prepare(image)
-    rotation, gray, skew = 0, *_straightened(prepared)
-    first = _tesseract_reading(gray)
-    # page mal lue : elle est peut-être couchée ou à l'envers. On ne le vérifie que dans ce cas.
-    if find_orientation and (first["mean"] < 80 or len(first["words"]) < 5):
-        rotation = detect_rotation(prepared)
-        if rotation:      # Pillow tourne dans le sens inverse des aiguilles d'une montre
-            gray, skew = _straightened(prepared.rotate(-rotation, expand=True))
-            first = None
-    width, height = gray.size
-
-    readings = _all_readings(gray, first)
-    best = max(readings, key=lambda r: r["weight"])
-    tokens, word_id = [], first_word_id
-    for number, reading in enumerate(readings):
-        secondary = reading is not best
-        for word in reading["words"]:
-            if secondary and word["confidence"] < SECONDARY_MIN_CONFIDENCE:
-                continue
-            left, top, right, bottom = word["box"]
-            box = [left / width, top / height, right / width, bottom / height]
-            tokens += make_tokens(word["text"], confidence=word["confidence"], page=page, source="ocr",
-                                  word_id=word_id, box=box, reading=number, secondary=secondary)
-            word_id += 1
-
-    handwritten = 0
-    if handwriting_available():
-        handwritten = _add_handwriting(gray, best, page, word_id, tokens)
-    return {"tokens": tokens, "rotation": rotation, "skew": skew, "handwritten_lines": handwritten}
-
-
 def _straightened(gray: Image.Image) -> tuple[Image.Image, float]:
     """L'image redressée si elle est penchée, et l'angle de redressement."""
     skew = estimate_skew(gray)
@@ -246,21 +125,83 @@ def _straightened(gray: Image.Image) -> tuple[Image.Image, float]:
     return gray, skew
 
 
-def _add_handwriting(gray: Image.Image, best: dict, page: int, first_word_id: int, tokens: list[dict]) -> int:
-    """Ajoute aux tokens les mots manuscrits lus par TrOCR. Retourne le nombre de lignes manuscrites bien lues."""
-    from .handwriting import read_handwriting
-    printed_words = [(w["box"], w["confidence"], w["text"]) for w in best["words"]]
+# =========================================================================== 3. lecture par OCRia-nano
+def ocr_reading(image: Image.Image) -> dict:
+    """
+    Une lecture de l'image par le modèle. Retourne les mots lus (texte, confiance de 0 à 1, boîte en
+    fractions de l'image), leur confiance moyenne, et un « poids » (confiance × longueur) pour comparer deux lectures.
+    """
+    handle, path = tempfile.mkstemp(suffix=".png")
+    os.close(handle)
     try:
-        handwritten_tokens, lines = read_handwriting(gray, printed_words, page, first_word_id)
-    except Exception as error:  # noqa: BLE001 — le module manuscrit ne doit jamais bloquer l'analyse
-        print(f"[manuscrit] lecture impossible : {error}")
-        return 0
-    # dans les lignes manuscrites, la lecture ratée de Tesseract ne compte plus dans la qualité de lecture
-    width, height = gray.size
-    for token in tokens:
-        center_x = (token["b"][0] + token["b"][2]) / 2 * width
-        center_y = (token["b"][1] + token["b"][3]) / 2 * height
-        if any(left <= center_x <= right and top <= center_y <= bottom for left, top, right, bottom in lines):
-            token["x"] = 1
-    tokens += handwritten_tokens
-    return len(lines)
+        image.save(path)
+        page = _ocr().parse(path).pages[0]
+    finally:
+        os.remove(path)
+    words = []
+    for item in page.text_items:
+        confidence = item.confidence if item.confidence is not None else 1.0      # le modèle note chaque ligne
+        for word in item.words or []:
+            if word.text.strip():
+                words.append({"text": word.text.strip(), "confidence": confidence,
+                              "box": [word.x / page.width, word.y / page.height,
+                                      (word.x + word.width) / page.width, (word.y + word.height) / page.height]})
+    weight = sum(w["confidence"] * len(w["text"]) for w in words)
+    mean = sum(w["confidence"] for w in words) / len(words) if words else 0.0
+    return {"words": words, "weight": weight, "mean": mean}
+
+
+def is_poor(reading: dict) -> bool:
+    return reading["mean"] < GOOD_ENOUGH or len(reading["words"]) < 5
+
+
+def best_orientation(gray: Image.Image, first: dict) -> tuple[int, dict]:
+    """
+    Page mal lue : elle est peut-être couchée ou à l'envers. On la lit dans les trois autres sens et on
+    garde le sens où le modèle lit nettement plus de texte. Retourne (angle, lecture).
+    """
+    best_angle, best = 0, first
+    for angle in (90, 180, 270):
+        reading = ocr_reading(gray.rotate(-angle, expand=True))   # Pillow tourne dans le sens inverse des aiguilles
+        if reading["weight"] > 1.5 * best["weight"] + 10:
+            best_angle, best = angle, reading
+    return best_angle, best
+
+
+# =========================================================================== lecture complète d'une image de page
+def read_image(image: Image.Image, page: int, first_word_id: int, find_orientation: bool = True) -> dict:
+    """
+    Lit une image de page. Retourne :
+      {"tokens": [...], "rotation": 0/90/180/270, "skew": degrés}
+    """
+    prepared = prepare(image)
+    gray, skew = _straightened(prepared)
+    rotation, first = 0, ocr_reading(gray)
+    if find_orientation and is_poor(first):
+        rotation, first = best_orientation(prepared, first)
+        if rotation:
+            gray, skew = _straightened(prepared.rotate(-rotation, expand=True))
+            first = ocr_reading(gray)
+
+    readings = [first]
+    if is_poor(first):                       # lecture médiocre : une seconde lecture sur l'image nettoyée
+        readings.append(ocr_reading(cleaned(gray)))
+    best = max(readings, key=lambda r: r["weight"])
+
+    tokens, word_id = [], first_word_id
+    for number, reading in enumerate(readings):
+        secondary = reading is not best
+        for word in reading["words"]:
+            if secondary and word["confidence"] < SECONDARY_MIN_CONFIDENCE:
+                continue
+            tokens += make_tokens(word["text"], confidence=word["confidence"] * 100, page=page, source="ocr",
+                                  word_id=word_id, box=word["box"], reading=number, secondary=secondary)
+            word_id += 1
+    return {"tokens": tokens, "rotation": rotation, "skew": skew}
+
+
+if __name__ == "__main__":
+    if "--install" in sys.argv:
+        print("Modèles OCRia-nano installés dans", install_models())
+    else:
+        print("Modèles OCRia-nano :", "installés" if models_ready() else "absents (python -m engine.ocr --install)")

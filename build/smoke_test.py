@@ -2,8 +2,8 @@
 Test de l'application CONSTRUITE (exécuté par GitHub après la construction, sur Mac et sur Windows).
 
 Lance l'application en mode serveur (sans fenêtre), puis, comme le ferait un utilisateur :
-crée un code PIN, ajoute des mots-clés, crée un dossier, dépose un PDF texte, un scan et une lettre
-manuscrite, attend l'analyse et vérifie les décisions.
+crée un code PIN, ajoute des mots-clés, crée un dossier, dépose un PDF texte, un scan et une photo
+couchée (lue par le modèle OCR OCRia-nano), attend l'analyse et vérifie les décisions.
 
 usage : python build/smoke_test.py <chemin de l'exécutable KeyScan>
 """
@@ -31,14 +31,14 @@ def check(name, cond, detail=""):
         failures.append(name)
 
 
-# 1. auto-test intégré : Tesseract (fra/eng) et module manuscrit embarqués
+# 1. auto-test intégré : le modèle OCR embarqué lit un scan
 st = subprocess.run([EXE, "--selftest"], env=env, capture_output=True, timeout=900)
 out = (st.stdout or b"").decode("utf-8", "replace") + (st.stderr or b"").decode("utf-8", "replace")
 log = os.path.join(home, "selftest.txt")
 if os.path.exists(log):
     out += open(log, encoding="utf-8").read()
 print(out)
-check("auto-test intégré (Tesseract + écriture manuscrite)", st.returncode == 0 and "AUTO-TEST OK" in out)
+check("auto-test intégré (modèle OCR OCRia-nano)", st.returncode == 0 and "AUTO-TEST OK" in out)
 
 # 2. application en mode serveur
 proc = subprocess.Popen([EXE, "--server-only", "--port", str(PORT)], env=env,
@@ -59,7 +59,7 @@ did = s.post(BASE + "api/dossiers", json={"name": "Test installé"}).json()["id"
 files = [("files", (n, open(p, "rb"))) for n, p in [
     ("natif.pdf", os.path.join(ROOT, "exemples", "natif.pdf")),
     ("scan.pdf", os.path.join(ROOT, "exemples", "scan.pdf")),
-    ("lettre.jpg", os.path.join(ROOT, "tests", "manuscrit", "o_lettre.jpg")),
+    ("cv_tourne.jpg", os.path.join(ROOT, "exemples", "cv_tourne.jpg")),
 ]]
 check("dépôt de 3 documents", len(s.post(BASE + f"api/dossiers/{did}/files", files=files).json()["added"]) == 3)
 
@@ -78,17 +78,11 @@ dec = {c["term"]: c["decision"] for c in d["cells"].values()}
 check("PDF texte : « Master » présent", dec.get("Master") == "present")
 check("scan (OCR) : « TOEIC » présent", dec.get("TOEIC") == "present")
 check("« chimie » absent", dec.get("chimie") in ("absent", "absent_douteux"))
-hw_lines = sum(p.get("manuscrit", 0) for x in d["documents"] for p in x["pages"])
-check("lettre : lignes manuscrites lues par TrOCR", hw_lines > 0, f"{hw_lines} ligne(s)")
-# mots-clés lus dans la lettre manuscrite elle-même (et pas dans les autres documents du dossier)
+photo = next(x for x in d["documents"] if x["filename"] == "cv_tourne.jpg")
+check("photo couchée : remise droite (90°)", photo["pages"][0].get("rot") == 90, str(photo["pages"]))
 kids = {c["term"]: kid for kid, c in d["cells"].items()}
-hand = {}
-for k in ("robotique", "apprentissage automatique", "vision par ordinateur", "stage"):
-    cell = s.get(BASE + f"api/dossiers/{did}/keyword/{kids[k]}").json()
-    occ = [o for o in cell["occurrences"] if o["filename"] == "lettre.jpg" and o["source"] == "manuscrit"]
-    hand[k] = round(max([o["score"] for o in occ], default=0) * 100, 1)
-print("Lecture manuscrite de la lettre (meilleur score par mot-clé, %) :", hand)
-print(f"Mots-clés manuscrits retrouvés dans la lettre : {sum(1 for v in hand.values() if v >= 50)}/4")
+cell = s.get(BASE + f"api/dossiers/{did}/keyword/{kids['stage']}").json()
+check("photo couchée : « stage » lu sur l'image", any(o["filename"] == "cv_tourne.jpg" for o in cell["occurrences"]))
 dup = s.post(BASE + f"api/dossiers/{did}/files", files=[("files", ("copie.pdf", open(os.path.join(ROOT, "exemples", "natif.pdf"), "rb")))]).json()
 check("fichier en double refusé", not dup["added"] and len(dup.get("duplicates", [])) == 1)
 check("mots-clés propres au dossier", len(d["keywords"]) == 7, f"{len(d['keywords'])}")

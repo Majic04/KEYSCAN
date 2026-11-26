@@ -6,8 +6,6 @@ APP="$ROOT/dist/KeyScan.app"
 ARCH="$(uname -m)"
 [ "$ARCH" = "arm64" ] && NAME="KeyScan-Mac-AppleSilicon" || NAME="KeyScan-Mac-Intel"
 
-# Tesseract embarqué : doit rester exécutable
-find "$APP" -path "*tesseract/tesseract" -type f -exec chmod +x {} \;
 # signature ad hoc de l'ensemble (obligatoire pour lancer du code sur processeur Apple)
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep "$APP" && echo "Signature ad hoc vérifiée" || echo "Avertissement : vérification de signature incomplète (signature ad hoc)"

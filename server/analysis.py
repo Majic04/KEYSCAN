@@ -98,7 +98,7 @@ def start_workers() -> int:
     """
     Démarre les ouvriers et reprend les lectures en attente.
     Pour ne pas faire chauffer l'ordinateur : 2 documents à la fois au plus, sur la moitié des cœurs,
-    un seul cœur par Tesseract, et une priorité basse qui laisse la main aux autres programmes.
+    et une priorité basse qui laisse la main aux autres programmes.
     """
     with connect() as db:
         # Un document en cours de lecture quand KeyScan s'est arrêté n'est pas relancé tout seul :
@@ -164,36 +164,23 @@ def occurrences(document_id: int, term: str) -> list[dict]:
 
 
 # =========================================================================== version du moteur
-_handwriting = {"checked_at": 0.0, "status": None}
+_ocr = {"checked_at": 0.0, "ready": False}
 
 
-def handwriting_status() -> dict:
-    """État du module d'écriture manuscrite (vérifié au plus une fois par minute)."""
-    if _handwriting["status"] is None or time.time() - _handwriting["checked_at"] > 60:
-        try:
-            from engine import trocr
-            _handwriting["status"] = trocr.status()
-        except Exception as error:  # noqa: BLE001
-            _handwriting["status"] = {"libraries": False, "ready": False, "error": str(error)}
-        _handwriting["checked_at"] = time.time()
-    return _handwriting["status"]
+def ocr_ready() -> bool:
+    """Les modèles OCR sont-ils installés ? (vérifié au plus une fois par minute)"""
+    if time.time() - _ocr["checked_at"] > 60:
+        from engine.ocr import models_ready
+        _ocr["ready"], _ocr["checked_at"] = models_ready(), time.time()
+    return _ocr["ready"]
 
 
 def reread_if_engine_changed():
-    """
-    Nouveau moteur, ou module manuscrit qui vient d'être installé : tous les documents sont relus avec lui.
-    Si le module manuscrit est seulement indisponible un moment, on ne relit rien : relire tous les dossiers
-    sans lui ferait chauffer l'ordinateur pour rien et perdrait ce qu'il avait lu.
-    """
-    status = handwriting_status()
-    previous = read_setting("engine_version") or ""
-    handwriting = f"+manuscrit-{status.get('model')}" if status.get("ready") else ""
-    same_engine = previous.split("+")[0] == ENGINE_VERSION
-    if same_engine and (not handwriting or previous.endswith(handwriting)):
+    """Nouveau moteur de lecture (ENGINE_VERSION) : tous les documents sont relus avec lui."""
+    if read_setting("engine_version") == ENGINE_VERSION:
         return
-    version = ENGINE_VERSION + handwriting
     with connect() as db:
         count = db.execute("UPDATE documents SET status='en_attente', progress_done=0 WHERE status IN ('ok', 'erreur')").rowcount
-        write_setting("engine_version", version, db)
+        write_setting("engine_version", ENGINE_VERSION, db)
     if count:
-        print(f"Moteur {version} : {count} document(s) vont être relus.")
+        print(f"Moteur {ENGINE_VERSION} : {count} document(s) vont être relus.")

@@ -1,9 +1,7 @@
 """Les réglages : les seuils du profil ouvert, la composition de l'équipe, et l'état du serveur."""
 from flask import Blueprint, abort, jsonify, request, session
 
-from engine.ocr import find_tesseract
-
-from ..analysis import handwriting_status, waiting_documents
+from ..analysis import ocr_ready, waiting_documents
 from ..analysis import READING_MODES
 from ..database import connect, read_setting, write_setting
 from ..migrations import DEFAULT_THRESHOLDS
@@ -68,5 +66,5 @@ def _change_team(names, pin, me: str):
 
 @routes.get("/api/status")
 def status():
-    return jsonify({"queue": waiting_documents.qsize(), "tesseract": find_tesseract(), "handwriting": handwriting_status(),
+    return jsonify({"queue": waiting_documents.qsize(), "ocr": ocr_ready(),
                     "engine_version": read_setting("engine_version")})

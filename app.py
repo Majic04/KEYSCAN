@@ -1,5 +1,5 @@
 """
-KeyScan — détection de mots-clés dans des dossiers de candidature (PDF, scans, photos, écriture manuscrite).
+KeyScan — détection de mots-clés dans des dossiers de candidature (PDF, scans, photos).
 Projet Master 2027 — Centrale Nantes.
 
     python app.py                          puis ouvrir http://127.0.0.1:5000
@@ -21,7 +21,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 # bibliothèques manquantes : un message clair plutôt qu'une erreur Python
-REQUIRED = {"flask": "flask", "pytesseract": "pytesseract", "rapidfuzz": "rapidfuzz", "PIL": "pillow", "numpy": "numpy"}
+REQUIRED = {"flask": "flask", "liteparse": "liteparse", "rapidfuzz": "rapidfuzz", "PIL": "pillow", "numpy": "numpy"}
 missing = [package for module, package in REQUIRED.items() if importlib.util.find_spec(module) is None]
 if importlib.util.find_spec("pymupdf") is None and importlib.util.find_spec("fitz") is None:
     missing.append("pymupdf")

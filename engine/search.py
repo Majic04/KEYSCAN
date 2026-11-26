@@ -13,12 +13,10 @@ Ressemblance :
     et seulement sur un mot de 8 lettres ou plus
   - texte lu par OCR : quelques erreurs de lecture tolérées selon la longueur du mot ;
     une confusion typique de l'OCR (rn↔m, cl↔d, 0↔o, 1/i↔l, 5↔s, vv↔w) coûte une demi-erreur
-  - écriture manuscrite : un peu plus de tolérance, mais au mieux « à vérifier »
   - accent différent sur un mot court (« these » pour « thèse »), sigle écrit en minuscules : pénalité
 
-Confiance de lecture : 1 pour le texte du PDF ; celle de Tesseract pour l'OCR, relevée quand le mot
-est retrouvé exactement (retrouver par hasard, lettre pour lettre, un mot long est très improbable) ;
-celle du modèle pour l'écriture manuscrite.
+Confiance de lecture : 1 pour le texte du PDF ; celle du modèle OCR pour une image, relevée quand le mot
+est retrouvé exactement (retrouver par hasard, lettre pour lettre, un mot long est très improbable).
 
 Un mot-clé n'est jamais trouvé à l'intérieur d'un mot plus long (« pour » dans « pourquoi »).
 """
@@ -45,18 +43,12 @@ def _with_ocr_confusions(text: str, keep_digits: bool) -> str:
     return text
 
 
-def allowed_errors(length: int, handwritten: bool = False) -> float:
+def allowed_errors(length: int) -> float:
     """Nombre d'erreurs de lecture tolérées selon la longueur du mot-clé (aucune pour un mot très court)."""
-    if handwritten:
-        steps = [(3, 0.0), (6, 1.0), (10, 2.0)]
-        above = 3.5
-    else:
-        steps = [(4, 0.0), (6, 0.5), (10, 1.5)]
-        above = 2.5
-    for max_length, errors in steps:
+    for max_length, errors in [(4, 0.0), (6, 0.5), (10, 1.5)]:
         if length <= max_length:
             return errors
-    return above
+    return 2.5
 
 
 class Keyword:
@@ -87,8 +79,7 @@ def _has_accent(text: str) -> bool:
 
 def similarity(keyword: Keyword, window: list[dict]) -> float:
     """Ressemblance (0 à 1) entre quelques mots lus consécutifs et le mot-clé ; 0 si trop différents."""
-    source = window[0]["s"]
-    from_pdf, handwritten = source == "texte", source == "manuscrit"
+    from_pdf = window[0]["s"] == "texte"
     read = "".join(t["n"] for t in window)
     same_split = len(window) == len(keyword.parts)
 
@@ -103,7 +94,7 @@ def similarity(keyword: Keyword, window: list[dict]) -> float:
         else:
             return 0.0
     else:
-        tolerated = allowed_errors(keyword.length, handwritten)
+        tolerated = allowed_errors(keyword.length)
         if tolerated == 0 or abs(len(read) - keyword.length) > tolerated + 1:
             return 0.0
         plain = Levenshtein.distance(read, keyword.joined)
@@ -121,8 +112,6 @@ def similarity(keyword: Keyword, window: list[dict]) -> float:
         value = 1 - 0.12 * errors * (8 / max(keyword.length, 8))
         if from_pdf:
             value = min(value, 0.9)
-        elif handwritten:
-            value = min(value, 0.8)                          # écriture manuscrite approchée : au mieux « à vérifier »
 
     # 3. accents et sigles, mot par mot
     if same_split:
@@ -143,9 +132,8 @@ def similarity(keyword: Keyword, window: list[dict]) -> float:
 
 def reading_confidence(keyword: Keyword, window: list[dict], exact: bool) -> float:
     confidence = sum(t["c"] for t in window) / len(window) / 100.0
-    # Bonus réservé à Tesseract, qui recopie ce qu'il voit : retrouver exactement un mot long par hasard est
+    # Bonus pour l'OCR, qui recopie ce qu'il voit : retrouver exactement un mot long par hasard est
     # très improbable, donc la confiance manquante est divisée par deux tous les 3 caractères au-delà de 3.
-    # (TrOCR peut « deviner » un mot plausible : pas de bonus pour l'écriture manuscrite.)
     if window[0]["s"] == "ocr" and exact:
         confidence = 1 - (1 - confidence) * 0.5 ** (max(0, keyword.length - 3) / 3)
     return confidence
@@ -206,7 +194,6 @@ def _surroundings(stream: list[dict], separators: list, start: int, end: int) ->
       "dedans"   un morceau d'un mot plus long : ce n'est pas une occurrence.
     """
     verdict = "seul"
-    can_check_gaps = stream[start]["s"] != "manuscrit"      # pour l'écriture manuscrite, les positions sont estimées
     if start > 0:
         before, separator = stream[start - 1], separators[start]
         if separator is not None:                            # même mot lu, juste avant
@@ -218,7 +205,7 @@ def _surroundings(stream: list[dict], separators: list, start: int, end: int) ->
                 return "dedans"
         elif _ends_with_line_break_hyphen(before):
             return "dedans"
-        elif can_check_gaps and _glued(before, stream[start]):
+        elif _glued(before, stream[start]):
             return "dedans"
     if end < len(stream):
         after, separator, last = stream[end], separators[end], stream[end - 1]
@@ -229,7 +216,7 @@ def _surroundings(stream: list[dict], separators: list, start: int, end: int) ->
                 return "dedans"
         elif _ends_with_line_break_hyphen(last):
             return "dedans"
-        elif can_check_gaps and _glued(last, after):
+        elif _glued(last, after):
             return "dedans"
     return verdict
 
