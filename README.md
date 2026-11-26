@@ -135,4 +135,4 @@ exemples/           documents d'exemple
 
 ## Polices et logo
 
-L'interface utilise la police du système (SF Pro sur Mac, Segoe UI sur Windows), à la façon d'une application macOS. Polices intégrées, sous licence libre SIL OFL (licences dans `static/fonts/`) : **Literata** (mots et extraits venant des documents) et **Syne** (seulement pour dessiner le K du logo). Le logo et les icônes se régénèrent avec `python build/make_logo.py`.
+Interface en cartes sombres arrondies, accent violet. Polices intégrées, sous licence libre SIL OFL (licences dans `static/fonts/`) : **Outfit** (toute l'interface) et **Syne** (seulement pour dessiner le K du logo). Le logo et les icônes se régénèrent avec `python build/make_logo.py`.

@@ -24,10 +24,18 @@ const ICON = {
   eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   sliders:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   folder:'<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
-  grid:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M9 9.5v10"/>'
+  grid:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M9 9.5v10"/>',
+  home:'<path d="M4 10.5L12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/>',
+  list:'<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.8" cy="6.5" r="1"/><circle cx="4.8" cy="12" r="1"/><circle cx="4.8" cy="17.5" r="1"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>'
 };
 const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 document.querySelector('[data-action="new"]').innerHTML = ic("plus") + "Nouveau";
+const NAV_ICON = {dossiers:"home", comparer:"grid", "mots-cles":"list", reglages:"gear"};
+document.querySelectorAll(".nav a").forEach(a => a.insertAdjacentHTML("afterbegin", ic(NAV_ICON[a.dataset.tab])));
+/* anneau de score : la part des mots-clés présents (vert) et à vérifier (orange), le nombre au centre */
+const ring = (present, check, total, big) => `<span class="ring${big ? " big" : ""}" style="--a:${total ? present / total : 0};--b:${total ? (present + check) / total : 0}">
+  <span><b>${present}</b><small>/${total}</small></span></span>`;
 /* les quatre décisions : leur nom, et la couleur du surligneur (ok = vert, rev = jaune, doubt = pointillé) */
 const LONG  = {present:"Présent", a_verifier:"À vérifier", absent:"Absent", absent_douteux:"Absence incertaine"};
 const HL    = {present:"ok", a_verifier:"rev", absent_douteux:"doubt", absent:""};

@@ -28,7 +28,7 @@ import time
 import urllib.request
 
 APP_NAME = "KeyScan"
-APP_VERSION = "1.17.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
+APP_VERSION = "1.18.0"          # version unique : reprise par la construction (PyInstaller, Inno Setup, étiquette Git)
 DEFAULT_PORT = 47815
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -296,7 +296,7 @@ def main():
     api = NativeAPI()
     window = webview.create_window(
         APP_NAME, url, js_api=api, width=1280, height=860, min_size=(900, 640),
-        background_color="#1e1e1e", text_select=True,
+        background_color="#22273a", text_select=True,
     )
     api.window = window
     try:

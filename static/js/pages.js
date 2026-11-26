@@ -41,7 +41,7 @@ function dossierCard(d){
   else foot = `<small>${plural(d.documents.length, "document")}${d.unread.length ? `, <span class="bad">${d.unread.length} illisible${d.unread.length > 1 ? "s" : ""}</span>` : ""}</small>`;
   return `<a class="card" href="#/dossier/${d.id}">
     <span class="card-top"><b>${esc(d.name)}</b>
-      <span class="ratio">${ready ? c.present : "–"}<small>/${total}</small></span></span>
+      ${ready ? ring(c.present, c.a_verifier, total) : `<span class="ring"><span><b>–</b></span></span>`}</span>
     ${c.a_verifier ? `<span class="badge rev">${c.a_verifier} à vérifier</span>` : ""}
     <span class="marks">${shown.map(({k, c}) => `<span class="hl ${HL[c.decision]}">${esc(k.term)}</span>`).join("")}${more > 0 ? `<span class="more">+${more}</span>` : ""}
       ${ready && !found.length ? `<span class="none">Aucun mot-clé trouvé</span>` : ""}</span>
@@ -54,14 +54,17 @@ PAGES.dossier = r => {
   if(!d) return `<div class="welcome"><h1>Dossier introuvable</h1><p>Il a été supprimé ou confié à une autre personne.</p>
     <a class="btn" href="#/dossiers">Retour aux dossiers</a></div>`;
   const q = prog(d), nDocs = d.documents.length, {ready, c} = summary(d);
-  const count = (dec, label, n) => `<div class="count-box ${HL[dec] || "no"}${n ? "" : " zero"}"><b>${n}</b><span>${label}</span></div>`;
+  const count = (dec, label, n) => `<div class="count-box ${HL[dec] || "no"}${n ? "" : " zero"}"><b>${n}</b><span>${label}</span>
+    <i class="bar" style="--f:${d.keywords.length ? n / d.keywords.length : 0}"></i></div>`;
   const head = `<div class="dhead">
       <a class="icon back" href="#/dossiers" aria-label="Retour à la liste">${ic("back")}</a>
       <h1>${esc(d.name)}</h1>
-      <div class="acts"><button class="btn" data-action="add-docs" data-id="${d.id}">${ic("upload")}Ajouter des documents</button>
-      <button class="btn" data-action="edit-kw" data-id="${d.id}">${ic("edit")}Mots-clés</button>
-      <button class="icon" data-action="menu" data-id="${d.id}" aria-label="Autres actions">${ic("more")}</button></div></div>
-    ${ready && d.keywords.length ? `<div class="counts">${count("present", "présents", c.present)}${count("a_verifier", "à vérifier", c.a_verifier)}
+      <div class="acts tiles-act">
+        <button class="tact pen" data-action="add-docs" data-id="${d.id}"><span>${ic("upload")}</span>Ajouter</button>
+        <button class="tact" data-action="add-folder" data-id="${d.id}"><span>${ic("folder")}</span>Dossier</button>
+        <button class="tact" data-action="edit-kw" data-id="${d.id}"><span>${ic("tag")}</span>Mots-clés</button>
+        <button class="tact" data-action="menu" data-id="${d.id}" aria-label="Autres actions"><span>${ic("more")}</span>Plus</button></div></div>
+    ${ready && d.keywords.length ? `<div class="counts">${ring(c.present, c.a_verifier, d.keywords.length, true)}${count("present", "présents", c.present)}${count("a_verifier", "à vérifier", c.a_verifier)}
       ${count("absent_douteux", "incertains", c.absent_douteux)}${count("absent", "absents", c.absent)}</div>` : `<p class="verdict">${verdictText(d)}</p>`}
     ${d.pending ? `<div class="running"><span class="spin"></span><span data-pg="h${d.id}">${q.docsDone} sur ${plural(q.docs, "document")} lus, page ${Math.min(q.done + 1, q.total)} sur ${q.total}</span>
       <span class="pbar"><i data-bar="h${d.id}" style="--p:${q.p.toFixed(3)}"></i></span><span data-pg="h${d.id}e">${q.eta != null ? fmtEta(q.eta) : ""}</span></div>` : ""}

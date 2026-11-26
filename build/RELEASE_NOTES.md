@@ -1,4 +1,13 @@
-## Nouveautés de la version 1.17
+## Nouveautés de la version 1.18
+
+- **Nouvelle interface** : des cartes bleu nuit très arrondies sur un fond ardoise, un accent violet en dégradé, des boutons en pilule et une police ronde (Outfit).
+  - Barre du haut en pilule, avec une icône pour chaque page.
+  - Sur l'accueil, chaque dossier montre un **anneau** : la part des mots-clés trouvés (vert) et à vérifier (orange).
+  - Dans un dossier : un grand anneau et une barre en dégradé par décision, des boutons-tuiles (Ajouter, Dossier, Mots-clés, Plus), et les mots trouvés en pastilles colorées.
+  - Curseurs, choix, cases à cocher et code PIN aux couleurs violettes.
+- Les animations de la version précédente sont gardées : survol, appui, apparition des cartes, anneaux qui se remplissent, barres qui se remplissent.
+
+## Version 1.17
 
 - **Interface à la façon de macOS** :
   - police du système, barre d'outils unifiée, barre latérale translucide ;

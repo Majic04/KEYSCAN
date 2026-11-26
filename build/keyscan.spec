@@ -19,7 +19,7 @@ if not os.path.isdir(models):
     raise SystemExit("Modèles OCR absents : lancez d'abord  LITEPARSE_MODEL_DIR=build/models python -m engine.ocr --install")
 datas = [
     (os.path.join(ROOT, "templates"), "templates"),
-    (os.path.join(ROOT, "static"), "static"),          # interface ; police Literata pour les mots des documents (licence OFL)
+    (os.path.join(ROOT, "static"), "static"),          # interface ; police Outfit (licence OFL)
     (os.path.join(ROOT, "exemples", "scan.pdf"), "exemples"),   # document lu par l'auto-test (--selftest)
     (os.path.join(ROOT, "build", "update"), "update"),     # scripts d'installation des mises à jour (updater.py)
     (models, os.path.join("models", "ocria-nano")),        # modèle OCR OCRia-nano-1 + ONNX Runtime
