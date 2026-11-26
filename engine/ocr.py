@@ -22,6 +22,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
@@ -33,7 +34,7 @@ MIN_WIDTH = 1800              # une image plus étroite est agrandie (au plus ×
 GOOD_ENOUGH = 0.85            # confiance moyenne (0 à 1) à partir de laquelle une seule lecture suffit
 SECONDARY_MIN_CONFIDENCE = 0.4  # mots de la lecture de secours gardés à partir de cette confiance
 
-_parser = None
+_parsers = threading.local()       # un lecteur LiteParse par ouvrier : plusieurs documents sont lus en même temps
 
 
 # =========================================================================== le modèle
@@ -53,13 +54,12 @@ def install_models() -> str:
 
 
 def _ocr():
-    """Le lecteur LiteParse, créé une seule fois. Un seul ouvrier : KeyScan lit déjà un document à la fois."""
-    global _parser
-    if _parser is None:
+    """Le lecteur LiteParse de cet ouvrier, créé une seule fois (une seule image à la fois par lecteur)."""
+    if not hasattr(_parsers, "parser"):
         from liteparse import LiteParse
         backend = os.environ.get("KEYSCAN_OCR_BACKEND", MODEL)   # « tesseract » : seulement pour développer sans les modèles
-        _parser = LiteParse(ocr_backend=backend, emit_word_boxes=True, num_workers=1, quiet=True)
-    return _parser
+        _parsers.parser = LiteParse(ocr_backend=backend, emit_word_boxes=True, num_workers=1, quiet=True)
+    return _parsers.parser
 
 
 # =========================================================================== 1. préparation de l'image

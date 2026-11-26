@@ -194,13 +194,6 @@ PAGES.reglages = () => {
           <input id="opInput" placeholder="Prénom et nom"><button class="btn" type="submit">Ajouter</button></form></div></div>
       <div class="set"><div><h2>Code PIN</h2><p class="hint">Demandé à l'ouverture. Verrouillage automatique après 30 minutes sans activité.</p></div><div class="row-btns" style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" data-action="change-pin">Changer mon code</button><button class="btn" data-action="lock">${ic("lock")}Verrouiller maintenant</button></div></div>
-      <div class="set"><div><h2>Lecture des documents</h2><p class="hint">Réglage commun à toute l'équipe.</p></div><div>
-        <div class="choice" role="group" aria-label="Mode de lecture">
-          <button type="button" data-action="mode-econome" aria-pressed="${state.settings.reading_mode !== "rapide"}">Économe</button>
-          <button type="button" data-action="mode-rapide" aria-pressed="${state.settings.reading_mode === "rapide"}">Rapide</button></div>
-        <p class="hint" style="margin-top:8px">${state.settings.reading_mode === "rapide"
-          ? "Deux documents lus en même temps : plus rapide, mais l'ordinateur chauffe davantage."
-          : "Un document lu à la fois : l'ordinateur chauffe peu et reste utilisable pendant la lecture."}</p></div></div>
       <div class="set"><div><h2>Lecture des images</h2></div><div>${ocrReady
         ? `<p style="margin:0">Modèle OCRia-nano-1 (LlamaIndex), sur le processeur de l'ordinateur. Les écritures à la main ne sont pas lues de façon fiable : vérifiez-les dans l'aperçu.</p>`
         : `<p style="margin:0">Modèle OCR absent : les scans et les images ne peuvent pas être lus. En mode Python, installez-le une fois avec <code>python -m engine.ocr --install</code> puis relancez KeyScan.</p>`}</div></div>

@@ -55,8 +55,7 @@ def thresholds(person: str | None) -> dict:
 
 def settings_for(person: str | None) -> dict:
     """Ce que l'interface reçoit : l'équipe, les seuils de la personne et son nom."""
-    from .analysis import reading_mode
-    result = {**thresholds(person), "operators": team(), "reading_mode": reading_mode()}
+    result = {**thresholds(person), "operators": team()}
     if person:
         result["profile"] = person
     return result

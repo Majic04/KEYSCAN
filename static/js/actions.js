@@ -207,13 +207,6 @@ document.addEventListener("click", async e => {
       state.settings.absence = ds.action.slice(8); render(false, true);      // le choix s'affiche tout de suite
       saveSettings({}); return flushSettings();
     }
-    case "mode-econome": case "mode-rapide": {
-      const mode = ds.action.slice(5), before = state.settings.reading_mode;
-      state.settings.reading_mode = mode; render(false, true);         // le choix s'affiche tout de suite
-      try{ await jpost("/api/settings", {reading_mode: mode}); }
-      catch(e){ state.settings.reading_mode = before; render(false, true); return toast("Réglage non enregistré, réessayez"); }
-      return toast(mode === "rapide" ? "Lecture rapide : deux documents à la fois" : "Lecture économe : un document à la fois");
-    }
     case "install-update": return installUpdate();
     case "check-update": return checkUpdate();
     case "add-docs": closeMenu(); return pickFiles(f => uploadTo(+ds.id, f));

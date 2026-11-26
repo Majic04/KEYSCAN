@@ -2,8 +2,8 @@
 La lecture des documents, en arrière-plan.
 
 Quand un document est déposé, son numéro est mis dans une file d'attente. Plusieurs « ouvriers »
-(des fils d'exécution) prennent les documents de la file et les lisent en même temps : jusqu'à 4
-documents à la fois, quel que soit leur dossier. Pendant la lecture, l'avancement (pages lues / pages
+(des fils d'exécution) prennent les documents de la file et les lisent en même temps : un par cœur
+du processeur, en gardant un cœur libre pour l'ordinateur (4 au plus), quel que soit leur dossier. Pendant la lecture, l'avancement (pages lues / pages
 en tout) est écrit dans la base, ce qui permet à l'interface d'afficher la progression.
 
 Les mots lus sont enregistrés une fois pour toutes. Chercher un mot-clé est ensuite instantané :
@@ -26,17 +26,6 @@ from engine.text import normalize
 from .database import connect, now, read_setting, write_setting
 
 waiting_documents: "queue.Queue[int]" = queue.Queue()
-
-# Mode de lecture (Réglages) : nombre de documents lus en même temps.
-#   « econome » : un seul à la fois, l'ordinateur chauffe peu (par défaut) ; « rapide » : deux à la fois.
-READING_MODES = {"econome": 1, "rapide": 2}
-_reading_now = 0
-_reading_gate = threading.Condition()
-
-
-def reading_mode() -> str:
-    mode = read_setting("reading_mode", "econome")
-    return mode if mode in READING_MODES else "econome"
 
 # Mémoire de travail : mots lus de chaque document, et occurrences déjà cherchées (document, mot-clé).
 _words_of_document: dict[int, list] = {}
@@ -76,29 +65,21 @@ def _read_one(document_id: int):
 
 
 def _worker():
-    global _reading_now
     while True:
         document_id = waiting_documents.get()
-        with _reading_gate:        # en mode économe, un ouvrier attend que l'autre ait fini
-            while _reading_now >= READING_MODES[reading_mode()]:
-                _reading_gate.wait(timeout=5)
-            _reading_now += 1
         try:
             _read_one(document_id)
         except Exception:  # noqa: BLE001 — un ouvrier ne doit jamais s'arrêter
             traceback.print_exc()
         finally:
-            with _reading_gate:
-                _reading_now -= 1
-                _reading_gate.notify_all()
             waiting_documents.task_done()
 
 
 def start_workers() -> int:
     """
     Démarre les ouvriers et reprend les lectures en attente.
-    Pour ne pas faire chauffer l'ordinateur : 2 documents à la fois au plus, sur la moitié des cœurs,
-    et une priorité basse qui laisse la main aux autres programmes.
+    Le modèle OCR est petit (8 millions de paramètres, sans PyTorch) : on lit un document par cœur, en gardant
+    un cœur libre (4 au plus), avec une priorité basse qui laisse toujours la main aux autres programmes.
     """
     with connect() as db:
         # Un document en cours de lecture quand KeyScan s'est arrêté n'est pas relancé tout seul :
@@ -107,8 +88,7 @@ def start_workers() -> int:
                    "WHERE status='en_cours'")
         for row in db.execute("SELECT id FROM documents WHERE status='en_attente'"):
             queue_document(row["id"])
-    count = max(1, min(2, (os.cpu_count() or 2) // 2))
-    os.environ["OMP_THREAD_LIMIT"] = "1"
+    count = max(1, min(4, (os.cpu_count() or 2) - 1))
     if hasattr(os, "nice"):                 # Mac, Linux
         try:
             os.nice(10)

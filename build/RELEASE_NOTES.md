@@ -1,4 +1,8 @@
-## Nouveautés de la version 1.15
+## Nouveautés de la version 1.16
+
+- **Lecture plus rapide, sans réglage** : le choix « Économe / Rapide » disparaît des Réglages. Le moteur OCRia-nano-1 étant léger, KeyScan lit maintenant plusieurs documents en même temps : un par cœur du processeur, jusqu'à 4, en gardant toujours un cœur libre. La lecture reste en priorité basse, pour que l'ordinateur reste utilisable pendant un gros import.
+
+## Version 1.15
 
 - **Nouveau moteur de lecture : OCRia-nano-1** (LlamaIndex) remplace Tesseract et TrOCR pour les scans et les photos. C'est un petit modèle (8 millions de paramètres) qui tourne sur le processeur, sans Internet.
   - Sur le banc d'essai (16 documents piégés × 12 mots-clés), il trouve **100 %** des mots présents, contre 95,7 % avec Tesseract, toujours sans aucun faux « Présent ».
