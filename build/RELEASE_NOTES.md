@@ -1,4 +1,13 @@
-## Nouveautés de la version 1.14
+## Nouveautés de la version 1.15
+
+- **Nouveau moteur de lecture : OCRia-nano-1** (LlamaIndex) remplace Tesseract et TrOCR pour les scans et les photos. C'est un petit modèle (8 millions de paramètres) qui tourne sur le processeur, sans Internet.
+  - Sur le banc d'essai (16 documents piégés × 12 mots-clés), il trouve **100 %** des mots présents, contre 95,7 % avec Tesseract, toujours sans aucun faux « Présent ».
+  - Les photos penchées ou couchées sont toujours remises droites.
+  - L'application est beaucoup plus légère : PyTorch et le module manuscrit sont retirés.
+- **Écriture manuscrite** : elle n'est plus lue par un module dédié. Une écriture régulière est souvent lue, une écriture difficile ne l'est pas : vérifiez les lettres manuscrites dans l'aperçu.
+- **Relecture automatique** : au premier lancement, tous les documents déjà déposés sont relus une fois avec le nouveau moteur. Cela peut prendre quelques minutes.
+
+## Version 1.14
 
 - **Un mot non trouvé est maintenant déclaré « Absent »** : nouveau réglage « Mot non trouvé » dans Réglages → Seuils de décision.
   - **Absent** (par défaut) : KeyScan tranche. Seul un document impossible à ouvrir laisse « Absence incertaine », pour ne pas conclure à partir d'un document jamais lu.

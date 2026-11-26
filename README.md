@@ -63,7 +63,7 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 | **Absent** | score < 50 % et documents bien lus |
 | **Absence incertaine** | score < 50 %, mais l'absence ne peut pas être garantie : document illisible dans le dossier ; en mode « Prudent » aussi : lecture insuffisante ou mot-clé de 2 caractères dans un scan |
 
-**Mesures** (banc de 16 documents piégés × 12 mots-clés = 192 décisions, `tests/`) : précision **100 %** (aucun faux « Présent »), rappel **95,7 %**, aucun « Absent » affirmé à tort. Ces mesures datent de Tesseract ; le banc est relancé avec OCRia-nano-1 à chaque construction (résultats dans GitHub Actions). L'écriture manuscrite n'est pas lue de façon fiable.
+**Mesures** (banc de 16 documents piégés × 12 mots-clés = 192 décisions, `tests/`) : avec OCRia-nano-1 : précision **100 %** (aucun faux « Présent »), rappel **100 %** (95,7 % avec l'ancien moteur Tesseract), aucun « Absent » affirmé à tort. L'écriture manuscrite n'est pas lue de façon fiable.
 
 ## Le moteur, en Python seul
 

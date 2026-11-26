@@ -153,8 +153,7 @@ reading = read_document(os.path.join(folder, "logo.pdf"))
 check("PDF avec un logo : pas d'OCR inutile", reading["pages"][0]["mode"] == "texte", str(reading["pages"]))
 reading = read_document(os.path.join(folder, "colle.pdf"))
 found = [o for o in find_keyword(reading["tokens"], "TOEIC") if o["source"] == "ocr"]
-check("document collé dans un PDF : lu par l'OCR", reading["pages"][0]["mode"] == "mixte" and found,
-      str(reading["pages"]) + " lu dans l'image : " + " ".join(t["t"] for t in reading["tokens"] if t["s"] == "ocr")[:400])
+check("document collé dans un PDF : lu par l'OCR", reading["pages"][0]["mode"] == "mixte" and found, str(reading["pages"]))
 inside = found and all(zone.x0 / page.rect.width - 0.01 <= o["box"][0] and o["box"][2] <= zone.x1 / page.rect.width + 0.01
                        and zone.y0 / page.rect.height - 0.01 <= o["box"][1] and o["box"][3] <= zone.y1 / page.rect.height + 0.01
                        for o in found)

@@ -39,10 +39,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           python build/ci.py "Modèle OCR" python -m engine.ocr --install
-      - name: Diagnostic OCR (temporaire)
-        run: python tests/diag_ocr.py
       - name: Règles de décision
-        continue-on-error: true
         run: python build/ci.py --note "Règles de décision" python tests/test_regles.py
       - name: Serveur (profils, import de plusieurs candidats, actions groupées)
         run: python build/ci.py --note "Serveur" python tests/test_serveur.py
