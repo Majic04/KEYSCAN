@@ -2,7 +2,7 @@
 Lecture d'une image par OCR, avec le modèle OCRia-nano-1 (LlamaIndex), lancé par la bibliothèque LiteParse.
 
 OCRia-nano-1 : 8 millions de paramètres, tourne sur le processeur (ONNX Runtime), sans carte graphique.
-Il trouve les lignes de texte de l'image, puis lit chaque ligne et donne la position de chaque mot.
+Il trouve les lignes de texte de l'image, puis lit chaque ligne (KeyScan la découpe en mots, pour les surligner).
 
 Étapes pour une image de page :
   1. préparation : niveaux de gris, orientation de l'appareil photo, agrandissement des petites images ;
@@ -19,6 +19,7 @@ L'application de bureau les embarque (variable LITEPARSE_MODEL_DIR).
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 
@@ -138,20 +139,29 @@ def ocr_reading(image: Image.Image) -> dict:
         page = _ocr().parse(path).pages[0]
     finally:
         os.remove(path)
-    words, seen = [], set()
+    words = []
     for item in page.text_items:
         confidence = item.confidence if item.confidence is not None else 1.0      # le modèle note chaque ligne
-        for word in item.words or []:
-            # un même mot peut être donné par plusieurs éléments de sa ligne : on ne le garde qu'une fois
-            key = (word.text, round(word.x), round(word.y))
-            if word.text.strip() and key not in seen:
-                seen.add(key)
-                words.append({"text": word.text.strip(), "confidence": confidence,
-                              "box": [word.x / page.width, word.y / page.height,
-                                      (word.x + word.width) / page.width, (word.y + word.height) / page.height]})
+        for box in item.words or [item]:
+            words += _split_line(box, confidence, page.width, page.height)
     weight = sum(w["confidence"] * len(w["text"]) for w in words)
     mean = sum(w["confidence"] for w in words) / len(words) if words else 0.0
     return {"words": words, "weight": weight, "mean": mean}
+
+
+def _split_line(box, confidence: float, page_width: float, page_height: float) -> list[dict]:
+    """
+    Le modèle donne un morceau de ligne d'un seul bloc (« Certificat TOEIC : 925 points. ») : on le coupe en mots.
+    La place de chaque mot dans le bloc est estimée d'après ses lettres (« TOEIC » commence au 12e caractère sur 30).
+    """
+    text, length = box.text, max(1, len(box.text))
+    words = []
+    for match in re.finditer(r"\S+", text):
+        left = box.x + box.width * match.start() / length
+        right = box.x + box.width * match.end() / length
+        words.append({"text": match.group(), "confidence": confidence,
+                      "box": [left / page_width, box.y / page_height, right / page_width, (box.y + box.height) / page_height]})
+    return words
 
 
 def is_poor(reading: dict) -> bool:
