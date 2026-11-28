@@ -1,4 +1,10 @@
-## Nouveautés de la version 1.19
+## Nouveautés de la version 1.19.1
+
+- **Correction : mots comptés en double sur les pages avec un tableau ou des cadres.** Sur un scan droit qui contient des traits (tableau, encadré, formulaire), la version 1.19 relisait la page dans d'autres sens et pouvait compter le même mot plusieurs fois, encadré au mauvais endroit (par exemple « date » 12 fois au lieu de 3 dans l'export). Chaque mot est maintenant compté une seule fois, à sa place.
+- **Correction : fausse alerte « Lu en partie seulement ».** Les traits d'un tableau ou d'un cadre étaient comptés comme du texte non lu : une page bien lue pouvait être signalée à tort et rendre une absence « incertaine ».
+- Les documents déjà déposés sont relus une fois au premier lancement.
+
+## Version 1.19
 
 - **Mots en biais, verticaux ou à l'envers enfin lus** sur les scans et les photos. Avant, seuls les mots à peu près horizontaux étaient lus : un mot écrit en diagonale, à la verticale ou à l'envers (tampon, annotation, en-tête de tableau, nuage de mots) était manqué.
   - Quand une page est mal lue, KeyScan la relit tournée dans d'autres sens (90°, 180°, 270°, en diagonale et aux angles voisins), et chaque mot trouvé est encadré au bon endroit de la page.

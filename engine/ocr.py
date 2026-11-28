@@ -48,6 +48,7 @@ WELL_COVERED = 0.85           # couverture (0 à 1) à partir de laquelle la pag
 # un angle voisin le lit en entier (banc du zip : 70,3 % -> 72,6 % des mots) ; ±10° de plus n'apportait presque rien
 EXTRA_ANGLES = (90, 270, 180, 315, 45, 135, 225, 55, 145, 235, 325)
 EXTRA_SCALE = 0.6             # les autres sens sont lus sur l'image réduite : autant de mots trouvés, plus vite
+RULE_WIDTH, RULE_HEIGHT = 0.06, 0.05  # un trait plus long (part de la page) n'est pas une lettre : il ne compte pas dans la couverture
 
 _parsers = threading.local()       # un lecteur LiteParse par ouvrier : plusieurs documents sont lus en même temps
 
@@ -161,7 +162,8 @@ def ocr_reading(image: Image.Image) -> dict:
             words += _split_line(box, confidence, page.width, page.height)
     weight = sum(w["confidence"] * len(w["text"]) for w in words)
     mean = sum(w["confidence"] for w in words) / len(words) if words else 0.0
-    return {"words": words, "weight": weight, "mean": mean}
+    # « size » : la page telle que le modèle l'a lue (il peut l'avoir redressée lui-même : voir rotated_reading)
+    return {"words": words, "weight": weight, "mean": mean, "size": (page.width, page.height)}
 
 
 def _split_line(box, confidence: float, page_width: float, page_height: float) -> list[dict]:
@@ -208,6 +210,19 @@ def plausible(text: str) -> bool:
 
 
 # =========================================================================== 7. couverture de la page
+def long_runs(mask: np.ndarray, length: int) -> np.ndarray:
+    """Les pixels qui font partie d'une suite d'au moins « length » pixels d'encre sur leur ligne (axe 1)."""
+    rows, cols = mask.shape
+    if length < 1 or length > cols:
+        return np.zeros_like(mask)
+    sums = np.cumsum(np.pad(mask.astype(np.int32), ((0, 0), (1, 0))), axis=1)
+    full = (sums[:, length:] - sums[:, :-length]) == length          # une suite complète commence ici
+    # un pixel est couvert si une suite complète commence dans les « length » pixels qui le précèdent
+    starts = np.pad(full.astype(np.int32), ((0, 0), (length - 1, length - 1)))
+    sums = np.cumsum(np.pad(starts, ((0, 0), (1, 0))), axis=1)
+    return (sums[:, length:] - sums[:, :-length])[:, :cols] > 0
+
+
 def coverage(gray: Image.Image, boxes: list[list[float]]) -> float:
     """
     Part de l'encre de la page (0 à 1) qui se trouve dans un mot lu. Les grandes zones pleines (photo, logo,
@@ -226,6 +241,8 @@ def coverage(gray: Image.Image, boxes: list[list[float]]) -> float:
             dense[row, col] = ink[row * tile:(row + 1) * tile, col * tile:(col + 1) * tile].mean() > 0.45
     for row, col in zip(*np.nonzero(dense)):
         ink[max(0, row - 1) * tile:(row + 2) * tile, max(0, col - 1) * tile:(col + 2) * tile] = False
+    # les traits (tableau, cadre, soulignement) ne sont pas du texte : un trait droit plus long qu'une lettre
+    ink &= ~(long_runs(ink, int(RULE_WIDTH * width)) | long_runs(ink.T, int(RULE_HEIGHT * height)).T)
     total = ink.sum()
     if total < 0.002 * ink.size:
         return 1.0
@@ -264,13 +281,48 @@ def back_to_page(box: list[float], angle: float, page_size: tuple[int, int], rot
     return [clip(min(xs)), clip(min(ys)), clip(max(xs)), clip(max(ys))]
 
 
-def rotated_reading(gray: Image.Image, angle: float) -> dict:
-    """Une lecture de la page tournée de « angle » degrés ; les boîtes des mots sont ramenées sur la page."""
+def rotated_reading(gray: Image.Image, angle: float, reference: list[dict] = ()) -> dict:
+    """
+    Une lecture de la page tournée de « angle » degrés ; les boîtes des mots sont ramenées sur la page.
+
+    Le modèle redresse parfois lui-même l'image avant de la lire (d'un quart de tour, d'un demi-tour) et
+    donne alors les boîtes dans SON sens de lecture, sans le dire. On essaie donc les quatre sens possibles
+    et on garde celui où les mots déjà lus (« reference », la lecture droite) retombent à leur place.
+    Sur une page droite (un tableau, des traits), le modèle redresse tout : ses mots sont les mêmes,
+    au même endroit, et ne sont pas comptés deux fois. Si le sens reste inconnu, la lecture est écartée.
+    """
     turned = _rotated(gray, angle)
     reading = ocr_reading(turned)
-    for word in reading["words"]:
-        word["box"] = back_to_page(word["box"], angle, gray.size, turned.size)
+    raw = [word["box"] for word in reading["words"]]
+    read_width, read_height = reading.get("size") or turned.size
+    turned_landscape = turned.width / turned.height
+    best = None
+    for quarter in range(4):
+        size = turned.size if quarter % 2 == 0 else (turned.height, turned.width)
+        # la page lue a la forme de l'image tournée (0, 2 quarts) ou couchée (1, 3) : l'autre forme est exclue
+        if (abs(math.log(size[0] / size[1]) - math.log(read_width / read_height)) > 0.1
+                and abs(math.log(turned_landscape)) > 0.1):
+            continue
+        boxes = [back_to_page(box, angle + 90 * quarter, gray.size, size) for box in raw]
+        found = _found_again(reading["words"], boxes, reference)
+        if best is None or found > best[0]:
+            best = (found, quarter, boxes)
+    if best is None or (best[0] == 0 and best[1] != 0):
+        reading["words"] = []                       # sens inconnu : rien plutôt que des mots mal placés
+        return reading
+    for word, box in zip(reading["words"], best[2]):
+        word["box"] = box
     return reading
+
+
+def _found_again(words: list[dict], boxes: list[list[float]], reference: list[dict]) -> int:
+    """Combien de mots lus retombent sur un mot déjà lu (même texte, même endroit)."""
+    count = 0
+    for word, box in zip(words, boxes):
+        text = word["text"].lower()
+        if any(other["text"].lower() == text and _overlap(box, other["box"]) > 0.3 for other in reference):
+            count += 1
+    return count
 
 
 def _overlap(a: list[float], b: list[float]) -> float:
@@ -329,8 +381,9 @@ def read_image(image: Image.Image, page: int, first_word_id: int, find_orientati
     if find_orientation and page_coverage < WELL_COVERED:
         # (effacer les mots déjà lus avant de relire abîmait leurs voisins : moins de mots trouvés sur le banc)
         smaller = gray.resize((int(gray.width * EXTRA_SCALE), int(gray.height * EXTRA_SCALE)), Image.LANCZOS)
+        reference = [w for r in readings for w in r["words"]]
         for angle in EXTRA_ANGLES:
-            extra = rotated_reading(smaller, angle)
+            extra = rotated_reading(smaller, angle, reference)
             extra["words"] = [w for w in extra["words"]
                               if plausible(w["text"]) and w["confidence"] >= SECONDARY_MIN_CONFIDENCE]
             if extra["words"]:

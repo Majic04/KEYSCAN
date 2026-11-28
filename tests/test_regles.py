@@ -181,9 +181,17 @@ for angle in (90, 180, 270):
     back = back_to_page(seen, angle, blank.size, turned.size)
     errors.append(max(abs(a - b) for a, b in zip(back, true_box)))
 check("mot lu sur la page tournée : replacé au bon endroit (90°, 180°, 270°)", max(errors) < 0.003, str([round(e, 4) for e in errors]))
-text_like = _Image.new("L", (1000, 1400), 255)            # des traits fins, comme des lettres (un aplat plein = une photo)
-for row in range(300, 360, 8):
-    _ImageDraw.Draw(text_like).rectangle((200, row, 450, row + 2), fill=0)
+text_like = _Image.new("L", (1000, 1400), 255)            # des petits traits, comme des lettres (un aplat plein = une photo,
+for row in range(300, 360, 20):                            # un long trait = un tableau : ni l'un ni l'autre n'est du texte)
+    for col in range(200, 450, 10):
+        _ImageDraw.Draw(text_like).rectangle((col, row, col + 3, row + 14), fill=0)
+ruled = _Image.new("L", (1000, 1400), 255)
+for y in (300, 340, 380):
+    _ImageDraw.Draw(ruled).line((100, y, 900, y), fill=0, width=3)
+for x in (100, 500, 900):
+    _ImageDraw.Draw(ruled).line((x, 300, x, 380), fill=0, width=3)
+check("couverture : les traits d'un tableau ne comptent pas comme du texte non lu", coverage(ruled, []) == 1.0,
+      str(coverage(ruled, [])))
 solid = _Image.new("L", (1000, 1400), 255)
 _ImageDraw.Draw(solid).rectangle((200, 300, 700, 700), fill=0)
 check("couverture : page vide couverte, texte non lu non couvert, texte lu couvert",
@@ -211,6 +219,31 @@ x, y = 300 / vpage.rect.width, 600 / vpage.rect.height
 check("mot écrit à la verticale sur un scan : trouvé", any(o["certain"] for o in found), str([o["text"] for o in found]))
 check("mot vertical : encadré au bon endroit de la page",
       any(b[0] - 0.05 <= x <= b[2] + 0.05 and b[1] - 0.05 <= y <= b[3] + 0.05 and b[3] - b[1] > b[2] - b[0] for b in where), str(where))
+
+# une page droite avec un tableau : ses traits la font relire dans d'autres sens ; le modèle redresse alors
+# lui-même l'image et chaque mot doit rester à sa place, une seule fois (1.19 : « date » comptée 12 fois au lieu de 3)
+releve = pymupdf.open()
+rpage = releve.new_page(width=595, height=842)
+rpage.insert_text((60, 70), "Relevé de notes", fontsize=18)
+xs, ys = [60, 200, 535], [150 + 26 * i for i in range(4)]
+for yy in ys:
+    rpage.draw_line((xs[0], yy), (xs[-1], yy))
+for xx in xs:
+    rpage.draw_line((xx, ys[0]), (xx, ys[-1]))
+for r, row in enumerate([("Date", "Matière"), ("12/01/2026", "Commande robuste"), ("19/01/2026", "Vision")]):
+    for col, cell in enumerate(row):
+        rpage.insert_text((xs[col] + 6, ys[r] + 18), cell, fontsize=11)
+rpage.draw_rect(pymupdf.Rect(60, 380, 535, 440))
+rpage.insert_text((72, 415), "Remarque : la date de soutenance sera fixée plus tard.", fontsize=11)
+rpage.insert_text((60, 780), "Fait à Nantes. Date : 28/11/2026", fontsize=11)
+releve_png = os.path.join(TMP, "releve.png")
+rpage.get_pixmap(dpi=200).save(releve_png)
+reading = read_document(releve_png)
+dates = sorted(round((o["box"][1] + o["box"][3]) / 2, 2) for o in find_keyword(reading["tokens"], "date"))
+expected = [round((y - 5) / 842, 2) for y in (ys[0] + 18, 415, 780)]
+check("page avec tableau : « date » lu 3 fois, chaque fois à sa place", len(dates) == 3
+      and all(abs(a - b) < 0.02 for a, b in zip(dates, expected)), f"{dates} / {expected}")
+check("page avec tableau : pas signalée « lue en partie »", reading["pages"][0]["cov"] >= 0.5, str(reading["pages"][0]["cov"]))
 
 print(f"\n{len(failures)} échec(s)" if failures else "\nTous les tests de règles sont passés.")
 sys.exit(1 if failures else 0)
