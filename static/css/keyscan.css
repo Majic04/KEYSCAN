@@ -367,6 +367,8 @@ code{font:13px ui-monospace,Menlo,Consolas,monospace;padding:2px 7px;border-radi
 .occ{margin-top:22px;padding:18px;border-radius:var(--r-mid);background:var(--card-2);animation:rise .3s var(--ease) both}
 .occ .meta{color:var(--ink-3);font-size:13px;margin:0 0 10px}
 .occ .meta b{color:var(--ink-2)}
+.in-table{display:inline-block;padding:1px 8px;border-radius:999px;background:var(--violet-soft);color:var(--violet-2);font-size:12px;font-weight:600;white-space:nowrap}
+.ev-table{margin:10px 0 0;color:var(--ink-2);font-size:14px}
 .occ .ctx{font-size:16px;line-height:1.9;max-width:62ch;margin:14px 0 0;color:var(--ink-2)}
 .occ .read{color:var(--ink-2);font-size:14px;margin-top:6px}
 .occ figure{margin:0;border-radius:var(--r-sm);overflow:hidden;background:#fff}

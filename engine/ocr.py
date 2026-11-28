@@ -36,6 +36,7 @@ import unicodedata
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
+from .tables import image_tables, long_runs
 from .text import make_tokens
 
 MODEL = "ocria-nano"
@@ -210,19 +211,6 @@ def plausible(text: str) -> bool:
 
 
 # =========================================================================== 7. couverture de la page
-def long_runs(mask: np.ndarray, length: int) -> np.ndarray:
-    """Les pixels qui font partie d'une suite d'au moins « length » pixels d'encre sur leur ligne (axe 1)."""
-    rows, cols = mask.shape
-    if length < 1 or length > cols:
-        return np.zeros_like(mask)
-    sums = np.cumsum(np.pad(mask.astype(np.int32), ((0, 0), (1, 0))), axis=1)
-    full = (sums[:, length:] - sums[:, :-length]) == length          # une suite complète commence ici
-    # un pixel est couvert si une suite complète commence dans les « length » pixels qui le précèdent
-    starts = np.pad(full.astype(np.int32), ((0, 0), (length - 1, length - 1)))
-    sums = np.cumsum(np.pad(starts, ((0, 0), (1, 0))), axis=1)
-    return (sums[:, length:] - sums[:, :-length])[:, :cols] > 0
-
-
 def coverage(gray: Image.Image, boxes: list[list[float]]) -> float:
     """
     Part de l'encre de la page (0 à 1) qui se trouve dans un mot lu. Les grandes zones pleines (photo, logo,
@@ -356,7 +344,8 @@ def keep_best_reading(readings: list[dict]) -> None:
 def read_image(image: Image.Image, page: int, first_word_id: int, find_orientation: bool = True) -> dict:
     """
     Lit une image de page. Retourne :
-      {"tokens": [...], "rotation": 0/90/180/270, "skew": degrés, "coverage": 0-1, "angles": sens lus en plus}
+      {"tokens": [...], "rotation": 0/90/180/270, "skew": degrés, "coverage": 0-1, "angles": sens lus en plus,
+       "tables": [zones des tableaux à traits, de 0 à 1]}
     """
     prepared = prepare(image)
     gray, skew = _straightened(prepared)
@@ -402,7 +391,8 @@ def read_image(image: Image.Image, page: int, first_word_id: int, find_orientati
             tokens += make_tokens(word["text"], confidence=word["confidence"] * 100, page=page, source="ocr",
                                   word_id=word_id, box=word["box"], reading=number, secondary=secondary)
             word_id += 1
-    return {"tokens": tokens, "rotation": rotation, "skew": skew, "coverage": page_coverage, "angles": angles}
+    return {"tokens": tokens, "rotation": rotation, "skew": skew, "coverage": page_coverage, "angles": angles,
+            "tables": image_tables(gray) if find_orientation else []}
 
 
 if __name__ == "__main__":

@@ -139,18 +139,22 @@ async function showEvidence(did, kid, docId){
   }[c.decision];
   const src = o => o.source === "ocr" ? "lu sur l'image" : "texte du PDF";
   const card = o => `<div class="occ">
-      <p class="meta"><b>${esc(o.filename)}</b>, page ${o.page}, ${src(o)}, ${Math.round(o.score * 100)} %</p>
+      <p class="meta"><b>${esc(o.filename)}</b>, page ${o.page}, ${src(o)}, ${Math.round(o.score * 100)} %${o.table ? ` <span class="in-table">dans un tableau</span>` : ""}</p>
       <figure><img class="zoom" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}&crop=${o.box.map(v => v.toFixed(4)).join(",")}" alt="Le mot dans le document, page ${o.page}">
         <img class="full" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}"></figure>
       <button class="textlink" data-wide>Voir la page entière</button>
       <p class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, (m, w) => `<span class="hl ${o.certain === false || o.score * 100 < s.present_thr ? "rev" : "ok"}">${w}</span>`)} …</p>
       ${o.certain === false ? `<p class="read">Lu : « ${esc(o.text)} », proche de « ${esc(k.term)} » sans être identique.</p>` : ""}</div>`;
+  // les occurrences lues dans un tableau d'abord (« Date » dans un tableau compte plus qu'en bas de page)
+  c.occurrences.sort((a, b) => (b.table ? 1 : 0) - (a.table ? 1 : 0));
+  const tableLine = list => { const n = list.filter(o => o.table).length;
+    return n ? `<p class="ev-table"><span class="in-table">dans un tableau</span> ${n === list.length ? (n > 1 ? `les ${n} fois` : "") : `${n} fois sur ${list.length}`}</p>` : ""; };
   const dossierVerdict = `<span class="big">${found ? Math.round(c.score) : 0} %</span><span class="dec">${LONG[c.decision]}</span>`;
 
   // ouvert depuis le dossier : le verdict du dossier, toutes les occurrences
   if(!docId){
     openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[c.decision] || ""}">${esc(k.term)}</span></h3><p class="msub">${esc(d.name)}</p>
-      <div class="ev-top">${dossierVerdict}</div>${why ? `<p class="ev-why">${why}</p>` : ""}
+      <div class="ev-top">${dossierVerdict}</div>${why ? `<p class="ev-why">${why}</p>` : ""}${tableLine(c.occurrences)}
       ${c.occurrences.map(card).join("")}`, "sheet");
     return;
   }
@@ -171,7 +175,7 @@ async function showEvidence(did, kid, docId){
   openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[docDecision] || ""}">${esc(k.term)}</span></h3>
     <p class="msub">${esc(x ? x.filename : "")}, dossier ${esc(d.name)}</p>
     <div class="ev-top"><span class="big">${Math.round(docScore)} %</span><span class="dec">${LONG[docDecision]} <small>dans ce document</small></span></div>
-    <p class="ev-why">${docWhy}</p>
+    <p class="ev-why">${docWhy}</p>${tableLine(mine)}
     <p class="ev-dossier">Dans tout le dossier : <span class="hl ${HL[c.decision] || ""}">${LONG[c.decision]}</span>, ${found ? Math.round(c.score) : 0} %${
       c.decision !== docDecision ? (others.length ? `, d'après ${plural(new Set(others.map(o => o.doc_id)).size, "autre document")}.` : ".") : "."}</p>
     ${mine.map(card).join("")}

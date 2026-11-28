@@ -91,7 +91,7 @@ function kwList(d){
     <button class="kw ${HL[c.decision]}" data-kw="${k.id}" data-dossier="${d.id}">
       <span class="term"><span class="hl ${HL[c.decision]}" style="--n:${n++}">${esc(k.term)}</span></span>
       <span class="score">${Math.round(c.score)}<small> %</small></span>
-      <span class="where">${esc(where(c)) || plural(c.count, "occurrence")}</span></button>`).join("")}</div>`;
+      <span class="where">${esc(where(c)) || plural(c.count, "occurrence")}${c.in_tables ? ` · ${c.in_tables} dans un tableau` : ""}</span></button>`).join("")}</div>`;
   const by = dec => cells.filter(x => x.c.decision === dec);
   const title = (dec, label, L, hint) => `<h2 class="sec ${HL[dec] || "no"}">${label}<small>${L.length}${hint ? ` · ${hint}` : ""}</small></h2>`;
   const words = (L, cls) => `<div class="absents">${L.map(({k}) => `<button data-kw="${k.id}" data-dossier="${d.id}"><span class="${cls}">${esc(k.term)}</span></button>`).join("")}</div>`;

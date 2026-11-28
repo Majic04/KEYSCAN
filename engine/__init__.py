@@ -15,7 +15,8 @@ Le parcours d'un document :
     Présent / À vérifier / Absent / Absence incertaine
 """
 # Quand ce numéro change, l'application relit tous les documents déjà déposés.
-ENGINE_VERSION = "3.3"        # 3.0 : OCRia-nano remplace Tesseract et TrOCR
+ENGINE_VERSION = "3.4"        # 3.0 : OCRia-nano remplace Tesseract et TrOCR
                               # 3.1 : mots en biais / verticaux / à l'envers relus dans d'autres sens, couverture des pages
                               # 3.2 : angles voisins des diagonales (un mot collé à un autre était lu coupé)
                               # 3.3 : page droite à traits (tableau) : mots ni en double ni déplacés, traits hors couverture
+                              # 3.4 : zones des tableaux de chaque page (un mot-clé lu dans un tableau)

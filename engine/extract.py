@@ -27,6 +27,7 @@ except ImportError:                   # anciennes versions
 from PIL import Image
 
 from .ocr import read_image
+from .tables import pdf_tables
 from .text import make_tokens, next_word_id, normalize
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
@@ -101,7 +102,8 @@ def read_document(path: str, progress=None) -> dict:
       {"tokens": [...],                       (voir text.py)
        "pages":  [{"mode": "texte" | "ocr" | "mixte", "rot": 0, "skew": 0.0,
                    "cov": 0-1 (page lue par OCR : part de l'encre dans un mot lu),
-                   "angles": [sens lus en plus]}, …],
+                   "angles": [sens lus en plus],
+                   "tables": [zones des tableaux, de 0 à 1, même repère que les mots]}, …],
        "quality": 0-100}                      (voir reading_quality)
     """
     extension = os.path.splitext(path)[1].lower()
@@ -125,7 +127,7 @@ def _read_image_file(path: str, progress) -> tuple[list[dict], list[dict]]:
             result = read_image(image.copy(), frame + 1, next_word_id(tokens))
             tokens += result["tokens"]
             pages.append({"mode": "ocr", "rot": result["rotation"], "skew": result["skew"],
-                          "cov": result["coverage"], "angles": result["angles"]})
+                          "cov": result["coverage"], "angles": result["angles"], "tables": result["tables"]})
             if progress:
                 progress(frame + 1, frames)
     return tokens, pages
@@ -149,8 +151,9 @@ def _read_pdf(path: str, progress) -> tuple[list[dict], list[dict]]:
                 result = read_image(image, number, next_word_id(tokens))
                 tokens += result["tokens"]
                 info.update(mode="ocr", rot=result["rotation"], skew=result["skew"],
-                            cov=result["coverage"], angles=result["angles"])
+                            cov=result["coverage"], angles=result["angles"], tables=result["tables"])
             else:
+                info["tables"] = pdf_tables(page)
                 # page avec du texte : seules les grandes images sont lues (zone par zone)
                 for zone in _large_images(page):
                     tokens += _read_zone(page, zone, number, next_word_id(tokens))

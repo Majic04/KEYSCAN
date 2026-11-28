@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 
 from engine.decision import PRESENT, TO_CHECK, evaluate
+from engine.tables import in_table
 
 from .analysis import occurrences, ocr_ready, progress
 from .database import connect
@@ -101,6 +102,14 @@ def _pages(document: dict) -> list[dict]:
     return json.loads(document["pages"]) if document["pages"] else []
 
 
+def _tables(document: dict, page: int) -> list:
+    """Les zones des tableaux d'une page du document (lues avec le moteur 3.3 et plus)."""
+    pages = document.get("_pages")
+    if pages is None:
+        pages = document["_pages"] = _pages(document)
+    return pages[page - 1].get("tables", []) if 0 < page <= len(pages) else []
+
+
 def _mark_duplicates(documents: list[dict]):
     """« duplicate_of » = nom du premier document au contenu identique dans le dossier (sinon None)."""
     first_with_fingerprint: dict[str, str] = {}
@@ -113,7 +122,8 @@ def _mark_duplicates(documents: list[dict]):
 
 def _cell(term: str, read_documents: list[dict], quality: float, pages: list[dict], unread: int, limits: dict) -> dict:
     """La case (dossier, mot-clé) : score, décision, fiabilité, et toutes les occurrences trouvées."""
-    found = [{**occurrence, "doc_id": document["id"], "filename": document["filename"]}
+    found = [{**occurrence, "doc_id": document["id"], "filename": document["filename"],
+              "table": in_table(occurrence.get("box"), _tables(document, occurrence["page"]))}
              for document in read_documents for occurrence in occurrences(document["id"], term)]
     score, decision = evaluate(term, found, quality, pages, limits["present_thr"], limits["review_thr"],
                                limits["min_quality"], unread=unread, prudent=limits["absence"] == "prudent")
@@ -122,6 +132,7 @@ def _cell(term: str, read_documents: list[dict], quality: float, pages: list[dic
         # fiabilité : le score si le mot est trouvé, la qualité de lecture s'il ne l'est pas
         "reliability": score if decision in (PRESENT, TO_CHECK) else round(quality, 1),
         "count": len(found),
+        "in_tables": sum(o["table"] for o in found),          # dont lues dans un tableau
         "occurrences": found,
         # où le mot a été lu (fichier, page), sans doublon
         "where": [{"file": file, "page": page} for file, page in dict.fromkeys((o["filename"], o["page"]) for o in found)],

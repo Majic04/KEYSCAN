@@ -245,5 +245,34 @@ check("page avec tableau : « date » lu 3 fois, chaque fois à sa place", len(d
       and all(abs(a - b) < 0.02 for a, b in zip(dates, expected)), f"{dates} / {expected}")
 check("page avec tableau : pas signalée « lue en partie »", reading["pages"][0]["cov"] >= 0.5, str(reading["pages"][0]["cov"]))
 
+# --- mots lus dans un tableau (moteur 3.3) : « Date » en tête de colonne, dans un encadré seul, en bas de page
+from engine.tables import in_table  # noqa: E402
+
+releve2 = pymupdf.open()
+rpage = releve2.new_page(width=595, height=842)
+rpage.insert_text((60, 70), "Relevé de notes", fontsize=18)
+xs, ys = [60, 200, 535], [150 + 26 * i for i in range(4)]
+for yy in ys:
+    rpage.draw_line((xs[0], yy), (xs[-1], yy))
+for xx in xs:
+    rpage.draw_line((xx, ys[0]), (xx, ys[-1]))
+for r, row in enumerate([("Date", "Matière"), ("12/01/2026", "Commande robuste"), ("19/01/2026", "Vision")]):
+    for col, cell in enumerate(row):
+        rpage.insert_text((xs[col] + 6, ys[r] + 18), cell, fontsize=11)
+rpage.draw_rect(pymupdf.Rect(60, 380, 535, 440))                   # un encadré seul n'est pas un tableau
+rpage.insert_text((72, 415), "Remarque : la date de soutenance sera fixée plus tard.", fontsize=11)
+rpage.insert_text((60, 780), "Fait à Nantes. Date : 28/11/2026", fontsize=11)
+releve_pdf = os.path.join(TMP, "releve.pdf")
+releve2.save(releve_pdf)
+releve_png = os.path.join(TMP, "releve.png")
+rpage.get_pixmap(dpi=200).save(releve_png)
+
+for label, path in (("PDF avec texte", releve_pdf), ("scan", releve_png)):
+    reading = read_document(path)
+    tables = reading["pages"][0].get("tables", [])
+    places = sorted(in_table(o["box"], tables) for o in find_keyword(reading["tokens"], "date"))
+    check(f"tableau ({label}) : un seul tableau trouvé, pas l'encadré", len(tables) == 1, str(tables))
+    check(f"tableau ({label}) : « date » lu 3 fois, 1 fois dans le tableau", places == [False, False, True], str(places))
+
 print(f"\n{len(failures)} échec(s)" if failures else "\nTous les tests de règles sont passés.")
 sys.exit(1 if failures else 0)
