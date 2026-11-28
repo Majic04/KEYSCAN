@@ -51,7 +51,7 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 
 ## Comment la décision est prise
 
-1. **Lecture** de chaque page : texte du PDF (contrôlé : une couche texte corrompue est relue par OCR), sinon le modèle OCR **OCRia-nano-1** (redressement, orientation, seconde lecture sur image nettoyée si la première est médiocre).
+1. **Lecture** de chaque page : texte du PDF (contrôlé : une couche texte corrompue est relue par OCR), sinon le modèle OCR **OCRia-nano-1** (redressement, orientation, seconde lecture sur image nettoyée si la première est médiocre). La **couverture** de la page (part de son encre reconnue comme du texte) est mesurée : une page mal couverte (mots en biais, verticaux ou à l'envers) est relue dans d'autres sens (90°, 180°, 270°, diagonales et angles voisins), et chaque mot est replacé au bon endroit de la page.
 2. **Recherche** du mot-clé, sans tenir compte des majuscules ni des accents, tolérante aux erreurs typiques de l'OCR et aux césures.
 3. **Score d'une occurrence** = ressemblance avec le mot-clé × confiance de lecture.
 4. **Score du dossier** : les occurrences **exactes** se renforcent entre elles ; une occurrence seulement **approchante** (« these » pour « thèse », mot mal lu sur un scan) compte pour sa seule valeur, **même répétée**, et ne peut jamais donner « Présent ».
@@ -61,9 +61,9 @@ L'écran est un bureau : à gauche la liste des candidats (avec recherche), à d
 | **Présent** | score ≥ 85 % avec au moins une occurrence exacte |
 | **À vérifier** | 50 % ≤ score < 85 %, ou occurrence seulement approchante |
 | **Absent** | score < 50 % et documents bien lus |
-| **Absence incertaine** | score < 50 %, mais l'absence ne peut pas être garantie : document illisible dans le dossier ; en mode « Prudent » aussi : lecture insuffisante ou mot-clé de 2 caractères dans un scan |
+| **Absence incertaine** | score < 50 %, mais l'absence ne peut pas être garantie : document illisible dans le dossier, ou page lue en partie seulement (moins de 50 % de son texte reconnu) ; en mode « Prudent » aussi : lecture insuffisante ou mot-clé de 2 caractères dans un scan |
 
-**Mesures** (banc de 16 documents piégés × 12 mots-clés = 192 décisions, `tests/`) : avec OCRia-nano-1 : précision **100 %** (aucun faux « Présent »), rappel **100 %** (95,7 % avec l'ancien moteur Tesseract), aucun « Absent » affirmé à tort. L'écriture manuscrite n'est pas lue de façon fiable.
+**Mesures** (banc de 16 documents piégés × 12 mots-clés = 192 décisions, `tests/`) : avec OCRia-nano-1 : précision **100 %** (aucun faux « Présent »), rappel **100 %** (95,7 % avec l'ancien moteur Tesseract), aucun « Absent » affirmé à tort. Banc de mots en biais, verticaux ou à l'envers (30 images) : 73 % des mots retrouvés (94 % sur une image parfaite), contre 24 % avant la version 1.19. L'écriture manuscrite n'est pas lue de façon fiable.
 
 ## Le moteur, en Python seul
 

@@ -1,4 +1,16 @@
-## Nouveautés de la version 1.18
+## Nouveautés de la version 1.19
+
+- **Mots en biais, verticaux ou à l'envers enfin lus** sur les scans et les photos. Avant, seuls les mots à peu près horizontaux étaient lus : un mot écrit en diagonale, à la verticale ou à l'envers (tampon, annotation, en-tête de tableau, nuage de mots) était manqué.
+  - Quand une page est mal lue, KeyScan la relit tournée dans d'autres sens (90°, 180°, 270°, en diagonale et aux angles voisins), et chaque mot trouvé est encadré au bon endroit de la page.
+  - Sur un banc de 30 images de nuages de mots : **73 %** des mots retrouvés au lieu de 24 % (94 % sur une image parfaite), toujours sans aucun faux « Présent ».
+  - Les documents ordinaires (CV, lettres, scans droits) sont bien lus du premier coup : ils ne sont pas relus et pas ralentis.
+- **Page lue en partie seulement** : quand moins de la moitié du texte d'une page est reconnue (scan très abîmé), KeyScan n'affirme plus « Absent » mais « Absence incertaine », et l'écrit en rouge sous le document.
+- « lecture X % » sous un document devient « **confiance de lecture** X % » : c'est la confiance dans les mots lus, pas la part de la page lue.
+- **Preuve d'un mot ouverte depuis un document** : le verdict de ce document s'affiche d'abord (par exemple « À vérifier » pour un mot mal orthographié), puis celui de tout le dossier, puis les autres documents du dossier.
+- Les « mots » lus à l'envers (lettres retournées) sont écartés.
+- **Relecture automatique** : au premier lancement, tous les documents déjà déposés sont relus une fois avec le nouveau moteur. Cela peut prendre quelques minutes.
+
+## Version 1.18
 
 - **Nouvelle interface** : des cartes bleu nuit très arrondies sur un fond ardoise, un accent violet en dégradé, des boutons en pilule et une police ronde (Outfit).
   - Barre du haut en pilule, avec une icône pour chaque page.
