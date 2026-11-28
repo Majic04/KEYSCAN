@@ -1,4 +1,14 @@
-## Nouveautés de la version 1.19.1
+## Nouveautés de la version 1.20
+
+- **Savoir si un mot-clé est dans un tableau.** KeyScan repère maintenant les tableaux de chaque page et indique, pour chaque endroit où un mot-clé est lu, s'il se trouve dans un tableau. Exemple : « date » dans la colonne d'un relevé de notes, plutôt qu'en bas de page.
+  - Rien à régler : tapez le mot-clé comme d'habitude.
+  - La tuile du mot-clé l'indique (« · 1 dans un tableau »), et dans la preuve, ces occurrences portent l'étiquette « dans un tableau » et s'affichent en premier.
+  - Fonctionne sur les PDF avec texte (CV, relevés exportés) et sur les scans et photos dont le tableau a des traits.
+  - **Limites** : un tableau sans aucun trait (colonnes seulement alignées) n'est pas repéré ; sur une photo très floue ou très penchée, les traits du tableau peuvent ne pas être retrouvés.
+  - La décision (Présent, À vérifier…) ne change pas : l'information s'ajoute à côté.
+- Les documents déjà déposés sont relus une fois au premier lancement.
+
+## Version 1.19.1
 
 - **Correction : mots comptés en double sur les pages avec un tableau ou des cadres.** Sur un scan droit qui contient des traits (tableau, encadré, formulaire), la version 1.19 relisait la page dans d'autres sens et pouvait compter le même mot plusieurs fois, encadré au mauvais endroit (par exemple « date » 12 fois au lieu de 3 dans l'export). Chaque mot est maintenant compté une seule fois, à sa place.
 - **Correction : fausse alerte « Lu en partie seulement ».** Les traits d'un tableau ou d'un cadre étaient comptés comme du texte non lu : une page bien lue pouvait être signalée à tort et rendre une absence « incertaine ».

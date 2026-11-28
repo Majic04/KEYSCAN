@@ -148,7 +148,9 @@ async function showEvidence(did, kid, docId){
   // les occurrences lues dans un tableau d'abord (« Date » dans un tableau compte plus qu'en bas de page)
   c.occurrences.sort((a, b) => (b.table ? 1 : 0) - (a.table ? 1 : 0));
   const tableLine = list => { const n = list.filter(o => o.table).length;
-    return n ? `<p class="ev-table"><span class="in-table">dans un tableau</span> ${n === list.length ? (n > 1 ? `les ${n} fois` : "") : `${n} fois sur ${list.length}`}</p>` : ""; };
+    const said = n === list.length ? (n > 1 ? `Lu ${n} fois, toutes dans un tableau` : "Lu 1 fois, dans un tableau")
+      : `Lu ${list.length} fois, dont ${n} dans un tableau`;
+    return n ? `<p class="ev-table"><span class="in-table">tableau</span> ${said}</p>` : ""; };
   const dossierVerdict = `<span class="big">${found ? Math.round(c.score) : 0} %</span><span class="dec">${LONG[c.decision]}</span>`;
 
   // ouvert depuis le dossier : le verdict du dossier, toutes les occurrences
