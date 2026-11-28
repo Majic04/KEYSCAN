@@ -360,6 +360,10 @@ code{font:13px ui-monospace,Menlo,Consolas,monospace;padding:2px 7px;border-radi
 .ev-top .big{font-size:42px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;background:var(--g-v);-webkit-background-clip:text;background-clip:text;color:transparent}
 .ev-top .dec{font-size:16px;font-weight:600;color:var(--ink-2)}
 .ev-why{color:var(--ink-2);font-size:14px;margin:10px 0 0;max-width:62ch}
+.ev-top .dec small{font-weight:400;color:var(--ink-3)}
+.ev-dossier{margin:16px 0 0;padding:12px 16px;border-radius:var(--r-sm);background:var(--card-2);color:var(--ink-2);font-size:14px;max-width:62ch}
+.ev-dossier .hl{font-size:13px}
+.ev-sep{margin:30px 0 0;font-size:14px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
 .occ{margin-top:22px;padding:18px;border-radius:var(--r-mid);background:var(--card-2);animation:rise .3s var(--ease) both}
 .occ .meta{color:var(--ink-3);font-size:13px;margin:0 0 10px}
 .occ .meta b{color:var(--ink-2)}

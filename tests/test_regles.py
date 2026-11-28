@@ -159,5 +159,58 @@ inside = found and all(zone.x0 / page.rect.width - 0.01 <= o["box"][0] and o["bo
                        for o in found)
 check("document collé : mot placé dans l'image, sur la page", inside, str([o["box"] for o in found]))
 
+# --- mots en biais, verticaux ou à l'envers (moteur 3.1)
+from PIL import Image as _Image, ImageDraw as _ImageDraw  # noqa: E402
+
+from engine.ocr import _rotated, back_to_page, coverage, plausible  # noqa: E402
+from engine.decision import poorly_read  # noqa: E402
+
+check("mot lu à l'envers écarté (« npuə] », « дqƏp »)", not plausible("npuə]") and not plausible("дqƏp"))
+check("mots français et anglais gardés (« Évaluation », « œuvre », « C++ »)",
+      plausible("Évaluation") and plausible("œuvre") and plausible("C++"))
+
+blank = _Image.new("L", (1000, 1400), 255)
+_ImageDraw.Draw(blank).rectangle((200, 300, 450, 360), fill=0)
+true_box = [200 / 1000, 300 / 1400, 451 / 1000, 361 / 1400]
+errors = []
+for angle in (90, 180, 270):
+    turned = _rotated(blank, angle)
+    import numpy as _np  # noqa: E402
+    ys, xs = _np.nonzero(_np.asarray(turned) < 128)
+    seen = [xs.min() / turned.width, ys.min() / turned.height, (xs.max() + 1) / turned.width, (ys.max() + 1) / turned.height]
+    back = back_to_page(seen, angle, blank.size, turned.size)
+    errors.append(max(abs(a - b) for a, b in zip(back, true_box)))
+check("mot lu sur la page tournée : replacé au bon endroit (90°, 180°, 270°)", max(errors) < 0.003, str([round(e, 4) for e in errors]))
+text_like = _Image.new("L", (1000, 1400), 255)            # des traits fins, comme des lettres (un aplat plein = une photo)
+for row in range(300, 360, 8):
+    _ImageDraw.Draw(text_like).rectangle((200, row, 450, row + 2), fill=0)
+solid = _Image.new("L", (1000, 1400), 255)
+_ImageDraw.Draw(solid).rectangle((200, 300, 700, 700), fill=0)
+check("couverture : page vide couverte, texte non lu non couvert, texte lu couvert",
+      coverage(_Image.new("L", (800, 1100), 255), []) == 1.0 and coverage(text_like, []) == 0.0
+      and coverage(text_like, [true_box]) > 0.95, f"{coverage(text_like, [])} / {coverage(text_like, [true_box])}")
+check("couverture : un aplat (photo, logo) ne compte pas comme du texte non lu", coverage(solid, []) == 1.0)
+
+score, dec = evaluate("thèse", [], 100, [{"mode": "ocr", "cov": 0.03}], prudent=False)
+check("page lue en partie (3 %) : absence non affirmée, même en mode tranché", dec == "absent_douteux", dec)
+score, dec = evaluate("thèse", [], 100, [{"mode": "ocr", "cov": 0.97}], prudent=False)
+check("page bien couverte (97 %) : absence affirmée", dec == "absent", dec)
+check("documents lus avant la mesure (sans « cov ») : rien ne change", not poorly_read([{"mode": "ocr"}]))
+
+# une page scannée : une phrase horizontale et un mot-clé écrit à la verticale
+vertical = pymupdf.open()
+vpage = vertical.new_page()
+vpage.insert_text((60, 80), "Lettre de motivation pour le Master.", fontsize=14)
+vpage.insert_text((300, 600), "Robotique", fontsize=28, rotate=90)
+vertical_png = os.path.join(TMP, "vertical.png")
+vpage.get_pixmap(dpi=200).save(vertical_png)
+reading = read_document(vertical_png)
+found = find_keyword(reading["tokens"], "Robotique")
+where = [o["box"] for o in found]
+x, y = 300 / vpage.rect.width, 600 / vpage.rect.height
+check("mot écrit à la verticale sur un scan : trouvé", any(o["certain"] for o in found), str([o["text"] for o in found]))
+check("mot vertical : encadré au bon endroit de la page",
+      any(b[0] - 0.05 <= x <= b[2] + 0.05 and b[1] - 0.05 <= y <= b[3] + 0.05 and b[3] - b[1] > b[2] - b[0] for b in where), str(where))
+
 print(f"\n{len(failures)} échec(s)" if failures else "\nTous les tests de règles sont passés.")
 sys.exit(1 if failures else 0)

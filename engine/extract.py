@@ -99,7 +99,9 @@ def read_document(path: str, progress=None) -> dict:
     progress(pages_lues, pages_totales) est appelé après chaque page (suivi des gros documents).
     Retourne :
       {"tokens": [...],                       (voir text.py)
-       "pages":  [{"mode": "texte" | "ocr" | "mixte", "rot": 0, "skew": 0.0}, …],
+       "pages":  [{"mode": "texte" | "ocr" | "mixte", "rot": 0, "skew": 0.0,
+                   "cov": 0-1 (page lue par OCR : part de l'encre dans un mot lu),
+                   "angles": [sens lus en plus]}, …],
        "quality": 0-100}                      (voir reading_quality)
     """
     extension = os.path.splitext(path)[1].lower()
@@ -122,7 +124,8 @@ def _read_image_file(path: str, progress) -> tuple[list[dict], list[dict]]:
             image.seek(frame)
             result = read_image(image.copy(), frame + 1, next_word_id(tokens))
             tokens += result["tokens"]
-            pages.append({"mode": "ocr", "rot": result["rotation"], "skew": result["skew"]})
+            pages.append({"mode": "ocr", "rot": result["rotation"], "skew": result["skew"],
+                          "cov": result["coverage"], "angles": result["angles"]})
             if progress:
                 progress(frame + 1, frames)
     return tokens, pages
@@ -145,7 +148,8 @@ def _read_pdf(path: str, progress) -> tuple[list[dict], list[dict]]:
                 image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
                 result = read_image(image, number, next_word_id(tokens))
                 tokens += result["tokens"]
-                info.update(mode="ocr", rot=result["rotation"], skew=result["skew"])
+                info.update(mode="ocr", rot=result["rotation"], skew=result["skew"],
+                            cov=result["coverage"], angles=result["angles"])
             else:
                 # page avec du texte : seules les grandes images sont lues (zone par zone)
                 for zone in _large_images(page):

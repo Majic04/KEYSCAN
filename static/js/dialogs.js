@@ -131,25 +131,51 @@ async function showEvidence(did, kid, docId){
   const d = state.dossiers.find(x => x.id === did), k = d.keywords.find(x => x.id === kid);
   const c = await api(`/api/dossiers/${did}/keyword/${kid}`);
   const s = state.settings, found = c.count > 0;
-  const occ = docId ? [...c.occurrences.filter(o => o.doc_id === docId), ...c.occurrences.filter(o => o.doc_id !== docId)] : c.occurrences;
   const why = {
     present: `Lu tel quel dans les documents. Présent à partir de ${s.present_thr} %.`,
     a_verifier: "Un mot proche a été lu, ou la lecture est incertaine. Regardez l'image pour trancher.",
-    absent_douteux: c.count ? "" : "Rien n'a été trouvé, mais la lecture d'un document est incertaine (scan difficile, document illisible ou mot très court).",
+    absent_douteux: c.count ? "" : "Rien n'a été trouvé, mais la lecture d'un document est incertaine (scan difficile, page lue en partie, document illisible ou mot très court).",
     absent: `Rien n'a été trouvé, et les documents sont bien lus (qualité ${Math.round(c.reliability)} %).`,
   }[c.decision];
   const src = o => o.source === "ocr" ? "lu sur l'image" : "texte du PDF";
-  // l'image du mot dans le document vient d'abord, en grand ; le texte lu et les détails ensuite
-  openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[c.decision] || ""}">${esc(k.term)}</span></h3><p class="msub">${esc(d.name)}</p>
-    <div class="ev-top"><span class="big">${found ? Math.round(c.score) : 0} %</span><span class="dec">${LONG[c.decision]}</span></div>
-    ${why ? `<p class="ev-why">${why}</p>` : ""}
-    ${occ.map(o => `<div class="occ">
+  const card = o => `<div class="occ">
       <p class="meta"><b>${esc(o.filename)}</b>, page ${o.page}, ${src(o)}, ${Math.round(o.score * 100)} %</p>
       <figure><img class="zoom" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}&crop=${o.box.map(v => v.toFixed(4)).join(",")}" alt="Le mot dans le document, page ${o.page}">
         <img class="full" loading="lazy" src="/api/documents/${o.doc_id}/page/${o.page}.png?kw=${kid}" alt="Page ${o.page} de ${esc(o.filename)}"></figure>
       <button class="textlink" data-wide>Voir la page entière</button>
       <p class="ctx">… ${esc(o.context).replace(/\[\[(.*?)\]\]/, (m, w) => `<span class="hl ${o.certain === false || o.score * 100 < s.present_thr ? "rev" : "ok"}">${w}</span>`)} …</p>
-      ${o.certain === false ? `<p class="read">Lu : « ${esc(o.text)} », proche de « ${esc(k.term)} » sans être identique.</p>` : ""}</div>`).join("")}`, "sheet");
+      ${o.certain === false ? `<p class="read">Lu : « ${esc(o.text)} », proche de « ${esc(k.term)} » sans être identique.</p>` : ""}</div>`;
+  const dossierVerdict = `<span class="big">${found ? Math.round(c.score) : 0} %</span><span class="dec">${LONG[c.decision]}</span>`;
+
+  // ouvert depuis le dossier : le verdict du dossier, toutes les occurrences
+  if(!docId){
+    openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[c.decision] || ""}">${esc(k.term)}</span></h3><p class="msub">${esc(d.name)}</p>
+      <div class="ev-top">${dossierVerdict}</div>${why ? `<p class="ev-why">${why}</p>` : ""}
+      ${c.occurrences.map(card).join("")}`, "sheet");
+    return;
+  }
+  // ouvert depuis un document : d'abord le verdict DE CE DOCUMENT (il peut différer de celui du dossier :
+  // « puisssance » est à vérifier ici, alors que « puissance » est présent ailleurs dans le dossier)
+  const mine = c.occurrences.filter(o => o.doc_id === docId), others = c.occurrences.filter(o => o.doc_id !== docId);
+  const x = d.documents.find(y => y.id === docId);
+  const sure = o => o.certain !== false && o.score * 100 >= s.present_thr;
+  const best = Math.max(0, ...mine.map(o => o.score * 100));
+  const docDecision = mine.some(sure) ? "present" : best >= s.review_thr ? "a_verifier" : mine.length ? "absent_douteux" : "absent";
+  const docScore = docDecision === "present" ? best : Math.min(best, s.present_thr - 1);
+  const docWhy = {
+    present: "Lu tel quel dans ce document.",
+    a_verifier: "Un mot proche a été lu dans ce document, sans être identique. Regardez l'image pour trancher.",
+    absent_douteux: "Un mot ressemblant a été lu dans ce document, mais trop différent pour être retenu.",
+    absent: "Pas trouvé dans ce document.",
+  }[docDecision];
+  openModal(`${closeX}<h3 class="ev-term"><span class="hl ${HL[docDecision] || ""}">${esc(k.term)}</span></h3>
+    <p class="msub">${esc(x ? x.filename : "")}, dossier ${esc(d.name)}</p>
+    <div class="ev-top"><span class="big">${Math.round(docScore)} %</span><span class="dec">${LONG[docDecision]} <small>dans ce document</small></span></div>
+    <p class="ev-why">${docWhy}</p>
+    <p class="ev-dossier">Dans tout le dossier : <span class="hl ${HL[c.decision] || ""}">${LONG[c.decision]}</span>, ${found ? Math.round(c.score) : 0} %${
+      c.decision !== docDecision ? (others.length ? `, d'après ${plural(new Set(others.map(o => o.doc_id)).size, "autre document")}.` : ".") : "."}</p>
+    ${mine.map(card).join("")}
+    ${others.length ? `<h4 class="ev-sep">Autres documents du dossier</h4>${others.map(card).join("")}` : ""}`, "sheet");
 }
 
 /* menus */

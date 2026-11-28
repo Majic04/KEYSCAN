@@ -16,7 +16,9 @@ La décision pour un mot-clé dans un dossier : Présent, À vérifier, Absent o
                        le dossier, et en mode « prudent » seulement : lecture insuffisante,
                        ou mot-clé de 2 lettres dans un scan.
 
-Mode « tranché » (par défaut) : un mot non trouvé est Absent, sauf si un document n'a pas pu être lu du tout.
+Mode « tranché » (par défaut) : un mot non trouvé est Absent, sauf si un document n'a pas pu être lu du tout,
+ou si une page n'a été lue qu'en partie (couverture sous POOR_COVERAGE : la plus grande partie de son encre
+n'a été reconnue comme aucun mot, par exemple un scan très abîmé).
 Mode « prudent » : il reste « Absence incertaine » dès que la lecture d'un document est douteuse.
 """
 from __future__ import annotations
@@ -25,6 +27,14 @@ from .search import Keyword
 
 PRESENT, TO_CHECK, ABSENT, UNCERTAIN = "present", "a_verifier", "absent", "absent_douteux"
 LABELS = {PRESENT: "Présent", TO_CHECK: "À vérifier", ABSENT: "Absent", UNCERTAIN: "Absence incertaine"}
+# Une page lue par OCR dont moins de la moitié de l'encre a été reconnue comme des mots : on ne peut pas
+# affirmer qu'un mot n'y est pas. Banc d'essai : 94 à 100 % pour les scans lisibles, 1 à 9 % pour les très abîmés.
+POOR_COVERAGE = 0.5
+
+
+def poorly_read(pages: list[dict]) -> bool:
+    """Une des pages n'a-t-elle été lue qu'en partie ? (les pages lues avant cette mesure n'ont pas « cov »)"""
+    return any(page.get("cov") is not None and page["cov"] < POOR_COVERAGE for page in pages)
 
 
 def combine(scores: list[float]) -> float:
@@ -82,7 +92,7 @@ def evaluate(term: str, occurrences: list[dict], quality: float, pages: list[dic
     score, has_certain = keyword_score(occurrences)
     if not has_certain:
         score = min(score, float(max(0, int(present_thr) - 1)))   # mot seulement approchant : sous le seuil
-    if not prudent:                      # mode tranché : seul un document illisible empêche de conclure
-        return score, decide(score, 100.0, present_thr, review_thr, min_quality, unread > 0, has_certain)
-    uncertain = unread > 0 or absence_is_uncertain(term, pages)
+    if not prudent:                      # mode tranché : seul un document illisible (ou à peine lu) empêche de conclure
+        return score, decide(score, 100.0, present_thr, review_thr, min_quality, unread > 0 or poorly_read(pages), has_certain)
+    uncertain = unread > 0 or poorly_read(pages) or absence_is_uncertain(term, pages)
     return score, decide(score, quality, present_thr, review_thr, min_quality, uncertain, has_certain)

@@ -103,13 +103,22 @@ function kwList(d){
     + (absent.length ? title("absent", "Absents", absent) + words(absent, "") : "");
 }
 
+/* pages lues en partie seulement (couverture < 50 %, voir engine/decision.py) : aucune absence n'y est affirmée */
+const POOR_COVERAGE = 0.5;
+function partlyRead(x){
+  const poor = x.pages.map((p, i) => ({n: i + 1, cov: p.cov})).filter(p => p.cov != null && p.cov < POOR_COVERAGE);
+  if(!poor.length) return "";
+  const which = x.pages.length > 1 ? ` (page${poor.length > 1 ? "s" : ""} ${poor.map(p => p.n).join(", ")})` : "";
+  return `<br><span class="bad">Lu en partie seulement${which} : ${Math.round(Math.min(...poor.map(p => p.cov)) * 100)} % du texte reconnu. Aucune absence n'est affirmée.</span>`;
+}
+
 function docList(d){
   return `<div class="docs">` + d.documents.map(x => {
     const [lab, cls] = x.duplicate_of ? ["Doublon ignoré", "err"] : STATUS[x.status], pg = x.progress;
     const label = x.status === "en_cours" && pg && pg.total > 1 ? `Page ${Math.min(pg.done + 1, pg.total)} sur ${pg.total}` : lab;
     const info = x.duplicate_of ? `Identique à ${esc(x.duplicate_of)}, compté une seule fois`
       : x.status === "erreur" ? `<span title="${esc(x.error || "")}">Fichier corrompu ou protégé par un mot de passe : KeyScan ne peut pas l'ouvrir. Remplacez-le par une autre copie.</span>`
-      : x.status === "ok" ? `${plural(x.pages.length, "page")}, lecture ${Math.round(x.quality)} %`
+      : x.status === "ok" ? `${plural(x.pages.length, "page")}, confiance de lecture ${Math.round(x.quality)} %` + partlyRead(x)
       : pg && pg.total ? `${plural(pg.total, "page")}${pg.eta != null ? `, ${fmtEta(pg.eta)}` : ""}` : "";
     const showing = x.id === preview.doc;
     return `<div class="doc${showing ? " on" : ""}">
